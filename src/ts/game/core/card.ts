@@ -1,8 +1,8 @@
 // Card type, zone helpers, and card predicate functions.
 // Mirrors: src/cljc/game/core/card.cljc
 
-import type { Ability, Subroutine } from "./types.js";
-import type { GameState } from "./state.js";
+import type { Ability, Subroutine } from "./types.ts";
+import type { GameState } from "./state";
 
 // ---------------------------------------------------------------------------
 // Zone
@@ -92,7 +92,9 @@ export interface Card {
 // ---------------------------------------------------------------------------
 
 /** Gets the cid of a given card when wrapped in an effect-handler map. */
-export function getCid(card: Card | { card?: Card | null } | null): string | undefined {
+export function getCid(
+  card: Card | { card?: Card | null } | null,
+): string | undefined {
   if (!card) return undefined;
   // If wrapped in an effect-handler map with a :card key
   const wrapper = card as { card?: Card | null };
@@ -250,7 +252,11 @@ function zoneEquals(card: Card | null, expected: string[]): boolean {
  * Checks the property of the card to see if it is equal to the given value,
  * as either a string or a keyword.
  */
-function cardIs(card: Card | null, property: keyof Card, value: string): boolean {
+function cardIs(
+  card: Card | null,
+  property: keyof Card,
+  value: string,
+): boolean {
   if (!card) return false;
   const cv = card[property];
   if (cv === undefined || cv === null) return false;
@@ -331,7 +337,10 @@ export function basicAction(card: Card | null): boolean {
  * Checks if the specified subtype is present in the card, ignoring case.
  * Mirrors find-first with = comparison on subtypes array.
  */
-export function hasSubtype(card: Card | null, subtype: string): string | undefined {
+export function hasSubtype(
+  card: Card | null,
+  subtype: string,
+): string | undefined {
   if (!card || !card.subtypes) return undefined;
   const found = card.subtypes.find((s) => s === subtype);
   return found ?? undefined;
@@ -415,7 +424,9 @@ export function active(card: Card | null): boolean {
 // Advancement / counters
 // ---------------------------------------------------------------------------
 
-export function getAdvancementRequirement(card: Card | null): number | undefined {
+export function getAdvancementRequirement(
+  card: Card | null,
+): number | undefined {
   if (!agenda(card)) return undefined;
   return card?.currentAdvancementRequirement ?? card?.advancementcost;
 }
@@ -432,8 +443,14 @@ export function canBeAdvanced(card: Card | null): boolean;
 /**
  * Two-arity version: also checks the disabled-card registry.
  */
-export function canBeAdvanced(state: GameState | null, card: Card | null): boolean;
-export function canBeAdvanced(stateOrCard: GameState | Card | null, card?: Card | null): boolean {
+export function canBeAdvanced(
+  state: GameState | null,
+  card: Card | null,
+): boolean;
+export function canBeAdvanced(
+  stateOrCard: GameState | Card | null,
+  card?: Card | null,
+): boolean {
   // Determine arity
   let c: Card | null;
   let state: GameState | null = null;
@@ -463,7 +480,9 @@ export function canBeAdvanced(stateOrCard: GameState | Card | null, card?: Card 
     // Only agendas are implicitly advanceable; other advanceable cards
     // must not have their ability disabled.
     if (!agenda(c)) {
-      const disabledCardReg = (state as any).disabledCardReg as Record<string, boolean> | undefined;
+      const disabledCardReg = (state as any).disabledCardReg as
+        | Record<string, boolean>
+        | undefined;
       if (disabledCardReg?.[c.cid]) return false;
     }
   }
@@ -521,7 +540,10 @@ export function sameCard<T>(
 // ---------------------------------------------------------------------------
 
 /** Get the zero-based index of the given card in its server's list of content. */
-export function cardIndex(state: GameState, card: Card | null): number | undefined {
+export function cardIndex(
+  state: GameState,
+  card: Card | null,
+): number | undefined {
   if (!card) return undefined;
   if (card.index !== undefined) return card.index;
   const z = getZone(card);
@@ -541,7 +563,10 @@ export function cardIndex(state: GameState, card: Card | null): number | undefin
 }
 
 /** Get the verbal (ordinal word) index of the given card in its server's content. */
-export function verbalCardIndex(state: GameState, card: Card | null): string | undefined {
+export function verbalCardIndex(
+  state: GameState,
+  card: Card | null,
+): string | undefined {
   const idx = cardIndex(state, card);
   if (idx === undefined) return undefined;
   return ordinalWord(idx + 1);
@@ -550,10 +575,26 @@ export function verbalCardIndex(state: GameState, card: Card | null): string | u
 /** Convert a number (1-based) to its English ordinal word: 1->"first", 2->"second", etc. */
 function ordinalWord(n: number): string {
   const small: Record<number, string> = {
-    1: "first", 2: "second", 3: "third", 4: "fourth", 5: "fifth",
-    6: "sixth", 7: "seventh", 8: "eighth", 9: "ninth", 10: "tenth",
-    11: "eleventh", 12: "twelfth", 13: "thirteenth", 14: "fourteenth", 15: "fifteenth",
-    16: "sixteenth", 17: "seventeenth", 18: "eighteenth", 19: "nineteenth", 20: "twentieth",
+    1: "first",
+    2: "second",
+    3: "third",
+    4: "fourth",
+    5: "fifth",
+    6: "sixth",
+    7: "seventh",
+    8: "eighth",
+    9: "ninth",
+    10: "tenth",
+    11: "eleventh",
+    12: "twelfth",
+    13: "thirteenth",
+    14: "fourteenth",
+    15: "fifteenth",
+    16: "sixteenth",
+    17: "seventeenth",
+    18: "eighteenth",
+    19: "nineteenth",
+    20: "twentieth",
   };
   if (n in small) return small[n];
   return `${n}th`;
@@ -597,7 +638,8 @@ export function isPublic(card: Card | null, side?: string): boolean {
     // * in heap (discard)
     // * corp cards not in set-aside
     if (corp(card) && !inSetAside(card)) return true;
-    if ((installed(card) || card.host) && (faceup(card) || !facedown(card))) return true;
+    if ((installed(card) || card.host) && (faceup(card) || !facedown(card)))
+      return true;
     if (inDiscard(card)) return true;
   } else {
     // Public corp cards when viewed by runner:

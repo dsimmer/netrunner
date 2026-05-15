@@ -56,7 +56,7 @@ export {
   accessAb,
   accessAbLabel,
   accessHelperRemote,
-} from "./core/access.js";
+} from "./core/access";
 
 // ---- game.core.board (from core/board.ts) ----
 export {
@@ -78,7 +78,7 @@ export {
   allInstalledRunner,
   corpServerCards,
   runnerRigCards,
-} from "./core/board.js";
+} from "./core/board";
 
 // ---- game.core.card (from core/card.ts) ----
 export {
@@ -138,7 +138,7 @@ export {
   isInstallable,
   isUpgrade,
   printedTitle,
-} from "./core/card.js";
+} from "./core/card";
 
 // ---- game.core.effects (from core/effects.ts) ----
 export {
@@ -155,7 +155,7 @@ export {
   unregisterLingeringEffects,
   unregisterStaticAbilities,
   updateLingeringEffectDurations,
-} from "./core/effects.js";
+} from "./core/effects";
 
 // ---- game.core.eid (from core/eid.ts) ----
 export {
@@ -169,7 +169,7 @@ export {
   makeResult,
   registerEIDCallback,
   clearEIDWaitPrompt,
-} from "./core/eid.js";
+} from "./core/eid";
 
 // ---- game.core.finding (from core/finding.ts) ----
 export {
@@ -179,7 +179,7 @@ export {
   getCard,
   getAllCards,
   getScoringOwner,
-} from "./core/finding.js";
+} from "./core/finding";
 
 // ---- game.core.gaining (from core/gaining.ts) ----
 export {
@@ -191,7 +191,7 @@ export {
   loseClicks,
   getCredits,
   getClicks,
-} from "./core/gaining.js";
+} from "./core/gaining";
 
 // ---- game.core.hand-size (from core/hand_size.ts) ----
 export {
@@ -201,14 +201,10 @@ export {
   handSizeTotal,
   runnerHandSizePlus,
   updateHandSize,
-} from "./core/hand_size.js";
+} from "./core/hand_size";
 
 // ---- game.core.link (from core/link.ts) ----
-export {
-  getLink,
-  linkPlus,
-  updateLink,
-} from "./core/link.js";
+export { getLink, linkPlus, updateLink } from "./core/link";
 
 // ---- game.core.say (from core/say.ts) ----
 export {
@@ -226,7 +222,7 @@ export {
   systemMsgHR,
   systemSay,
   unsafeSay,
-} from "./core/say.js";
+} from "./core/say";
 
 // ---- game.core.state (from core/state.ts) ----
 export {
@@ -263,7 +259,7 @@ export {
   newGameState,
   newRunner,
   setSidePrompt,
-} from "./core/state.js";
+} from "./core/state";
 
 // ---- game.core.toasts (from core/toasts.ts) ----
 export {
@@ -271,7 +267,49 @@ export {
   ackToast,
   showErrorToast,
   toast,
-} from "./core/toasts.js";
+} from "./core/toasts";
+
+// ---- game.core.commands (from core/commands.ts) ----
+export {
+  commandAdvCounter,
+  commandBugReport,
+  commandChooseHqAccesses,
+  commandClosePrompt,
+  commandCounter,
+  commandDerez,
+  commandEnableApiAccess,
+  commandFacedown,
+  commandHost,
+  commandInstall,
+  commandInstallFree,
+  commandInstallIce,
+  commandPeek,
+  commandReloadId,
+  commandReplaceId,
+  commandRezAll,
+  commandRoll,
+  commandSaveReplay,
+  commandScore,
+  commandSetMark,
+  commandSummon,
+  commandSwapSides,
+  commandTrash,
+  commandUndoClick,
+  commandUndoPaidAbility,
+  commandUndoTurn,
+  commandUnique,
+  constrainValue,
+  lobbyCommand,
+  parseCommand,
+  executeCommand,
+} from "./core/commands";
+
+// ---- game.core.process-actions (from core/process_actions.ts) ----
+export {
+  commandParser,
+  processAction,
+  setProperty,
+} from "./core/process_actions";
 
 // ---- game.macros (from macros.ts) ----
 export {
@@ -286,9 +324,7 @@ export {
   findUndefinedLocals,
   emitOnly,
   effectStateHandler,
-} from "../macros.js";
-
-
+} from "../macros";
 
 // ---- Re-export shared types (from core/types.ts) ----
 export {
@@ -308,4 +344,4 @@ export {
   type ValueFn,
   getCardDef,
   registerCard,
-} from "./core/types.js";
+} from "./core/types.ts";

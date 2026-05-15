@@ -1,16 +1,16 @@
 // Props: add-prop, add-counter, set-prop.
 // Mirrors: src/clj/game/core/props.clj
 
-import type { GameState } from "./state.js";
-import type { EID } from "./eid.js";
-import type { Card } from "./card.js";
-import { getCard } from "./finding.js";
-import { update } from "./update.js";
-import { queueEvent } from "./engine.js";
-import { checkpoint } from "./checkpoint.js";
-import { effectCompleted } from "./eid.js";
-import { updateIceStrength } from "./ice.js";
-import { ice, rezzed } from "./card.js";
+import type { GameState } from "./state";
+import type { EID } from "./eid";
+import type { Card } from "./card";
+import { getCard } from "./finding";
+import { update } from "./update";
+import { queueEvent } from "./engine";
+import { checkpoint } from "./checkpoint";
+import { effectCompleted } from "./eid";
+import { updateIceStrength } from "./ice";
+import { ice, rezzed } from "./card";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -50,13 +50,22 @@ export function addProp(
   const updatedCard = resolvedCard;
   update(state, side, updatedCard);
 
-  const eventArgs = { counterType: propType, amount: n, placed: args?.placed, card: getCard(state, updatedCard) };
+  const eventArgs = {
+    counterType: propType,
+    amount: n,
+    placed: args?.placed,
+    card: getCard(state, updatedCard),
+  };
 
   if (propType === "advance-counter") {
     if (ice(updatedCard) && rezzed(updatedCard)) {
       updateIceStrength(state, side, updatedCard);
     }
-    queueEvent(state, args?.placed ? "advancement-placed" : "advance", eventArgs);
+    queueEvent(
+      state,
+      args?.placed ? "advancement-placed" : "advance",
+      eventArgs,
+    );
   } else {
     queueEvent(state, "counter-added", eventArgs);
   }

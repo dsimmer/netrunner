@@ -3,59 +3,59 @@
 // Mirrors: src/clj/game/core/engine.clj
 
 import { randomUUID } from "crypto";
-import type { GameState, Prompt } from "./state.js";
-import type { Card, Zone } from "./card.js";
-import type { EID } from "./eid.js";
+import type { GameState, Prompt } from "./state";
+import type { Card, Zone } from "./card";
+import type { EID } from "./eid";
 import type {
   Ability, ReqFn, MsgFn, AbilityFn, NumberFn, Cost, ChoicesSpec,
-} from "./types.js";
-import type { Effect, RegisteredEvent } from "./state.js";
-import { CORP_SIDE, RUNNER_SIDE, getPlayer } from "./state.js";
+} from "./types.ts";
+import type { Effect, RegisteredEvent } from "./state";
+import { CORP_SIDE, RUNNER_SIDE, getPlayer } from "./state";
 import {
   getTitle, getType, getSide, isCorp, isRunner, isInstalled,
   isRezzed, isFacedown, isFaceup, isAgenda, isICE, isUpgrade,
   isAsset, isCounter, isEvent, isOperation, isHardware, isProgram,
   isResource, isIdentity, isBasicAction, inHand, inDiscard, inRFG,
   getZone, inZone, printedTitle,
-} from "./card.js";
-import { getCardDef } from "./types.js";
+} from "./card";
+import { getCardDef } from "./types.ts";
 import {
   getEffectMaps, unregisterLingeringEffects, isDisabled,
   isDisabledReg, updateDisabledCards,
-} from "./effects.js";
+} from "./effects";
 import {
   makeEID, makeEIDFrom, effectCompleted, completeWithResult,
-} from "./eid.js";
-import { getCard, findCID, getAllCards } from "./finding.js";
+} from "./eid";
+import { getCard, findCID, getAllCards } from "./finding";
 import {
   canPay, buildSpendMsg,
-} from "./payment.js";
+} from "./payment";
 import {
   handler as payHandler,
-} from "./costs.js";
-import { addToPromptQueue } from "./prompt_state.js";
+} from "./costs";
+import { addToPromptQueue } from "./prompt_state";
 import {
   showPrompt, showSelect, showWaitPrompt, clearWaitPrompt,
-} from "./prompts.js";
-import { systemMsg, multiMsg, systemSay, nLastLogs } from "./say.js";
-import { update } from "./update.js";
-import { checkWinByAgenda } from "./winning.js";
-import { updateMU } from "./memory.js";
-import { cardStr } from "./to_string.js";
-import { otherSide } from "../../jinteki/utils.js";
+} from "./prompts";
+import { systemMsg, multiMsg, systemSay, nLastLogs } from "./say";
+import { update } from "./update";
+import { checkWinByAgenda } from "./winning";
+import { updateMU } from "./memory";
+import { cardStr } from "./to_string";
+import { otherSide } from "../../jinteki/utils";
 import {
   sameCard, sideStr, toKeyword, removeOnce, distinctBy,
   enumerateStr, inColl,
-} from "../utils.js";
+} from "../utils";
 import {
   allActiveInstalled, allInstalled, allInstalledRunner,
   allInstalledRunnerType, clearEmptyRemotes,
-} from "./board.js";
-import { continue_ability, req, wait_for } from "../macros.js";
-import { move as moveAction } from "./moving.js";
-import { checkpoint } from "./checkpoint.js";
-import type { CostData } from "./payment.js";
-import { toC } from "./payment.js";
+} from "./board";
+import { continue_ability, req, wait_for } from "../macros";
+import { move as moveAction } from "./moving";
+import { checkpoint } from "./checkpoint";
+import type { CostData } from "./payment";
+import { toC } from "./payment";
 
 import { canTrigger, dissocReq, registerOnce, resolveAbility } from './engine_1';
 import { automaticPriority, buildEventAbility, cardForAbility, gatherEvents, getAbilitySide, handlerSkippable, isActivePlayer, logEvent, triggerEventSyncNext, triggerSuppress, unregisterEventByUUID } from './engine_2';

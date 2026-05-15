@@ -1,11 +1,11 @@
 // Card lookup functions.
 // Mirrors: src/clj/game/core/finding.clj + src/go/game/core/finding.go
 
-import type { GameState } from "./state.js";
-import type { Card, Zone } from "./card.js";
-import { CORP_SIDE, RUNNER_SIDE } from "./state.js";
-import { isType, TYPE_IDENTITY, isCorp, isRunner } from "./card.js";
-import { sameCard } from "../utils.js";
+import type { GameState } from "./state";
+import type { Card, Zone } from "./card";
+import { CORP_SIDE, RUNNER_SIDE } from "./state";
+import { isType, TYPE_IDENTITY, isCorp, isRunner } from "./card";
+import { sameCard } from "../utils";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -14,10 +14,14 @@ import { sameCard } from "../utils.js";
 function getServerZone(state: GameState, serverName: string) {
   const { corp } = state;
   switch (serverName) {
-    case "hq": return corp.servers.hq;
-    case "rd": return corp.servers.rd;
-    case "archives": return corp.servers.archives;
-    default: return corp.servers.remote[serverName] ?? null;
+    case "hq":
+      return corp.servers.hq;
+    case "rd":
+      return corp.servers.rd;
+    case "archives":
+      return corp.servers.archives;
+    default:
+      return corp.servers.remote[serverName] ?? null;
   }
 }
 
@@ -27,14 +31,22 @@ function zoneCards(state: GameState, side: string, zone: Zone): Card[] {
   if (side === CORP_SIDE || side === "corp") {
     const c = state.corp;
     switch (zone[0]) {
-      case "hand": return c.hand;
-      case "deck": return c.deck;
-      case "discard": return c.discard;
-      case "scored": return c.scored;
-      case "rfg": return c.rfg;
-      case "play-area": return c.playArea;
-      case "current": return c.current;
-      case "set-aside": return c.setAside;
+      case "hand":
+        return c.hand;
+      case "deck":
+        return c.deck;
+      case "discard":
+        return c.discard;
+      case "scored":
+        return c.scored;
+      case "rfg":
+        return c.rfg;
+      case "play-area":
+        return c.playArea;
+      case "current":
+        return c.current;
+      case "set-aside":
+        return c.setAside;
       case "servers": {
         if (zone.length < 3) return [];
         const sv = getServerZone(state, zone[1]);
@@ -45,21 +57,33 @@ function zoneCards(state: GameState, side: string, zone: Zone): Card[] {
   } else {
     const r = state.runner;
     switch (zone[0]) {
-      case "hand": return r.hand;
-      case "deck": return r.deck;
-      case "discard": return r.discard;
-      case "scored": return r.scored;
-      case "rfg": return r.rfg;
-      case "play-area": return r.playArea;
-      case "current": return r.current;
-      case "set-aside": return r.setAside;
+      case "hand":
+        return r.hand;
+      case "deck":
+        return r.deck;
+      case "discard":
+        return r.discard;
+      case "scored":
+        return r.scored;
+      case "rfg":
+        return r.rfg;
+      case "play-area":
+        return r.playArea;
+      case "current":
+        return r.current;
+      case "set-aside":
+        return r.setAside;
       case "rig":
         if (zone.length < 2) return [];
         switch (zone[1]) {
-          case "hardware": return r.rig.hardware;
-          case "program": return r.rig.program;
-          case "resource": return r.rig.resource;
-          case "facedown": return r.rig.facedown;
+          case "hardware":
+            return r.rig.hardware;
+          case "program":
+            return r.rig.program;
+          case "resource":
+            return r.rig.resource;
+          case "facedown":
+            return r.rig.facedown;
         }
     }
   }
@@ -177,11 +201,30 @@ export function getAllCards(state: GameState): Card[] {
   }
   // Runner rig
   const rig = r.rig;
-  unchecked.push(...rig.facedown, ...rig.hardware, ...rig.program, ...rig.resource);
+  unchecked.push(
+    ...rig.facedown,
+    ...rig.hardware,
+    ...rig.program,
+    ...rig.resource,
+  );
   // Zones
   for (const zone of [
-    c.deck, c.hand, c.discard, c.current, c.scored, c.playArea, c.rfg, c.setAside,
-    r.deck, r.hand, r.discard, r.current, r.scored, r.playArea, r.rfg, r.setAside,
+    c.deck,
+    c.hand,
+    c.discard,
+    c.current,
+    c.scored,
+    c.playArea,
+    c.rfg,
+    c.setAside,
+    r.deck,
+    r.hand,
+    r.discard,
+    r.current,
+    r.scored,
+    r.playArea,
+    r.rfg,
+    r.setAside,
   ]) {
     unchecked.push(...zone);
   }

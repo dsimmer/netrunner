@@ -2,10 +2,10 @@
 // deactivation, card-implemented checks, and full card construction.
 // Mirrors: src/clj/game/core/initializing.clj
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import type { EID } from "./eid.js";
-import type { CardDef, Ability, AbilityFn, Subroutine } from "./types.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import type { EID } from "./eid";
+import type { CardDef, Ability, AbilityFn, Subroutine } from "./types.ts";
 import {
   isRunner,
   isProgram,
@@ -13,32 +13,29 @@ import {
   isRezzed,
   isFacedown,
   getZone,
-} from "./card.js";
-import { cardDef } from "./card_defs.js";
-import { makeEID, makeEIDFrom, effectCompleted } from "./eid.js";
-import {
-  registerStaticAbilities,
-  unregisterStaticAbilities,
-} from "./effects.js";
+} from "./card";
+import { cardDef } from "./card_defs";
+import { makeEID, makeEIDFrom, effectCompleted } from "./eid";
+import { registerStaticAbilities, unregisterStaticAbilities } from "./effects";
 import {
   registerDefaultEvents,
   registerEvents,
   unregisterEvents,
   isAbility,
   resolveAbility,
-} from "./engine.js";
-import { findCID, getCard } from "./finding.js";
-import { gain, lose } from "./gaining.js";
-import { initMuCost } from "./memory.js";
-import { addCostLabelToAbility } from "./payment.js";
-import { addCounter } from "./props.js";
+} from "./engine";
+import { findCID, getCard } from "./finding";
+import { gain, lose } from "./gaining";
+import { initMuCost } from "./memory";
+import { addCostLabelToAbility } from "./payment";
+import { addCounter } from "./props";
 
-import { allActive, allActiveInstalled } from "./board.js";
-import { makeLabel } from "../../jinteki/utils.js";
-import { makeCID, makeTimestamp, serverCard, toKeyword } from "../utils.js";
-import { addSub } from "./ice.js";
-import { CORP_SIDE, RUNNER_SIDE } from "./state.js";
-import { breakSubAbilityCost, cardAbilityCost } from "./cost_fns.js";
+import { allActive, allActiveInstalled } from "./board";
+import { makeLabel } from "../../jinteki/utils";
+import { makeCID, makeTimestamp, serverCard, toKeyword } from "../utils";
+import { addSub } from "./ice";
+import { CORP_SIDE, RUNNER_SIDE } from "./state";
+import { breakSubAbilityCost, cardAbilityCost } from "./cost_fns";
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -48,7 +45,10 @@ import { breakSubAbilityCost, cardAbilityCost } from "./cost_fns.js";
  * Merge properties from src onto dest (in-place mutation).
  * Mirrors Clojure's (merge dest src).
  */
-function mergeProps(dest: Record<string, unknown>, src: Record<string, unknown>): void {
+function mergeProps(
+  dest: Record<string, unknown>,
+  src: Record<string, unknown>,
+): void {
   for (const [k, v] of Object.entries(src)) {
     if (v !== undefined) {
       dest[k] = v;
@@ -140,7 +140,11 @@ function updateInState(state: GameState, side: string, card: Card): void {
  * When state is not available (e.g. makeCard), creates basic subroutine wrappers.
  * Mirrors: subroutines-init
  */
-function subroutinesInit(card: Card, cdef: CardDef, state?: GameState): Subroutine[] {
+function subroutinesInit(
+  card: Card,
+  cdef: CardDef,
+  state?: GameState,
+): Subroutine[] {
   const subroutinesDef = cdef.subroutines ?? [];
   if (!state) {
     // No state available (e.g. during makeCard) - create basic wrappers
@@ -154,9 +158,7 @@ function subroutinesInit(card: Card, cdef: CardDef, state?: GameState): Subrouti
   }
   // Full initialization with state
   const baseCard = { ...card, subroutines: undefined };
-  return subroutinesDef.map((sub) =>
-    addSub(state, sub, baseCard),
-  );
+  return subroutinesDef.map((sub) => addSub(state, sub, baseCard));
 }
 
 // ---------------------------------------------------------------------------
@@ -195,7 +197,11 @@ function runnerAbilityInit(cdef: CardDef): Ability[] {
   const abilities = cdef.runnerAbilities ?? [];
   return abilities.map((ab) => {
     const cost = ab.breakCost ?? ab.cost;
-    const withCost = { cost: ab.cost, breakCost: ab.breakCost, label: makeLabel(ab) };
+    const withCost = {
+      cost: ab.cost,
+      breakCost: ab.breakCost,
+      label: makeLabel(ab),
+    };
     return addCostLabelToAbility(withCost, cost);
   });
 }
@@ -243,11 +249,7 @@ function dissocCard(card: Card, keepCounter: boolean, state?: GameState): Card {
  * Triggers leave effects for specified card if relevant.
  * Mirrors: trigger-leave-effect (private)
  */
-function triggerLeaveEffect(
-  state: GameState,
-  side: string,
-  card: Card,
-): void {
+function triggerLeaveEffect(state: GameState, side: string, card: Card): void {
   const cdef = cardDef(card);
   const leaveEffect = cdef.leavePlay;
   if (!leaveEffect) return;
@@ -257,7 +259,8 @@ function triggerLeaveEffect(
 
   // Check activation conditions
   if (card.disabled) return;
-  if (isRunner(card) && card.host && !isInstalled(card) && !isFacedown(card)) return;
+  if (isRunner(card) && card.host && !isInstalled(card) && !isFacedown(card))
+    return;
 
   const isActive =
     (isRunner(card) && isInstalled(card) && !isFacedown(card)) ||
@@ -294,11 +297,7 @@ export function deactivate(
   // Lose :in-play resources if card was active-installed
   const activeInstalled = allActiveInstalled(state, side);
   const found = findCID(card.cid, activeInstalled);
-  if (
-    found &&
-    !card.disabled &&
-    (isRezzed(card) || isInstalled(card))
-  ) {
+  if (found && !card.disabled && (isRezzed(card) || isInstalled(card))) {
     const cdef = cardDef(card);
     const inPlay = cdef.inPlay;
     if (inPlay && Array.isArray(inPlay)) {
@@ -356,7 +355,9 @@ export function cardInit(
   // Build counter data from card-def
   const counterData: Record<string, number> = {};
   if (opts.initData && cdef.data?.counter) {
-    for (const [k, v] of Object.entries(cdef.data.counter as Record<string, number>)) {
+    for (const [k, v] of Object.entries(
+      cdef.data.counter as Record<string, number>,
+    )) {
       counterData[k] = v;
     }
   }
@@ -369,7 +370,9 @@ export function cardInit(
     } else if (typeof recurring === "number") {
       recurringValue = recurring;
     } else {
-      throw new Error(`${card.title ?? "unknown"} - Recurring isn't number or fn`);
+      throw new Error(
+        `${card.title ?? "unknown"} - Recurring isn't number or fn`,
+      );
     }
     counterData.recurring = recurringValue;
   }
@@ -441,7 +444,10 @@ export function cardInit(
   if (opts.resolveEffect && isAbility(cdef as unknown as Ability)) {
     const abilityEid = { ...eid, sourceType: "ability" };
     // Dissoc :cost and :additional-cost from cdef for ability resolution
-    const { cost, additionalCost, ...cdefWithoutCost } = cdef as Record<string, unknown>;
+    const { cost, additionalCost, ...cdefWithoutCost } = cdef as Record<
+      string,
+      unknown
+    >;
     resolveAbility(state, side, cdefWithoutCost as Ability, c, []);
   } else {
     effectCompleted(state, side, eid);
@@ -472,13 +478,19 @@ function updateAbilityCostStr(
   state: GameState,
   side: string,
   card: Card,
-  abilityKw: keyof Pick<Card, "abilities" | "corpAbilities" | "runnerAbilities">,
+  abilityKw: keyof Pick<
+    Card,
+    "abilities" | "corpAbilities" | "runnerAbilities"
+  >,
 ): Ability[] {
   const abilities = card[abilityKw] ?? [];
   return abilities.map((ab) => {
     let abCost: Ability;
     if (ab.breakCost) {
-      abCost = { ...ab, cost: breakSubAbilityCost(state, side, ab, card) as any };
+      abCost = {
+        ...ab,
+        cost: breakSubAbilityCost(state, side, ab, card) as any,
+      };
     } else {
       abCost = ab;
     }
@@ -491,7 +503,11 @@ function updateAbilityCostStr(
  * Update cost strings for all ability categories on a card.
  * Mirrors: update-abilities-cost-str
  */
-function updateAbilitiesCostStr(state: GameState, side: string, card: Card): Card {
+function updateAbilitiesCostStr(
+  state: GameState,
+  side: string,
+  card: Card,
+): Card {
   return {
     ...card,
     abilities: updateAbilityCostStr(state, side, card, "abilities"),
@@ -557,15 +573,28 @@ export function cardImplemented(card: Card): string | null {
  * Makes or remakes (with current cid) a proper card from a server card.
  * Mirrors: make-card
  */
-export function makeCard(cardData: Record<string, unknown>, cid?: string): Card {
+export function makeCard(
+  cardData: Record<string, unknown>,
+  cid?: string,
+): Card {
   const cardCid = cid ?? makeCID();
   const cdef = cardDef({ ...cardData, cid: cardCid } as Card);
 
   // Remove unwanted keys from source data
   const removeKeys = [
-    "setname", "text", "_id", "influence", "number", "influencelimit",
-    "images", "previous-versions", "rotated",
-    "image_url", "factioncost", "format", "quantity",
+    "setname",
+    "text",
+    "_id",
+    "influence",
+    "number",
+    "influencelimit",
+    "images",
+    "previous-versions",
+    "rotated",
+    "image_url",
+    "factioncost",
+    "format",
+    "quantity",
   ];
   const cleaned: Record<string, unknown> = { ...cardData };
   for (const k of removeKeys) {
@@ -575,7 +604,8 @@ export function makeCard(cardData: Record<string, unknown>, cid?: string): Card 
   const newCard: Card = {
     ...cleaned,
     cid: cardCid,
-    implementation: cardImplemented({ ...cardData, cid: cardCid } as Card) ?? undefined,
+    implementation:
+      cardImplemented({ ...cardData, cid: cardCid } as Card) ?? undefined,
     subroutines: subroutinesInit({ ...cardData, cid: cardCid } as Card, cdef),
     abilities: abilityInit(cdef),
     xFn: cdef.xFn,
@@ -596,11 +626,7 @@ export function makeCard(cardData: Record<string, unknown>, cid?: string): Card 
  * Resets a card back to its original state - retaining any data in the :persistent key.
  * Mirrors: reset-card
  */
-export function resetCard(
-  state: GameState,
-  side: string,
-  card: Card,
-): Card {
+export function resetCard(state: GameState, side: string, card: Card): Card {
   // Remove from per-turn registry
   if (state.perTurn && card.cid) {
     delete (state.perTurn as Record<string, unknown>)[card.cid];

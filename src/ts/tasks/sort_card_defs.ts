@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import { readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { slugify } from "../jinteki/utils.js";
+import { slugify } from "../jinteki/utils";
 
 // ---------------------------------------------------------------------------
 // sort_card_defs (mirrors tasks.sort-card-defs)
@@ -11,17 +11,17 @@ import { slugify } from "../jinteki/utils.js";
 const BASE_DIR = "src/clj/game/cards";
 
 const TYPES = [
-	"agendas",
-	"assets",
-	"basic",
-	"events",
-	"hardware",
-	"ice",
-	"identities",
-	"operations",
-	"programs",
-	"resources",
-	"upgrades",
+  "agendas",
+  "assets",
+  "basic",
+  "events",
+  "hardware",
+  "ice",
+  "identities",
+  "operations",
+  "programs",
+  "resources",
+  "upgrades",
 ];
 
 /**
@@ -29,11 +29,11 @@ const TYPES = [
  * Mirrors: (open-base-defs)
  */
 function openBaseDefs(): string[] {
-	const dirPath = join(process.cwd(), BASE_DIR);
-	const filenames = readdirSync(dirPath)
-		.filter((f) => f.endsWith(".clj"))
-		.sort();
-	return filenames.map((f) => readFileSync(join(dirPath, f), "utf-8"));
+  const dirPath = join(process.cwd(), BASE_DIR);
+  const filenames = readdirSync(dirPath)
+    .filter((f) => f.endsWith(".clj"))
+    .sort();
+  return filenames.map((f) => readFileSync(join(dirPath, f), "utf-8"));
 }
 
 /**
@@ -41,33 +41,34 @@ function openBaseDefs(): string[] {
  * Mirrors: (split-em)
  */
 export function splitEm(fileStrings: string[] = openBaseDefs()): void {
-	for (const [idx, type] of TYPES.entries()) {
-		const file = fileStrings[idx];
-		if (!file) continue;
+  for (const [idx, type] of TYPES.entries()) {
+    const file = fileStrings[idx];
+    if (!file) continue;
 
-		// Header: everything up to and including ";; Card definitions\n\n"
-		const header = file
-			.split(";; Card definitions\n\n")[0]
-			.concat(";; Card definitions\n\n");
+    // Header: everything up to and including ";; Card definitions\n\n"
+    const header = file
+      .split(";; Card definitions\n\n")[0]
+      .concat(";; Card definitions\n\n");
 
-		// Card defs: everything after ";; Card definitions"
-		// Split on "\n\n(defcard " to get individual card definitions
-		const cardDefs = file
-			.split(";; Card definitions")[1]
-			?.split(/\n\n\(defcard /)
-			.filter((d): d is string => Boolean(d?.trim()))
-			.map((d) => `(defcard ${d}`)
-			.sort((a, b) => {
-				const slugA = slugify(getCardName(a), " ");
-				const slugB = slugify(getCardName(b), " ");
-				return slugA.localeCompare(slugB);
-			})
-			.join("\n\n") ?? "";
+    // Card defs: everything after ";; Card definitions"
+    // Split on "\n\n(defcard " to get individual card definitions
+    const cardDefs =
+      file
+        .split(";; Card definitions")[1]
+        ?.split(/\n\n\(defcard /)
+        .filter((d): d is string => Boolean(d?.trim()))
+        .map((d) => `(defcard ${d}`)
+        .sort((a, b) => {
+          const slugA = slugify(getCardName(a), " ");
+          const slugB = slugify(getCardName(b), " ");
+          return slugA.localeCompare(slugB);
+        })
+        .join("\n\n") ?? "";
 
-		const outputPath = join(process.cwd(), BASE_DIR, `${type}.clj`);
-		writeFileSync(outputPath, header + cardDefs);
-		console.log("Wrote", outputPath);
-	}
+    const outputPath = join(process.cwd(), BASE_DIR, `${type}.clj`);
+    writeFileSync(outputPath, header + cardDefs);
+    console.log("Wrote", outputPath);
+  }
 }
 
 /**
@@ -75,12 +76,12 @@ export function splitEm(fileStrings: string[] = openBaseDefs()): void {
  * Mirrors: (last (re-find #"defcard \"(.+)\"" %))
  */
 function getCardName(defcard: string): string {
-	const match = defcard.match(/defcard "([^"]+)"/);
-	return match ? match[1] : "";
+  const match = defcard.match(/defcard "([^"]+)"/);
+  return match ? match[1] : "";
 }
 
 // Allow running from command line
 if (import.meta.url === `file://${process.argv[1]}`) {
-	splitEm();
-	console.log("Done.");
+  splitEm();
+  console.log("Done.");
 }

@@ -1,12 +1,12 @@
 // Set-aside zone management.
 // Mirrors: src/clj/game/core/set_aside.clj
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import type { EID } from "./eid.js";
-import { CORP_SIDE, RUNNER_SIDE } from "./state.js";
-import { inSetAside } from "./card.js";
-import { move, swapCards } from "./moving.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import type { EID } from "./eid";
+import { CORP_SIDE, RUNNER_SIDE } from "./state";
+import { inSetAside } from "./card";
+import { move, swapCards } from "./moving";
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -16,7 +16,10 @@ function getPlayer(state: GameState, side: string): Record<string, unknown> {
   return side === CORP_SIDE ? state.corp : state.runner;
 }
 
-function getSetAsideTracking(state: GameState, side: string): Record<string, string[]> {
+function getSetAsideTracking(
+  state: GameState,
+  side: string,
+): Record<string, string[]> {
   const player = getPlayer(state, side);
   return (player["setAsideTracking"] as Record<string, string[]>) ?? {};
 }
@@ -158,7 +161,11 @@ export function swapSetAsideCards(
   const [aMoved, bMoved] = swappedCards;
 
   if (inSetAside(a)) {
-    const vis = (a.setAsideVisibility as { corpCanSee: boolean | null; runnerCanSee: boolean | null }) ?? {};
+    const vis =
+      (a.setAsideVisibility as {
+        corpCanSee: boolean | null;
+        runnerCanSee: boolean | null;
+      }) ?? {};
     addToSetAside(
       state,
       side,
@@ -168,7 +175,11 @@ export function swapSetAsideCards(
     );
   }
   if (inSetAside(b)) {
-    const vis = (b.setAsideVisibility as { corpCanSee: boolean | null; runnerCanSee: boolean | null }) ?? {};
+    const vis =
+      (b.setAsideVisibility as {
+        corpCanSee: boolean | null;
+        runnerCanSee: boolean | null;
+      }) ?? {};
     addToSetAside(
       state,
       side,

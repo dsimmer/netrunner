@@ -1,7 +1,7 @@
 // Prompt queue and prompt-state management.
 // Mirrors: src/clj/game/core/prompt-state.clj
 
-import type { GameState, Prompt } from "./state.js";
+import type { GameState, Prompt } from "./state";
 
 /**
  * Sets the current prompt-state for the given side.
@@ -9,7 +9,11 @@ import type { GameState, Prompt } from "./state.js";
  * When called with (state, side, prompt), directly sets the prompt-state.
  * Mirrors set-prompt-state in prompt-state.clj.
  */
-export function setPromptState(state: GameState, side: string, prompt?: Prompt): void {
+export function setPromptState(
+  state: GameState,
+  side: string,
+  prompt?: Prompt,
+): void {
   if (prompt === undefined) {
     const queue = side === "corp" ? state.corpPrompt : state.runnerPrompt;
     prompt = queue[0];
@@ -25,7 +29,11 @@ export function setPromptState(state: GameState, side: string, prompt?: Prompt):
  * Removes a prompt from the queue and updates the current prompt-state.
  * Mirrors remove-from-prompt-queue in prompt-state.clj.
  */
-export function removeFromPromptQueue(state: GameState, side: string, prompt: Prompt): void {
+export function removeFromPromptQueue(
+  state: GameState,
+  side: string,
+  prompt: Prompt,
+): void {
   if (side === "corp") {
     state.corpPrompt = state.corpPrompt.filter((p) => p !== prompt);
   } else {
@@ -39,7 +47,11 @@ export function removeFromPromptQueue(state: GameState, side: string, prompt: Pr
  * and updates the current prompt-state.
  * Mirrors add-to-prompt-queue in prompt-state.clj.
  */
-export function addToPromptQueue(state: GameState, side: string, prompt: Prompt): void {
+export function addToPromptQueue(
+  state: GameState,
+  side: string,
+  prompt: Prompt,
+): void {
   if (side === "corp") {
     state.corpPrompt = [prompt, ...state.corpPrompt];
   } else {

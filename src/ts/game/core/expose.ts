@@ -1,18 +1,18 @@
 // Expose resolution.
 // Mirrors: src/clj/game/core/expose.clj
 
-import type { GameState } from "./state.js";
-import type { EID } from "./eid.js";
-import type { Card } from "./card.js";
-import { isRezzed } from "./card.js";
-import { cardDef } from "./card_defs.js";
-import { completeWithResult, effectCompleted } from "./eid.js";
-import { anyEffects } from "./effects.js";
-import { checkpoint, queueEvent, registerPendingEvent } from "./engine.js";
-import { resolveExposePrevention } from "./prevention.js";
-import { systemMsg } from "./say.js";
-import { cardStr } from "./to_string.js";
-import { enumerateStr } from "../utils.js";
+import type { GameState } from "./state";
+import type { EID } from "./eid";
+import type { Card } from "./card";
+import { isRezzed } from "./card";
+import { cardDef } from "./card_defs";
+import { completeWithResult, effectCompleted } from "./eid";
+import { anyEffects } from "./effects";
+import { checkpoint, queueEvent, registerPendingEvent } from "./engine";
+import { resolveExposePrevention } from "./prevention";
+import { systemMsg } from "./say";
+import { cardStr } from "./to_string";
+import { enumerateStr } from "../utils";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -53,7 +53,10 @@ export async function resolveExpose(
     const ability = cardDef(t).onExpose;
     if (ability) {
       // if it gets rezzed by blackguard or something, the effect shouldn't fizzle
-      registerPendingEvent(state, "expose", t, { ...ability, condition: "installed" });
+      registerPendingEvent(state, "expose", t, {
+        ...ability,
+        condition: "installed",
+      });
     }
   }
 
@@ -85,7 +88,14 @@ export async function expose(
     (target) =>
       target &&
       !isRezzed(target) &&
-      !anyEffects(state, side, "cannot-be-exposed", (v) => v === true, target, []),
+      !anyEffects(
+        state,
+        side,
+        "cannot-be-exposed",
+        (v) => v === true,
+        target,
+        [],
+      ),
   );
 
   if (filtered.length === 0) {

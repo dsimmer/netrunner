@@ -1,37 +1,54 @@
-import dayjs from 'dayjs';
 import type { Db } from 'mongodb';
-import { connect, disconnect } from './setup';
-import * as csv from 'csv-stringify';
+import { connect, disconnect, type TaskSystem } from './setup';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const ymdFormatter = 'YYYY-MM-DD';
+function formatYMD(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 function monthsAgo(n: number): string {
-  return dayjs().subtract(n, 'month').format(ymdFormatter);
+  const d = new Date();
+  d.setMonth(d.getMonth() - n);
+  return formatYMD(d);
+}
+
+function csvEscape(value: unknown): string {
+  const s = value == null ? '' : String(value);
+  if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+function csvLine(values: unknown[]): string {
+  return values.map(csvEscape).join(',') + '\n';
 }
 
 function writeFile(
   headers: string[],
   filename: string,
-  data: { _id: string; count: number }[]
+  data: { _id: string | null; count: number }[]
 ): void {
   fs.mkdirSync(path.dirname(filename), { recursive: true });
-  const lines: string[] = [csv.stringifySync(headers)];
+  const lines: string[] = [csvLine(headers)];
   for (const row of data) {
-    lines.push(csv.stringifySync([row._id, row.count]));
+    lines.push(csvLine([row._id, row.count]));
   }
   fs.writeFileSync(filename, lines.join(''), 'utf-8');
 }
 
 async function allUsersFn(
   db: Db,
-  date: dayjs.Dayjs
+  date: Date
 ): Promise<{ _id: string; count: number }[]> {
   return db.collection('users').aggregate([
     {
       $match: {
-        registrationDate: { $gte: date.toDate() },
+        registrationDate: { $gte: date },
       },
     },
     {
@@ -46,12 +63,12 @@ async function allUsersFn(
 
 async function allBackgroundsFn(
   db: Db,
-  date: dayjs.Dayjs
+  date: Date
 ): Promise<{ _id: string | null; count: number }[]> {
   return db.collection('users').aggregate([
     {
       $match: {
-        registrationDate: { $gte: date.toDate() },
+        registrationDate: { $gte: date },
       },
     },
     {
@@ -66,15 +83,15 @@ async function allBackgroundsFn(
 async function aggregateShell(
   filename: string,
   startDateStr: string,
-  userfn: (db: Db, date: dayjs.Dayjs) => Promise<unknown[]>,
+  userfn: (db: Db, date: Date) => Promise<{ _id: string | null; count: number }[]>,
   headers: string[]
 ): Promise<void> {
-  const system = await connect();
+  const system: TaskSystem = await connect();
   try {
-    const { db } = system.mongodb;
-    const startDate = dayjs(startDateStr);
+    const db = system.db;
+    const startDate = new Date(startDateStr);
     const results = await userfn(db, startDate);
-    writeFile(headers, filename, results as { _id: string; count: number }[]);
+    writeFile(headers, filename, results);
     console.log(`Wrote ${results.length} entries`);
   } catch (e) {
     console.error(e);

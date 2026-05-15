@@ -1,40 +1,63 @@
 // Ice mechanics: subroutines, strength, break abilities, pump, auto-pump.
 // Mirrors: src/clj/game/core/ice.clj
 
-import type { GameState, ServerZone, Encounter } from "./state.js";
-import type { Card, Zone } from "./card.js";
-import type { EID } from "./eid.js";
-import type { Ability, Subroutine, ValueFn, ReqFn, CardDef, AbilityFn, NumberFn } from "./types.js";
-import { CORP_SIDE, RUNNER_SIDE } from "./state.js";
+import type { GameState, ServerZone, Encounter } from "./state";
+import type { Card, Zone } from "./card";
+import type { EID } from "./eid";
+import type {
+  Ability,
+  Subroutine,
+  ValueFn,
+  ReqFn,
+  CardDef,
+  AbilityFn,
+  NumberFn,
+} from "./types.ts";
+import { CORP_SIDE, RUNNER_SIDE } from "./state";
+import { isICE, isInstalled, isRezzed, hasSubtype, getTitle } from "./card";
+import { getCardDef } from "./types.ts";
+import { breakSubAbilityCost, cardAbilityCost } from "./cost_fns";
 import {
-  isICE, isInstalled, isRezzed, hasSubtype, getTitle,
-} from "./card.js";
-import { getCardDef } from "./types.js";
-import { breakSubAbilityCost, cardAbilityCost } from "./cost_fns.js";
+  makeEID,
+  makeEIDFrom,
+  effectCompleted,
+  completeWithResult,
+} from "./eid";
 import {
-  makeEID, makeEIDFrom, effectCompleted, completeWithResult,
-} from "./eid.js";
-import {
-  getEffects, sumEffects, anyEffects, isDisabledReg,
+  getEffects,
+  sumEffects,
+  anyEffects,
+  isDisabledReg,
   registerLingeringEffect,
-} from "./effects.js";
+} from "./effects";
 import {
-  resolveAbility, triggerEventSimult, triggerEvent, abilityAsHandler,
-} from "./engine.js";
-import { canPay, mergeCosts, buildCostLabel, toC } from "./payment.js";
-import { stealthValue } from "./costs.js";
-import { systemMsg } from "./say.js";
-import { update } from "./update.js";
-import { req, effect, msg } from "./macros.js";
-import { sameCard, pluralize, quantify, removeOnce } from "../utils.js";
-import { makeLabel } from "../../jinteki/utils.js";
-import {
-  allActiveInstalled, allInstalled, cardToServer,
-} from "./board.js";
-import { getCard } from "./finding.js";
+  resolveAbility,
+  triggerEventSimult,
+  triggerEvent,
+  abilityAsHandler,
+} from "./engine";
+import { canPay, mergeCosts, buildCostLabel, toC } from "./payment";
+import { stealthValue } from "./costs";
+import { systemMsg } from "./say";
+import { update } from "./update";
+import { req, effect, msg } from "./macros";
+import { sameCard, pluralize, quantify, removeOnce } from "../utils";
+import { makeLabel } from "../../jinteki/utils";
+import { allActiveInstalled, allInstalled, cardToServer } from "./board";
+import { getCard } from "./finding";
 
-import { breakableSubroutinesChoice, buildSub, getCurrentIce, getPumpStrength, getStrength, iceStrength, isActiveIce, reconcileSubroutines, updateIceStrength } from './ice_1';
-import type { RuntimeSubroutine } from './ice_1';
+import {
+  breakableSubroutinesChoice,
+  buildSub,
+  getCurrentIce,
+  getPumpStrength,
+  getStrength,
+  iceStrength,
+  isActiveIce,
+  reconcileSubroutines,
+  updateIceStrength,
+} from "./ice_1";
+import type { RuntimeSubroutine } from "./ice_1";
 
 /**
  * Builds any unbuilt subroutine definitions.
@@ -44,14 +67,22 @@ function buildUnbuiltSubs(sub: RuntimeSubroutine): RuntimeSubroutine {
   if (sub.variable !== undefined || sub.fromCid) {
     return sub;
   }
-  return { ...buildSub(sub, sub.fromCid ?? ""), variable: sub.variable, printed: sub.printed };
+  return {
+    ...buildSub(sub, sub.fromCid ?? ""),
+    variable: sub.variable,
+    printed: sub.printed,
+  };
 }
 
 /**
  * Gets the expected subroutines for an ice based on card def and effects.
  * Mirrors: get-expected-subroutines
  */
-export function getExpectedSubroutines(state: GameState, side: string, ice: Card): RuntimeSubroutine[] {
+export function getExpectedSubroutines(
+  state: GameState,
+  side: string,
+  ice: Card,
+): RuntimeSubroutine[] {
   const cdef = getCardDef(ice);
 
   if (isDisabledReg(state, ice) || !isRezzed(ice)) {
@@ -61,14 +92,21 @@ export function getExpectedSubroutines(state: GameState, side: string, ice: Card
     );
   }
 
-  const printedSubsToLose = sumEffects(state, side, "lose-printed-subroutines", ice, []) ?? 0;
+  const printedSubsToLose =
+    sumEffects(state, side, "lose-printed-subroutines", ice, []) ?? 0;
   const basePrintedSubs = ((cdef.subroutines as any[]) ?? []).map((s) =>
     buildSub(s as any, ice.cid ?? "", { printed: true }),
   );
   const printedSubroutines = basePrintedSubs.slice(printedSubsToLose);
 
   // Additional subroutines from effects
-  const appliedSubs = getEffects(state, side, "additional-subroutines", ice, []);
+  const appliedSubs = getEffects(
+    state,
+    side,
+    "additional-subroutines",
+    ice,
+    [],
+  );
   const appliedFront: RuntimeSubroutine[] = [];
   const appliedEnd: RuntimeSubroutine[] = [];
   for (const ap of appliedSubs) {
@@ -77,14 +115,22 @@ export function getExpectedSubroutines(state: GameState, side: string, ice: Card
       const uuid = (ap as any).uuid;
       const cid = (ap as any).cid;
       for (const s of subs) {
-        appliedFront.push({ ...s, source: uuid, fromCid: cid } as RuntimeSubroutine);
+        appliedFront.push({
+          ...s,
+          source: uuid,
+          fromCid: cid,
+        } as RuntimeSubroutine);
       }
     } else {
       const subs = ((ap as any).subroutines as any[]) ?? [];
       const uuid = (ap as any).uuid;
       const cid = (ap as any).cid;
       for (const s of subs) {
-        appliedEnd.push({ ...s, source: uuid, fromCid: cid } as RuntimeSubroutine);
+        appliedEnd.push({
+          ...s,
+          source: uuid,
+          fromCid: cid,
+        } as RuntimeSubroutine);
       }
     }
   }
@@ -112,19 +158,29 @@ export function getExpectedSubroutines(state: GameState, side: string, ice: Card
  * Updates the given ice's subroutines by checking what it should have.
  * Mirrors: update-ice-subroutines
  */
-export function updateIceSubroutines(state: GameState, side: string, ice: Card): boolean {
+export function updateIceSubroutines(
+  state: GameState,
+  side: string,
+  ice: Card,
+): boolean {
   const resolved = getCard(state, ice);
   if (!resolved) return false;
 
   const expected = getExpectedSubroutines(state, side, resolved);
   const active = (resolved.subroutines as RuntimeSubroutine[]) ?? [];
 
-  const expectedKeys = expected.map((s) => ({ source: s.source, label: s.label }));
+  const expectedKeys = expected.map((s) => ({
+    source: s.source,
+    label: s.label,
+  }));
   const activeKeys = active.map((s) => ({ source: s.source, label: s.label }));
 
   const keysMatch =
     expectedKeys.length === activeKeys.length &&
-    expectedKeys.every((k, i) => k.source === activeKeys[i].source && k.label === activeKeys[i].label);
+    expectedKeys.every(
+      (k, i) =>
+        k.source === activeKeys[i].source && k.label === activeKeys[i].label,
+    );
 
   if (keysMatch) return false;
 
@@ -142,7 +198,11 @@ export function updateIceSubroutines(state: GameState, side: string, ice: Card):
  * Updates all ice in a given server.
  * Mirrors: update-ice-in-server
  */
-export function updateIceInServer(state: GameState, side: string, server: ServerZone): boolean {
+export function updateIceInServer(
+  state: GameState,
+  side: string,
+  server: ServerZone,
+): boolean {
   let changed = false;
   for (const ice of server.ices) {
     if (updateIceStrength(state, side, ice)) changed = true;
@@ -219,7 +279,11 @@ export function pumpAllIce(
  * Gets the modified strength of the given icebreaker.
  * Mirrors: breaker-strength
  */
-export function breakerStrength(state: GameState, side: string, card: Card): number | null {
+export function breakerStrength(
+  state: GameState,
+  side: string,
+  card: Card,
+): number | null {
   if (card.strength === undefined || card.strength === null) return null;
   const cdef = getCardDef(card);
   const strengthBonusFn = cdef.strengthBonus as NumberFn | undefined;
@@ -240,8 +304,10 @@ export function breakerStrengthBonus(
 ): Ability {
   return {
     type: "breaker-strength" as any,
-    req: req((state, side, eid, card, targets) =>
-      sameCard(card, (targets as Card[])[0]) && reqFn(state, side, eid, card, targets),
+    req: req(
+      (state, side, eid, card, targets) =>
+        sameCard(card, (targets as Card[])[0]) &&
+        reqFn(state, side, eid, card, targets),
     ),
     value: typeof bonus === "function" ? bonus : () => bonus,
   } as unknown as Ability;
@@ -251,7 +317,11 @@ export function breakerStrengthBonus(
  * Updates a breaker's current strength.
  * Mirrors: update-breaker-strength
  */
-export function updateBreakerStrength(state: GameState, side: string, breaker: Card): boolean {
+export function updateBreakerStrength(
+  state: GameState,
+  side: string,
+  breaker: Card,
+): boolean {
   const resolved = getCard(state, breaker);
   if (!resolved) return false;
   const oldStrength = getStrength(resolved);
@@ -275,7 +345,9 @@ export function updateBreakerStrength(state: GameState, side: string, breaker: C
  */
 export function updateAllIcebreakers(state: GameState, side: string): boolean {
   let changed = false;
-  for (const ib of allActiveInstalled(state, RUNNER_SIDE).filter((c) => hasSubtype(c, "Icebreaker"))) {
+  for (const ib of allActiveInstalled(state, RUNNER_SIDE).filter((c) =>
+    hasSubtype(c, "Icebreaker"),
+  )) {
     if (updateBreakerStrength(state, side, ib)) changed = true;
   }
   return changed;
@@ -323,7 +395,9 @@ export function pumpAllIcebreakers(
   n: number,
   duration: string = "end-of-encounter",
 ): void {
-  for (const ib of allActiveInstalled(state, RUNNER_SIDE).filter((c) => hasSubtype(c, "Icebreaker"))) {
+  for (const ib of allActiveInstalled(state, RUNNER_SIDE).filter((c) =>
+    hasSubtype(c, "Icebreaker"),
+  )) {
     pump(state, side, ib, n, duration);
   }
 }
@@ -332,7 +406,9 @@ export function pumpAllIcebreakers(
 // Break subroutine ability implementation
 // ---------------------------------------------------------------------------
 
-function addStealthToLabel(cost: (Record<string, unknown>)[] | undefined): string | null {
+function addStealthToLabel(
+  cost: Record<string, unknown>[] | undefined,
+): string | null {
   if (!cost) return null;
   const flat = cost.flat();
   const creditCost = flat.find((c) => (c as any)?.type === "credit");
@@ -363,7 +439,8 @@ export function breakSub(
   subtypes?: string | string[] | null,
   args?: Record<string, unknown>,
 ): Ability {
-  const costData = typeof cost === "number" ? [toC("credit", cost)] : (cost as any[]);
+  const costData =
+    typeof cost === "number" ? [toC("credit", cost)] : (cost as any[]);
   const subtypeSet: Set<string> = (() => {
     if (typeof subtypes === "string") return new Set([subtypes]);
     if (Array.isArray(subtypes)) return new Set(subtypes);
@@ -371,7 +448,9 @@ export function breakSub(
   })();
 
   const mergedArgs = { ...args, subtype: subtypeSet, break: n };
-  const hasTrashCan = mergeCosts([costData]).some((c) => (c as any)?.type === "trash-can");
+  const hasTrashCan = mergeCosts([costData]).some(
+    (c) => (c as any)?.type === "trash-can",
+  );
 
   return {
     ...(hasTrashCan ? { fakeCost: [toC("trash-can", 1)] } : {}),
@@ -381,8 +460,18 @@ export function breakSub(
       if (!currentIce) return false;
       if (!state.encounters[state.encounters.length - 1]) return false;
       if (!isActiveIce(state, currentIce)) return false;
-      if (!subtypeSet.has("All") && ![...subtypeSet].some((st) => hasSubtype(currentIce, st))) return false;
-      const breakable = breakableSubroutinesChoice(state, side, eid, card, currentIce);
+      if (
+        !subtypeSet.has("All") &&
+        ![...subtypeSet].some((st) => hasSubtype(currentIce, st))
+      )
+        return false;
+      const breakable = breakableSubroutinesChoice(
+        state,
+        side,
+        eid,
+        card,
+        currentIce,
+      );
       if (!breakable || breakable.length === 0) return false;
       if (args?.req && typeof (args.req as ReqFn) === "function") {
         return (args.req as ReqFn)(state, side, eid, card, targets);
@@ -399,21 +488,30 @@ export function breakSub(
       const customLabel = (args as any)?.label;
       if (customLabel) return customLabel;
       const stealthSuffix = addStealthToLabel(costData) ?? "";
-      const subTypeStr =
-        !subtypeSet.has("All")
-          ? ` ${[...subtypeSet].sort().join(" or ")}`
-          : "";
+      const subTypeStr = !subtypeSet.has("All")
+        ? ` ${[...subtypeSet].sort().join(" or ")}`
+        : "";
       const nStr = n > 1 ? `up to ` : "";
       const countStr = n > 0 ? String(n) : "any number of";
       return `break ${nStr}${countStr}${subTypeStr}${pluralize(" subroutine", typeof n === "number" ? n : 1)}${stealthSuffix}`;
     })(),
     effect: effect(
-      (state: GameState, side: string, eid: EID, card: Card, targets: Card[]) => {
+      (
+        state: GameState,
+        side: string,
+        eid: EID,
+        card: Card,
+        targets: Card[],
+      ) => {
         const currentIce = getCurrentIce(state);
         if (!currentIce) return null;
-        const resolvedN = typeof n === "function" ? n(state, side, eid, card, null) : n;
+        const resolvedN =
+          typeof n === "function" ? n(state, side, eid, card, null) : n;
         const subs = (currentIce.subroutines as RuntimeSubroutine[]) ?? [];
-        const mockBroken = subs.slice(0, typeof resolvedN === "number" ? resolvedN : subs.length);
+        const mockBroken = subs.slice(
+          0,
+          typeof resolvedN === "number" ? resolvedN : subs.length,
+        );
         const abilityCost = breakSubAbilityCost(
           state,
           side,
@@ -479,12 +577,34 @@ export function strengthPump(
       " to ",
       (s: GameState, sid: string, eid: EID, card: Card) =>
         getStrength(card) +
-        getPumpStrength(s, sid, { ...args, pump: strength } as unknown as Ability, card),
+        getPumpStrength(
+          s,
+          sid,
+          { ...args, pump: strength } as unknown as Ability,
+          card,
+        ),
       durationString,
     ),
     effect: effect(
-      (state: GameState, side: string, eid: EID, card: Card, targets: Card[]) => {
-        pump(state, side, card, getPumpStrength(state, side, { ...args, pump: strength } as unknown as Ability, card), duration);
+      (
+        state: GameState,
+        side: string,
+        eid: EID,
+        card: Card,
+        targets: Card[],
+      ) => {
+        pump(
+          state,
+          side,
+          card,
+          getPumpStrength(
+            state,
+            side,
+            { ...args, pump: strength } as unknown as Ability,
+            card,
+          ),
+          duration,
+        );
       },
     ),
   } as unknown as Ability;
@@ -503,7 +623,8 @@ export function substituteXCreditCosts(
   x: number | undefined,
   scale: number | undefined,
 ): (Record<string, unknown> | undefined)[] {
-  if (x === undefined || x === null || scale === undefined || scale === null) return cost;
+  if (x === undefined || x === null || scale === undefined || scale === null)
+    return cost;
   const adjusted = cost.filter((c) => (c as any)?.type !== "x-credits");
   if (adjusted.length === cost.length) return cost;
   return [...adjusted, toC("credit", x * scale)];
@@ -523,7 +644,9 @@ export const breakerAutoPump: Ability = {
     const cdef = getCardDef(card);
     const abilities = (card.abilities as Ability[]) ?? [];
     const abs = abilities.filter(
-      (a) => (a as any).dynamic !== "auto-pump" && (a as any).dynamic !== "auto-pump-and-break",
+      (a) =>
+        (a as any).dynamic !== "auto-pump" &&
+        (a as any).dynamic !== "auto-pump-and-break",
     );
     const currentIce = getCurrentIce(state);
     if (!currentIce) return;
@@ -541,20 +664,31 @@ export const breakerAutoPump: Ability = {
       .filter((a) => !(a as any).autoPumpIgnore)
       .map((ability) => {
         if (canPump(ability)) {
-          const cost = cardAbilityCost(state, side, ability, card, [currentIce]);
+          const cost = cardAbilityCost(state, side, ability, card, [
+            currentIce,
+          ]);
           return { ability, cost };
         }
         return null;
       })
-      .filter(Boolean) as { ability: Ability; cost: Record<string, unknown>[] }[];
+      .filter(Boolean) as {
+      ability: Ability;
+      cost: Record<string, unknown>[];
+    }[];
 
     const pumpAbilityEntry =
       pumpCandidates.length > 0
         ? pumpCandidates.reduce((best, entry) => {
             const bestCost = best.cost ?? [];
             const entryCost = entry.cost ?? [];
-            const bestTotal = (bestCost as any[]).reduce((s: number, c: any) => s + ((c as any)?.amount ?? 0), 0);
-            const entryTotal = (entryCost as any[]).reduce((s: number, c: any) => s + ((c as any)?.amount ?? 0), 0);
+            const bestTotal = (bestCost as any[]).reduce(
+              (s: number, c: any) => s + ((c as any)?.amount ?? 0),
+              0,
+            );
+            const entryTotal = (entryCost as any[]).reduce(
+              (s: number, c: any) => s + ((c as any)?.amount ?? 0),
+              0,
+            );
             return entryTotal <= bestTotal ? entry : best;
           }, pumpCandidates[0])
         : null;
@@ -562,18 +696,23 @@ export const breakerAutoPump: Ability = {
     const pumpAbility = pumpAbilityEntry?.ability ?? null;
     const pumpCost = pumpAbilityEntry?.cost ?? null;
 
-    const pumpStrengthVal = pumpAbility ? getPumpStrength(state, side, pumpAbility, card) : 0;
+    const pumpStrengthVal = pumpAbility
+      ? getPumpStrength(state, side, pumpAbility, card)
+      : 0;
     const iceStrength = getStrength(currentIce);
     const cardStrength = getStrength(card);
     const strengthDiff =
-      iceStrength > 0 && cardStrength > 0 ? Math.max(0, iceStrength - cardStrength) : 0;
+      iceStrength > 0 && cardStrength > 0
+        ? Math.max(0, iceStrength - cardStrength)
+        : 0;
 
     const timesPump =
       strengthDiff > 0 && pumpStrengthVal > 0
         ? Math.ceil(strengthDiff / pumpStrengthVal)
         : 0;
 
-    const totalPumpCost = pumpAbility && timesPump > 0 ? Array(timesPump).fill(pumpCost) : null;
+    const totalPumpCost =
+      pumpAbility && timesPump > 0 ? Array(timesPump).fill(pumpCost) : null;
 
     // Break ability
     const canBreak = (ability: Ability) => {
@@ -582,22 +721,37 @@ export const breakerAutoPump: Ability = {
     };
 
     const breakAbility = defAbilities.find(canBreak) ?? null;
-    const breakCost = breakAbility ? breakSubAbilityCost(state, side, breakAbility, card, [currentIce]) : null;
-    const subsBrokenAtOnce = breakAbility ? ((breakAbility as any).break ?? 1) : 0;
+    const breakCost = breakAbility
+      ? breakSubAbilityCost(state, side, breakAbility, card, [currentIce])
+      : null;
+    const subsBrokenAtOnce = breakAbility
+      ? ((breakAbility as any).break ?? 1)
+      : 0;
 
     const subs = (currentIce.subroutines as RuntimeSubroutine[]) ?? [];
     const unbrokenSubs = subs.filter((s) => !s.broken).length;
 
     // Check for unbreakable subs
-    const noUnbreakableSubs = subs.filter((s) => {
-      const breakable = s.breakable;
-      if (typeof breakable === "function") {
-        return isDisabledReg(state, currentIce) || breakable(state, side, eid, currentIce, [card]);
-      }
-      return breakable ?? true;
-    }).length === subs.length;
+    const noUnbreakableSubs =
+      subs.filter((s) => {
+        const breakable = s.breakable;
+        if (typeof breakable === "function") {
+          return (
+            isDisabledReg(state, currentIce) ||
+            breakable(state, side, eid, currentIce, [card])
+          );
+        }
+        return breakable ?? true;
+      }).length === subs.length;
 
-    const canAutoBreak = !anyEffects(state, side, "cannot-auto-break-subs-on-ice", (v) => v === true, currentIce, [card]);
+    const canAutoBreak = !anyEffects(
+      state,
+      side,
+      "cannot-auto-break-subs-on-ice",
+      (v) => v === true,
+      currentIce,
+      [card],
+    );
 
     const timesBreak =
       unbrokenSubs > 0 && subsBrokenAtOnce > 0
@@ -607,11 +761,17 @@ export const breakerAutoPump: Ability = {
         : 0;
 
     const adjustedBreakCost = breakCost
-      ? substituteXCreditCosts(breakCost, unbrokenSubs, (breakAbility as any)?.autoBreakCredsPerSub ?? 1)
+      ? substituteXCreditCosts(
+          breakCost,
+          unbrokenSubs,
+          (breakAbility as any)?.autoBreakCredsPerSub ?? 1,
+        )
       : null;
 
     const totalBreakCost =
-      adjustedBreakCost && timesBreak > 0 ? Array(timesBreak).fill(adjustedBreakCost) : null;
+      adjustedBreakCost && timesBreak > 0
+        ? Array(timesBreak).fill(adjustedBreakCost)
+        : null;
 
     const totalCost = mergeCosts([totalPumpCost, totalBreakCost]);
 

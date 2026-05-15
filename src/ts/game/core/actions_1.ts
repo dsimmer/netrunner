@@ -1,61 +1,83 @@
 // Player-initiated actions: ability play, card movement, advance, score, etc.
 // Mirrors: src/clj/game/core/actions.clj
 
-import type { GameState, Prompt } from "./state.js";
-import { CORP_SIDE, RUNNER_SIDE, getPlayer, getSidePrompt } from "./state.js";
-import type { Card } from "./card.js";
+import type { GameState, Prompt } from "./state";
+import { CORP_SIDE, RUNNER_SIDE, getPlayer, getSidePrompt } from "./state";
+import type { Card } from "./card";
 import {
-  getCard, getAdvancementRequirement, getAgendaPoints, getCounters,
-} from "./card.js";
-import type { EID } from "./eid.js";
-import { makeEID, makeEIDFrom, effectCompleted } from "./eid.js";
-import type { Ability } from "./types.js";
-import type { CostData } from "./payment.js";
+  getCard,
+  getAdvancementRequirement,
+  getAgendaPoints,
+  getCounters,
+} from "./card";
+import type { EID } from "./eid";
+import { makeEID, makeEIDFrom, effectCompleted } from "./eid";
+import type { Ability } from "./types.ts";
+import type { CostData } from "./payment";
 import {
-  updateAdvancementRequirement, updateAllAdvancementRequirements,
+  updateAdvancementRequirement,
+  updateAllAdvancementRequirements,
   updateAllAgendaPoints,
-} from "./agendas.js";
-import { badPublicityAvailable } from "./bad_publicity.js";
-import { installableServers } from "./board.js";
-import { cardDef } from "./card_defs.js";
+} from "./agendas";
+import { badPublicityAvailable } from "./bad_publicity";
+import { installableServers } from "./board";
+import { cardDef } from "./card_defs";
 import {
-  breakSubAbilityCost, cardAbilityCost, scoreAdditionalCostBonus,
-} from "./cost_fns.js";
-import { anyEffects, isDisabledReg } from "./effects.js";
+  breakSubAbilityCost,
+  cardAbilityCost,
+  scoreAdditionalCostBonus,
+} from "./cost_fns";
+import { anyEffects, isDisabledReg } from "./effects";
 import {
-  abilityAsHandler, checkpoint, registerOnce, registerPendingEvent,
-  pay, queueEvent, resolveAbility, triggerEventSimult,
-} from "./engine.js";
-import { canAdvance, canScore } from "./flags.js";
+  abilityAsHandler,
+  checkpoint,
+  registerOnce,
+  registerPendingEvent,
+  pay,
+  queueEvent,
+  resolveAbility,
+  triggerEventSimult,
+} from "./engine";
+import { canAdvance, canScore } from "./flags";
 import {
-  breakSubroutine, breakSubsEventContext, getCurrentIce, getPumpStrength,
-  getStrength, pump, resolveSubroutine, resolveUnbrokenSubs,
+  breakSubroutine,
+  breakSubsEventContext,
+  getCurrentIce,
+  getPumpStrength,
+  getStrength,
+  pump,
+  resolveSubroutine,
+  resolveUnbrokenSubs,
   substituteXCreditCosts,
-} from "./ice.js";
-import { cardInit } from "./initializing.js";
-import { move, trash } from "./moving.js";
+} from "./ice";
+import { cardInit } from "./initializing";
+import { move, trash } from "./moving";
+import { buildSpendMsg, canPay, mergeCosts, buildCostString } from "./payment";
+import { playInstant } from "./play_instants";
+import { expend, expendable } from "./expend";
+import { removeFromPromptQueue } from "./prompt_state";
 import {
-  buildSpendMsg, canPay, mergeCosts, buildCostString,
-} from "./payment.js";
-import { playInstant } from "./play_instants.js";
-import { expend, expendable } from "./expend.js";
-import { removeFromPromptQueue } from "./prompt_state.js";
+  resolveSelect,
+  firstPromptByEid,
+  firstSelectionByEid,
+} from "./prompts";
+import { addCounter, addProp, setProp } from "./props";
+import { continueRun, getRunnableZones } from "./runs";
+import { playSfx, systemMsg, implementationMsg, nLastLogs } from "./say";
+import { nameZone, zonesToSortedNames } from "./servers";
+import { cardStr } from "./to_string";
+import { toast } from "./toasts";
+import { update } from "./update";
+import { continue_ability, req, wait_for } from "../macros";
 import {
-  resolveSelect, firstPromptByEid, firstSelectionByEid,
-} from "./prompts.js";
-import { addCounter, addProp, setProp } from "./props.js";
-import { continueRun, getRunnableZones } from "./runs.js";
-import {
-  playSfx, systemMsg, implementationMsg, nLastLogs,
-} from "./say.js";
-import { nameZone, zonesToSortedNames } from "./servers.js";
-import { cardStr } from "./to_string.js";
-import { toast } from "./toasts.js";
-import { update } from "./update.js";
-import { continue_ability, req, wait_for } from "../macros.js";
-import {
-  dissocIn, quantify, removeOnce, sameCard, sameSide, serverCards, toKeyword,
-} from "../utils.js";
+  dissocIn,
+  quantify,
+  removeOnce,
+  sameCard,
+  sameSide,
+  serverCards,
+  toKeyword,
+} from "../utils";
 
 // ---------------------------------------------------------------------------
 // Local helpers
@@ -137,7 +159,10 @@ function noBlockingPrompt(state: GameState, side: string): boolean {
 }
 
 /** Mirrors `no-blocking-or-prevent-prompt?`. */
-export function noBlockingOrPreventPrompt(state: GameState, side: string): boolean {
+export function noBlockingOrPreventPrompt(
+  state: GameState,
+  side: string,
+): boolean {
   const t = getPromptType(state, side);
   return t == null || t === "run";
 }
@@ -185,12 +210,24 @@ export function doPlayAbility(
   const cost = args.ignoreCost
     ? null
     : (() => {
-        const costs = cardAbilityCost(state, side, args.ability, card, targets ?? []);
+        const costs = cardAbilityCost(
+          state,
+          side,
+          args.ability,
+          card,
+          targets ?? [],
+        );
         return costs && costs.length > 0 ? costs : null;
       })();
-  const ability: Ability = { ...args.ability, cost: cost ?? undefined } as Ability;
+  const ability: Ability = {
+    ...args.ability,
+    cost: cost ?? undefined,
+  } as Ability;
 
-  if (cost == null || canPay(state, side, useEid, card, card.title ?? "", cost)) {
+  if (
+    cost == null ||
+    canPay(state, side, useEid, card, card.title ?? "", cost)
+  ) {
     updateHistory(state, ability);
     if ((ability as any).action) {
       const strippedCard = {
@@ -209,7 +246,11 @@ export function doPlayAbility(
                 { asyncResult: "result" },
                 function (s2: GameState, _e2: EID, _b2: any) {
                   triggerEventSimult(
-                    s2, side, useEid, "action-resolved", null,
+                    s2,
+                    side,
+                    useEid,
+                    "action-resolved",
+                    null,
                     { "ability-idx": abilityIdx, card: strippedCard },
                   );
                 },
@@ -220,7 +261,11 @@ export function doPlayAbility(
           },
         ],
         [
-          triggerEventSimult, state, side, "action-played", null,
+          triggerEventSimult,
+          state,
+          side,
+          "action-played",
+          null,
           { "ability-idx": abilityIdx, card: strippedCard },
         ],
         { eid: useEid },
@@ -239,10 +284,15 @@ export function doPlayAbility(
  * Mirrors `play-ability`.
  */
 export function playAbility(
-  state: GameState, side: string, args: { card: Card; ability: number; targets?: unknown[] },
+  state: GameState,
+  side: string,
+  args: { card: Card; ability: number; targets?: unknown[] },
 ): void;
 export function playAbility(
-  state: GameState, side: string, eid: EID | null, args: { card: Card; ability: number; targets?: unknown[] },
+  state: GameState,
+  side: string,
+  eid: EID | null,
+  args: { card: Card; ability: number; targets?: unknown[] },
 ): void;
 export function playAbility(
   state: GameState,
@@ -274,12 +324,18 @@ export function playAbility(
     blockingPrompt ||
     cardSide !== side ||
     anyEffects(state, side, "prevent-paid-ability", (v) => v === true, card, [
-      ability as any, abilityIdx as any,
+      ability as any,
+      abilityIdx as any,
     ]) ||
     isDisabledReg(state, card) != null;
 
   if (blockingPrompt) {
-    toast(state, side, "You cannot play abilities while other abilities are resolving.", "warning");
+    toast(
+      state,
+      side,
+      "You cannot play abilities while other abilities are resolving.",
+      "warning",
+    );
   }
   if (!cannotPlay) {
     doPlayAbility(state, side, eid, {
@@ -293,7 +349,9 @@ export function playAbility(
 
 /** Called when the player clicks a card from hand (expend). Mirrors `expend-ability`. */
 export function expendAbility(
-  state: GameState, side: string, args: { card: Card },
+  state: GameState,
+  side: string,
+  args: { card: Card },
 ): void {
   if (noBlockingOrPreventPrompt(state, side)) {
     const card = getCard(state, args.card);
@@ -307,24 +365,36 @@ export function expendAbility(
       targets: null,
     });
   } else {
-    toast(state, side, "You cannot play abilities while other abilities are resolving.", "warning");
+    toast(
+      state,
+      side,
+      "You cannot play abilities while other abilities are resolving.",
+      "warning",
+    );
   }
 }
 
 /** Called when the player clicks a flashback card from hand. Mirrors `flashback`. */
 export function flashback(
-  state: GameState, side: string, ctx: { card: Card },
+  state: GameState,
+  side: string,
+  ctx: { card: Card },
 ): void {
   const card = getCard(state, ctx.card);
   if (!card) return;
   const flashbackCost = (cardDef(card) as any).flashback;
   const eid = makeAbilityEID(state, card);
-  const cardWithFlag: Card = { ...card, "rfg-instead-of-trashing": true } as any;
+  const cardWithFlag: Card = {
+    ...card,
+    "rfg-instead-of-trashing": true,
+  } as any;
   const ability: Ability = {
     async: true,
     effect: function (state2, side2, eid2, _card, _targets) {
       playInstant(
-        state2, side2, eid2,
+        state2,
+        side2,
+        eid2,
         { ...cardWithFlag, "rfg-instead-of-trashing": true } as any,
         { "base-cost": flashbackCost, "as-flashback": true },
       );
@@ -341,7 +411,9 @@ export function flashback(
 
 /** Called when the player clicks a card from hand. Mirrors `play`. */
 export function play(
-  state: GameState, side: string, ctx: { card: Card } & Record<string, unknown>,
+  state: GameState,
+  side: string,
+  ctx: { card: Card } & Record<string, unknown>,
 ): void {
   const card = getCard(state, ctx.card);
   if (!card) return;
@@ -357,8 +429,13 @@ export function play(
   if (t === "Event" || t === "Operation") {
     playAbility(state, side, { card: basic, ability: 3, targets: [context] });
   } else if (
-    t === "Hardware" || t === "Resource" || t === "Program" ||
-    t === "ICE" || t === "Upgrade" || t === "Asset" || t === "Agenda"
+    t === "Hardware" ||
+    t === "Resource" ||
+    t === "Program" ||
+    t === "ICE" ||
+    t === "Upgrade" ||
+    t === "Asset" ||
+    t === "Agenda"
   ) {
     playAbility(state, side, { card: basic, ability: 2, targets: [context] });
   }
@@ -384,7 +461,9 @@ export function clickCredit(state: GameState, side: string, _: unknown): void {
 
 /** Called when the user drags a card from one zone to another. Mirrors `move-card`. */
 export function moveCard(
-  state: GameState, side: string, args: { card: Card; server: string },
+  state: GameState,
+  side: string,
+  args: { card: Card; server: string },
 ): void {
   const { card, server } = args;
   const cur = getCard(state, card);
@@ -394,7 +473,9 @@ export function moveCard(
   const src = nameZone(cur.side ?? "", zone);
   const fromStr = cardStr(state, cur);
   const s: string =
-    server === "HQ" || server === "R&D" || server === "Archives" ? CORP_SIDE : RUNNER_SIDE;
+    server === "HQ" || server === "R&D" || server === "Archives"
+      ? CORP_SIDE
+      : RUNNER_SIDE;
 
   if (
     src === server ||
@@ -405,11 +486,13 @@ export function moveCard(
     return;
   }
 
-  const moveCardTo = (zoneTo: string, opts?: Record<string, unknown>): unknown =>
-    move(state, s, cur, zoneTo, opts);
+  const moveCardTo = (
+    zoneTo: string,
+    opts?: Record<string, unknown>,
+  ): unknown => move(state, s, cur, zoneTo, opts);
 
-  const cardPrompts = sidePrompts(state, side).filter(
-    (p) => sameCard((x: any) => x?.title, p.card as any, cur as any),
+  const cardPrompts = sidePrompts(state, side).filter((p) =>
+    sameCard((x: any) => x?.title, p.card as any, cur as any),
   );
 
   const logMove = (verb: string, ...text: string[]): void => {
@@ -452,7 +535,10 @@ export function moveCard(
 
 /** Mirrors `trash-button`. */
 export function trashButton(
-  state: GameState, side: string, eid: EID, card: Card,
+  state: GameState,
+  side: string,
+  eid: EID,
+  card: Card,
 ): void {
   systemMsg(state, side, `trashes ${cardStr(state, card)}`);
   trash(state, side, eid, card, { unpreventable: true });
@@ -463,9 +549,13 @@ export function trashButton(
 // ---------------------------------------------------------------------------
 
 function finishPrompt(
-  state: GameState, side: string, prompt: Prompt | null, card: Card | null,
+  state: GameState,
+  side: string,
+  prompt: Prompt | null,
+  card: Card | null,
 ): boolean {
-  const endEffect = (prompt as any)?.endEffect ?? (prompt as any)?.["end-effect"];
+  const endEffect =
+    (prompt as any)?.endEffect ?? (prompt as any)?.["end-effect"];
   if (endEffect) {
     endEffect(state, side, makeEID(state), card, null);
   }
@@ -473,7 +563,9 @@ function finishPrompt(
 }
 
 function promptError(
-  context: string, prompt: unknown, promptArgs: unknown,
+  context: string,
+  prompt: unknown,
+  promptArgs: unknown,
 ): void {
   // Mirrors the timbre/error call.
   console.error(
@@ -484,8 +576,12 @@ function promptError(
 }
 
 function maybePay(
-  state: GameState, side: string, eid: EID, card: Card | null,
-  choices: any, choice: number,
+  state: GameState,
+  side: string,
+  eid: EID,
+  card: Card | null,
+  choices: any,
+  choice: number,
 ): void {
   if (choices === "credit") {
     const credit = (getPlayer(state, side) as any).credit ?? 0;
@@ -499,7 +595,11 @@ function maybePay(
 export function resolveBadPubChoice(
   state: GameState,
   side: string,
-  args: { eid: EID; shiftKeyHeld?: boolean; "shift-key-held"?: boolean } & Record<string, unknown>,
+  args: {
+    eid: EID;
+    shiftKeyHeld?: boolean;
+    "shift-key-held"?: boolean;
+  } & Record<string, unknown>,
 ): void {
   const eid = args.eid;
   const shiftKeyHeld = args.shiftKeyHeld ?? args["shift-key-held"];
@@ -507,21 +607,38 @@ export function resolveBadPubChoice(
     const prompt =
       firstPromptByEid(state, side, eid) ?? sidePrompts(state, side)[0] ?? null;
     if (!prompt) {
-      toast(state, side, "You cannot choose Bad Publicity for this effect.", "warning");
+      toast(
+        state,
+        side,
+        "You cannot choose Bad Publicity for this effect.",
+        "warning",
+      );
       return;
     }
     const card = (prompt as any).card as Card | null;
-    const effect = (prompt as any).effect as ((arg: unknown) => void) | undefined;
+    const effect = (prompt as any).effect as
+      | ((arg: unknown) => void)
+      | undefined;
     (side_(state, side) as any).shiftKeySelect = shiftKeyHeld;
     if ((prompt as any)["offer-bad-pub?"] || (prompt as any).offerBadPub) {
       removeFromPromptQueue(state, side, prompt);
       if (effect) effect("bad-publicity");
       finishPrompt(state, side, prompt, card);
     } else {
-      toast(state, side, "You cannot choose Bad Publicity for this effect.", "warning");
+      toast(
+        state,
+        side,
+        "You cannot choose Bad Publicity for this effect.",
+        "warning",
+      );
     }
   } else {
-    toast(state, side, "You cannot choose Bad Publicity for this effect.", "warning");
+    toast(
+      state,
+      side,
+      "You cannot choose Bad Publicity for this effect.",
+      "warning",
+    );
   }
 }
 
@@ -542,13 +659,16 @@ export function resolvePrompt(
   const effect = (prompt as any).effect as ((arg: unknown) => void) | undefined;
   const card = getCard(state, (prompt as any).card as Card | null);
   const choices = (prompt as any).choices;
-  const promptType = (prompt as any).promptType ?? (prompt as any)["prompt-type"];
+  const promptType =
+    (prompt as any).promptType ?? (prompt as any)["prompt-type"];
 
   // Integer prompt
   if (
     choices === "credit" ||
     promptType === "trace" ||
-    (choices && typeof choices === "object" && (choices.counter || choices.number))
+    (choices &&
+      typeof choices === "object" &&
+      (choices.counter || choices.number))
   ) {
     if (typeof choice === "number") {
       removeFromPromptQueue(state, side, prompt);
@@ -560,7 +680,12 @@ export function resolvePrompt(
           function (s: GameState, _e: EID, _b: any) {
             if (choices && typeof choices === "object" && choices.counter) {
               addCounter(
-                s, side, makeEIDFrom(s, newEid), card, choices.counter, -choice,
+                s,
+                side,
+                makeEIDFrom(s, newEid),
+                card,
+                choices.counter,
+                -choice,
               );
             }
             if (effect) effect(choice ?? card);
@@ -581,7 +706,8 @@ export function resolvePrompt(
     if (typeof choice === "string") {
       const titleFn = choices["card-title"];
       const found = serverCards().find(
-        (sc: any) => choice.toLowerCase() === ((sc.title as string) ?? "").toLowerCase(),
+        (sc: any) =>
+          choice.toLowerCase() === ((sc.title as string) ?? "").toLowerCase(),
       );
       if (found) {
         if (titleFn(state, side, makeEID(state), card, [found])) {
@@ -589,7 +715,12 @@ export function resolvePrompt(
           if (effect) effect(choice ?? card);
           finishPrompt(state, side, prompt, card);
         } else {
-          toast(state, side, `You cannot choose ${choice} for this effect.`, "warning");
+          toast(
+            state,
+            side,
+            `You cannot choose ${choice} for this effect.`,
+            "warning",
+          );
         }
       } else {
         toast(state, side, `Could not find a card named ${choice}.`, "warning");
@@ -608,7 +739,9 @@ export function resolvePrompt(
     if (match) {
       removeFromPromptQueue(state, side, prompt);
       if (match.value === "Cancel") {
-        const cancel = (prompt as any).cancel as ((arg: unknown) => void) | undefined;
+        const cancel = (prompt as any).cancel as
+          | ((arg: unknown) => void)
+          | undefined;
         if (cancel) {
           cancel(choice);
         } else if ((prompt as any).eid) {
@@ -632,7 +765,10 @@ export function resolvePrompt(
 
 /** Mirrors `update-first` (unique helper for update-in selected list). */
 function updateFirst(
-  selection: any[], target: Card, eid: EID | null, c2: Card,
+  selection: any[],
+  target: Card,
+  eid: EID | null,
+  c2: Card,
 ): any[] {
   return selection.map((sObj) => {
     const abEid = sObj?.ability?.eid?.id ?? sObj?.ability?.eid?.eid;
@@ -654,21 +790,31 @@ function updateFirst(
 export function select(
   state: GameState,
   side: string,
-  args: { card: Card; eid: EID; shiftKeyHeld?: boolean; "shift-key-held"?: boolean },
+  args: {
+    card: Card;
+    eid: EID;
+    shiftKeyHeld?: boolean;
+    "shift-key-held"?: boolean;
+  },
 ): void {
   const eid = args.eid;
   const shiftKeyHeld = args.shiftKeyHeld ?? args["shift-key-held"];
   const target = getCard(state, args.card);
   if (!target) return;
   const prompt =
-    firstSelectionByEid(state, side, eid) ?? sideSelected(state, side)[0] ?? null;
+    firstSelectionByEid(state, side, eid) ??
+    sideSelected(state, side)[0] ??
+    null;
   if (!prompt) return;
   const ability = (prompt as any).ability as Ability | undefined;
-  const promptCard = ability && (ability as any).card
-    ? getCard(state, (ability as any).card)
-    : null;
+  const promptCard =
+    ability && (ability as any).card
+      ? getCard(state, (ability as any).card)
+      : null;
   const cardReq = (prompt as any).req as Function | undefined;
-  const cardCondition = (prompt as any).card as ((c: Card) => boolean) | undefined;
+  const cardCondition = (prompt as any).card as
+    | ((c: Card) => boolean)
+    | undefined;
   const cid = (prompt as any)["not-self"] ?? (prompt as any).notSelf;
 
   (side_(state, side) as any).shiftKeySelect = shiftKeyHeld;
@@ -682,27 +828,40 @@ export function select(
         : true);
   if (!meets) return;
 
-  const updated: Card = { ...target, selected: !((target as any).selected) } as any;
+  const updated: Card = {
+    ...target,
+    selected: !(target as any).selected,
+  } as any;
   update(state, side, (x: Card) => x, updated);
   (side_(state, side) as any).selected = updateFirst(
-    sideSelected(state, side), target, eid, updated,
+    sideSelected(state, side),
+    target,
+    eid,
+    updated,
   );
 
   const selected =
-    firstSelectionByEid(state, side, eid) ?? sideSelected(state, side)[0] ?? null;
+    firstSelectionByEid(state, side, eid) ??
+    sideSelected(state, side)[0] ??
+    null;
   const selectPrompt =
     firstPromptByEid(state, side, eid, "select") ??
     sidePrompts(state, side).find(
       (p) => ((p as any).promptType ?? (p as any)["prompt-type"]) === "select",
-    ) ?? null;
+    ) ??
+    null;
 
   const selectedCount = (selected as any)?.cards?.length ?? 0;
   const selMax = (selected as any)?.max ?? 1;
   if (selectedCount === selMax) {
     resolveSelect(
-      state, side, eid, promptCard,
+      state,
+      side,
+      eid,
+      promptCard,
       selectPrompt ? { cancel: (selectPrompt as any).cancel } : {},
-      update, resolveAbility,
+      update,
+      resolveAbility,
     );
   }
 }
@@ -720,7 +879,9 @@ export function sumCostAmount(costs: CostData[] | null | undefined): number {
 
 /** Mirrors `play-auto-pump`. */
 export function playAutoPump(
-  state: GameState, side: string, args: { card: Card },
+  state: GameState,
+  side: string,
+  args: { card: Card },
 ): void {
   const card = getCard(state, args.card);
   if (!card) return;
@@ -744,7 +905,8 @@ export function playAutoPump(
   if (candidates.length === 0) return;
   candidates.sort(
     (a: any, b: any) =>
-      ((a[0] as any)["auto-pump-sort"] ?? 0) - ((b[0] as any)["auto-pump-sort"] ?? 0),
+      ((a[0] as any)["auto-pump-sort"] ?? 0) -
+      ((b[0] as any)["auto-pump-sort"] ?? 0),
   );
   const best = candidates.reduce((acc: any, cur: any) =>
     sumCostAmount(cur[1]) < sumCostAmount(acc[1]) ? cur : acc,
@@ -763,7 +925,9 @@ export function playAutoPump(
       ? Math.ceil(strengthDiff / pumpStrength)
       : 0;
   const totalPumpCost: CostData[] | null =
-    pumpAbility && timesPump > 0 ? new Array(timesPump).fill(pumpCost).flat() : null;
+    pumpAbility && timesPump > 0
+      ? new Array(timesPump).fill(pumpCost).flat()
+      : null;
 
   if (canPay(state, side, eid, card, card.title ?? "", totalPumpCost)) {
     wait_for(
@@ -778,7 +942,8 @@ export function playAutoPump(
             resolveAbility(s, side, ab, getCard(s, card), null as any);
           }
           systemMsg(
-            s, side,
+            s,
+            side,
             `${buildSpendMsg((binds.asyncResult as any)?.msg, "increase")}the strength of ${card.title} to ${getStrength(getCard(s, card))}`,
           );
           effectCompleted(s, side, eid);
@@ -806,7 +971,9 @@ export function playHeapBreakerAutoPumpAndBreakImpl(
         breakSubroutine(s, getCard(s, currentIce), sub, card);
       }
       const ice = getCard(s, currentIce);
-      const onBreakSubs = ice ? (cardDef(currentIce) as any)["on-break-subs"] : null;
+      const onBreakSubs = ice
+        ? (cardDef(currentIce) as any)["on-break-subs"]
+        : null;
       const eventArgs = onBreakSubs
         ? { "card-abilities": abilityAsHandler(ice as Card, onBreakSubs) }
         : null;
@@ -819,15 +986,21 @@ export function playHeapBreakerAutoPumpAndBreakImpl(
               effectCompleted(s2, side, eid);
             } else {
               continue_ability(
-                s2, side,
+                s2,
+                side,
                 playHeapBreakerAutoPumpAndBreakImpl(s2, side, rest, currentIce),
-                card, null as any,
+                card,
+                null as any,
               );
             }
           },
         ],
         [
-          triggerEventSimult, s, side, "subroutines-broken", eventArgs,
+          triggerEventSimult,
+          s,
+          side,
+          "subroutines-broken",
+          eventArgs,
           breakSubsEventContext(s, ice as Card, subsToBreak, card),
         ],
         { eid },

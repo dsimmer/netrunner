@@ -1,16 +1,16 @@
 // Agenda management: advancement requirements, agenda points.
 // Mirrors: src/clj/game/core/agendas.clj
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import { isAgenda } from "./card.js";
-import { CORP_SIDE } from "./state.js";
-import { cardDef } from "./card_defs.js";
-import { sumEffects } from "./effects.js";
-import { makeEID } from "./eid.js";
-import { getAllCards, getCard } from "./finding.js";
-import { getScoringOwner } from "./finding.js";
-import { toKeyword } from "../utils.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import { isAgenda } from "./card";
+import { CORP_SIDE } from "./state";
+import { cardDef } from "./card_defs";
+import { sumEffects } from "./effects";
+import { makeEID } from "./eid";
+import { getAllCards, getCard } from "./finding";
+import { getScoringOwner } from "./finding";
+import { toKeyword } from "../utils";
 
 // ---------------------------------------------------------------------------
 // update! — Card update helper
@@ -21,7 +21,11 @@ import { toKeyword } from "../utils.js";
  * Updates the state so that its copy of the given card matches the argument given.
  * Mirrors: update! in update.clj
  */
-export function updateCard(state: GameState, side: string, card: Card): Card | null {
+export function updateCard(
+  state: GameState,
+  side: string,
+  card: Card,
+): Card | null {
   // Identity cards
   if (card.type === "Identity") {
     if (side === toKeyword(card.side ?? "")) {
@@ -95,7 +99,11 @@ export function updateCard(state: GameState, side: string, card: Card): Card | n
  * :hosted vector.
  * Mirrors: update-hosted! in update.clj
  */
-function updateHostedCard(state: GameState, side: string, card: Card): Card | null {
+function updateHostedCard(
+  state: GameState,
+  side: string,
+  card: Card,
+): Card | null {
   const hostCard = getCard(state, card.host);
   if (hostCard) {
     const cid = card.cid;
@@ -141,11 +149,19 @@ function advancementRequirement(state: GameState, card: Card): number | null {
   }
 
   // Sum effects for :advancement-requirement
-  const effectsSum = sumEffects(state, CORP_SIDE, ":advancement-requirement", card, []);
+  const effectsSum = sumEffects(
+    state,
+    CORP_SIDE,
+    ":advancement-requirement",
+    card,
+    [],
+  );
 
   // Sum all values, treating null/undefined as 0
-  const total = [advancementCost, advanceResult, effectsSum]
-    .reduce((sum: number, v: unknown) => sum + (typeof v === "number" ? v : 0), 0);
+  const total = [advancementCost, advanceResult, effectsSum].reduce(
+    (sum: number, v: unknown) => sum + (typeof v === "number" ? v : 0),
+    0,
+  );
 
   return Math.max(total, 0);
 }
@@ -179,7 +195,11 @@ export function updateAdvancementRequirement(
 ): boolean {
   // Handle multi-arities: (update-advancement-requirement state agenda) and (update-advancement-requirement state _ agenda)
   let a: Card;
-  if (typeof sideOrAgenda === "string" || sideOrAgenda === null || sideOrAgenda === undefined) {
+  if (
+    typeof sideOrAgenda === "string" ||
+    sideOrAgenda === null ||
+    sideOrAgenda === undefined
+  ) {
     a = agenda!;
   } else {
     a = sideOrAgenda as Card;
@@ -210,7 +230,10 @@ export function updateAllAdvancementRequirements(state: GameState): boolean;
  * (side parameter is ignored, mirrors Clojure multi-arities).
  * Mirrors: update-all-advancement-requirements in agendas.clj
  */
-export function updateAllAdvancementRequirements(state: GameState, _side: unknown): boolean;
+export function updateAllAdvancementRequirements(
+  state: GameState,
+  _side: unknown,
+): boolean;
 export function updateAllAdvancementRequirements(
   state: GameState,
   side?: unknown,
@@ -234,7 +257,11 @@ export function updateAllAdvancementRequirements(
  * to the given player.
  * Mirrors: agenda-points in agendas.clj
  */
-export function agendaPoints(state: GameState, side: string, card: Card | null): number {
+export function agendaPoints(
+  state: GameState,
+  side: string,
+  card: Card | null,
+): number {
   if (!card) return 0;
 
   const basePoints = (card as any).agendapoints ?? 0;
@@ -262,7 +289,11 @@ export function agendaPoints(state: GameState, side: string, card: Card | null):
  * Updates agenda points for a single card on a side.
  * Mirrors: update-agenda-points-card in agendas.clj
  */
-function updateAgendaPointsCard(state: GameState, side: string, card: Card): boolean {
+function updateAgendaPointsCard(
+  state: GameState,
+  side: string,
+  card: Card,
+): boolean {
   const prevPoints = (card as any).currentPoints;
   const newPoints = agendaPoints(state, side, card);
   const changed = prevPoints !== newPoints;
@@ -292,9 +323,13 @@ function sumSideAgendaPoints(state: GameState, side: string): boolean {
     0,
   );
 
-  const userAdjustedPoints = sumEffects(state, side, ":user-agenda-points", null, [
-    ...(side === CORP_SIDE ? [state.corp] as any : [state.runner] as any),
-  ]);
+  const userAdjustedPoints = sumEffects(
+    state,
+    side,
+    ":user-agenda-points",
+    null,
+    [...(side === CORP_SIDE ? ([state.corp] as any) : ([state.runner] as any))],
+  );
 
   const totalPoints = userAdjustedPoints + scoredPoints;
   const changed = currentPoints !== totalPoints;
@@ -341,8 +376,14 @@ export function updateAllAgendaPoints(state: GameState): boolean;
  * (side parameter is ignored, mirrors Clojure multi-arities).
  * Mirrors: update-all-agenda-points in agendas.clj
  */
-export function updateAllAgendaPoints(state: GameState, _side: unknown): boolean;
-export function updateAllAgendaPoints(state: GameState, side?: unknown): boolean {
+export function updateAllAgendaPoints(
+  state: GameState,
+  _side: unknown,
+): boolean;
+export function updateAllAgendaPoints(
+  state: GameState,
+  side?: unknown,
+): boolean {
   const corpChanged = updateSideAgendaPoints(state, CORP_SIDE);
   const runnerChanged = updateSideAgendaPoints(state, "runner");
   return corpChanged || runnerChanged;

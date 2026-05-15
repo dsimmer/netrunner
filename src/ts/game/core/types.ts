@@ -2,9 +2,11 @@
 // Mirrors: src/go/game/core/types.go + src/clj/game/macros.clj
 // (AbilityFn, ReqFn, Ability, Subroutine, Cost, CardDef, etc.)
 
-import type { GameState } from "./state.js";
-import type { EID } from "./eid.js";
-import type { Card } from "./card.js";
+import type { GameState } from "./state";
+import type { EID } from "./eid";
+import type { Card } from "./card";
+
+export type { EID, Card, GameState };
 
 // ---------------------------------------------------------------------------
 // Function types (mirror Go's AbilityFn / ReqFn / ValueFn / NumberFn)
@@ -55,7 +57,7 @@ export type NumberFn = (
 // ---------------------------------------------------------------------------
 
 export interface Cost {
-  type: string;   // "credit", "click", "tag", etc.
+  type: string; // "credit", "click", "tag", etc.
   amount: number;
   subAbility?: Ability;
 }
@@ -154,14 +156,14 @@ export interface EventHandler {
   req?: ReqFn;
   effect?: AbilityFn;
   async?: boolean;
-  once?: string;       // "per-turn" etc.
+  once?: string; // "per-turn" etc.
   oncePer?: string;
   optional?: Ability;
   waiting?: string;
   location?: string[][];
   name?: string;
   msg?: string | MsgFn;
-  duration?: string;   // "until-runner-turn-ends" etc.
+  duration?: string; // "until-runner-turn-ends" etc.
 }
 
 // ---------------------------------------------------------------------------

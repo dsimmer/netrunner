@@ -1,35 +1,44 @@
 // Damage resolution: net, meat, core/brain damage with prevention/boost.
 // Mirrors: src/clj/game/core/damage.clj
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import type { EID } from "./eid.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import type { EID } from "./eid";
+import { completeWithResult, effectCompleted, makeEIDFrom } from "./eid";
 import {
-  completeWithResult, effectCompleted, makeEIDFrom,
-} from "./eid.js";
-import {
-  checkpoint, queueEvent, triggerEvent, triggerEventSimult,
-} from "./engine.js";
-import { trashCards, getTrashEvent } from "./moving.js";
-import { resolveDamagePrevention } from "./prevention.js";
-import { systemMsg, nLastLogs } from "./say.js";
-import { flatline } from "./winning.js";
-import { wait_for } from "../macros.js";
-import { enumerateCards } from "../utils.js";
+  checkpoint,
+  queueEvent,
+  triggerEvent,
+  triggerEventSimult,
+} from "./engine";
+import { trashCards, getTrashEvent } from "./moving";
+import { resolveDamagePrevention } from "./prevention";
+import { systemMsg, nLastLogs } from "./say";
+import { flatline } from "./winning";
+import { wait_for } from "../macros";
+import { enumerateCards } from "../utils";
 
 /** Mirrors damage-name. */
 export function damageName(damageType: string): string {
   switch (damageType) {
-    case "net": return "net";
-    case "meat": return "meat";
-    case "core": return "core";
-    case "brain": return "core";
-    default: return "[UNKNOWN DAMAGE TYPE]";
+    case "net":
+      return "net";
+    case "meat":
+      return "meat";
+    case "core":
+      return "core";
+    case "brain":
+      return "core";
+    default:
+      return "[UNKNOWN DAMAGE TYPE]";
   }
 }
 
 /** Mirrors enable-runner-damage-choice. */
-export function enableRunnerDamageChoice(state: GameState, _side: string): void {
+export function enableRunnerDamageChoice(
+  state: GameState,
+  _side: string,
+): void {
   state.damage.damageChooseRunner = true;
 }
 
@@ -49,7 +58,11 @@ export function corpCanChooseDamage(state: GameState): boolean {
 }
 
 /** Mirrors chosen-damage. Appends flattened targets to chosen-damage list. */
-export function chosenDamage(state: GameState, _side: string, ...targets: unknown[]): void {
+export function chosenDamage(
+  state: GameState,
+  _side: string,
+  ...targets: unknown[]
+): void {
   const flat = targets.flat(Infinity) as Card[];
   state.damage.chosenDamage = [...(state.damage.chosenDamage ?? []), ...flat];
 }
@@ -105,7 +118,9 @@ function resolveDamage(
       function (s: GameState, _e: EID, _b: any) {
         if (!(n > 0)) {
           // shouldn't be possible, should be handled before getting here
-          console.error(`attempted to resolve 0 damage: \n${nLastLogs(s, 5)}\n`);
+          console.error(
+            `attempted to resolve 0 damage: \n${nLastLogs(s, 5)}\n`,
+          );
           effectCompleted(s, side, eid);
           return;
         }
@@ -130,7 +145,11 @@ function resolveDamage(
           return;
         }
 
-        systemMsg(s, side, `trashes ${trashedMsg} due to ${damageName(dmgType)} damage`);
+        systemMsg(
+          s,
+          side,
+          `trashes ${trashedMsg} due to ${damageName(dmgType)} damage`,
+        );
 
         const stats = (s as any).stats ?? {};
         stats.corp = stats.corp ?? {};
@@ -182,7 +201,10 @@ function resolveDamage(
             },
           ],
           [
-            trashCards, s, side, cardsTrashed,
+            trashCards,
+            s,
+            side,
+            cardsTrashed,
             {
               unpreventable: true,
               cause: dmgType,
@@ -195,7 +217,11 @@ function resolveDamage(
       },
     ],
     [
-      triggerEventSimult, state, side, "pre-resolve-damage", null,
+      triggerEventSimult,
+      state,
+      side,
+      "pre-resolve-damage",
+      null,
       { "damage-type": dmgType, amount: n },
     ],
     { eid },
@@ -228,7 +254,10 @@ export function damage(
         const sourceCard = result["source-card"] as Card | null | undefined;
 
         if (typeof remaining === "number" && remaining > 0) {
-          resolveDamage(s, side, eid, resolvedType, remaining, { ...args, card: sourceCard });
+          resolveDamage(s, side, eid, resolvedType, remaining, {
+            ...args,
+            card: sourceCard,
+          });
         } else {
           queueEvent(s, "all-damage-was-prevented", {
             side,

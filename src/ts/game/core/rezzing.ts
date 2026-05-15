@@ -1,35 +1,26 @@
 // Rez/derez mechanics.
 // Mirrors: src/clj/game/core/rezzing.clj
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import type { EID } from "./eid.js";
-import type { CardDef, Ability } from "./types.js";
-import type { CostData } from "./payment.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import type { EID } from "./eid";
+import type { CardDef, Ability } from "./types.ts";
+import type { CostData } from "./payment";
 
-import {
-  asset,
-  conditionCounter,
-  ice,
-  rezzed,
-  upgrade,
-} from "./card.js";
-import { cardDef } from "./card_defs.js";
-import {
-  rezAdditionalCostBonus,
-  rezCost,
-} from "./cost_fns.js";
+import { asset, conditionCounter, ice, rezzed, upgrade } from "./card";
+import { cardDef } from "./card_defs";
+import { rezAdditionalCostBonus, rezCost } from "./cost_fns";
 import {
   isDisabled as isDisabledReg,
   unregisterStaticAbilities,
   updateDisabledCards,
-} from "./effects.js";
+} from "./effects";
 import {
   completeWithResult,
   effectCompleted,
   makeEID,
   makeEIDFrom,
-} from "./eid.js";
+} from "./eid";
 import {
   registerPendingEvent,
   queueEvent,
@@ -38,34 +29,19 @@ import {
   registerEvents,
   resolveAbility,
   unregisterEvents,
-} from "./engine.js";
-import {
-  canHost,
-  canRez,
-} from "./flags.js";
-import { updateIceStrength } from "./ice.js";
-import {
-  cardInit,
-  deactivate,
-} from "./initializing.js";
-import { trashCards } from "./moving.js";
-import {
-  buildSpendMsg,
-  canPay,
-  mergeCosts,
-  toC,
-} from "./payment.js";
-import { systemMsg, playSfx, implementationMsg } from "./say.js";
-import { toast } from "./toasts.js";
-import { cardStr } from "./to_string.js";
-import { updateCard } from "./update.js";
-import {
-  continue_ability,
-  effect,
-  wait_for,
-} from "../macros.js";
-import { enumerateStr, toKeyword } from "../utils.js";
-import { getCard } from "./finding.js";
+} from "./engine";
+import { canHost, canRez } from "./flags";
+import { updateIceStrength } from "./ice";
+import { cardInit, deactivate } from "./initializing";
+import { trashCards } from "./moving";
+import { buildSpendMsg, canPay, mergeCosts, toC } from "./payment";
+import { systemMsg, playSfx, implementationMsg } from "./say";
+import { toast } from "./toasts";
+import { cardStr } from "./to_string";
+import { updateCard } from "./update";
+import { continue_ability, effect, wait_for } from "../macros";
+import { enumerateStr, toKeyword } from "../utils";
+import { getCard } from "./finding";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -135,7 +111,9 @@ function trashHostedCards(
         [{ asyncResult: "result" }],
         function (s: GameState, _e: EID, _binds: any) {
           if (hostedCards.length > 0) {
-            const names = hostedCards.map((h) => cardStr(s, h, { visible: true }));
+            const names = hostedCards.map((h) =>
+              cardStr(s, h, { visible: true }),
+            );
             systemMsg(
               s,
               side,
@@ -149,7 +127,13 @@ function trashHostedCards(
           effectCompleted(s, side, eid);
         },
       ],
-      [trashCards, state, side, hostedCards, { unpreventable: true, gameTrash: true }],
+      [
+        trashCards,
+        state,
+        side,
+        hostedCards,
+        { unpreventable: true, gameTrash: true },
+      ],
       { eid },
     );
   }
@@ -172,7 +156,13 @@ function rezMessage(
     costMsg?: string;
   } = {},
 ): void {
-  const { alternativeCost, costBonus, ignoreCost, msgKeys = {}, costMsg } = args;
+  const {
+    alternativeCost,
+    costBonus,
+    ignoreCost,
+    msgKeys = {},
+    costMsg,
+  } = args;
   const sourceCard =
     (eid.source as Card)?.title ?? (eid.source as Card)?.printedTitle;
   const titleCard = cardStr(state, card, { visible: true });
@@ -188,7 +178,10 @@ function rezMessage(
   }
 
   const preLhs =
-    adjustedCostStr && !blank(adjustedCostStr) && prependCostStr && !blank(prependCostStr)
+    adjustedCostStr &&
+    !blank(adjustedCostStr) &&
+    prependCostStr &&
+    !blank(prependCostStr)
       ? prependCostStr + ", and then "
       : undefined;
 
@@ -204,14 +197,23 @@ function rezMessage(
   } else if (ignoreCost) {
     rhs = " at no cost";
   } else if (costBonus) {
-    rhs = costBonus > 0
-      ? " (paying " + costBonus + " [Credits] more)"
-      : " (paying " + (-costBonus) + " [Credits] less)";
+    rhs =
+      costBonus > 0
+        ? " (paying " + costBonus + " [Credits] more)"
+        : " (paying " + -costBonus + " [Credits] less)";
   }
 
   const finalMsg = sourceCard
-    ? buildSpendMsg(modifiedCostStr ?? null, "use", "uses") + " " + sourceCard + " to rez " + titleCard + rhs
-    : buildSpendMsg(modifiedCostStr ?? null, "rez", "rezzes") + " " + titleCard + rhs;
+    ? buildSpendMsg(modifiedCostStr ?? null, "use", "uses") +
+      " " +
+      sourceCard +
+      " to rez " +
+      titleCard +
+      rhs
+    : buildSpendMsg(modifiedCostStr ?? null, "rez", "rezzes") +
+      " " +
+      titleCard +
+      rhs;
 
   systemMsg(state, side, finalMsg);
 }
@@ -264,8 +266,16 @@ function completeRez(
 
         // Mark card as rezzed (this-turn)
         const newCard = args.disabled
-          ? updateCard(s, side, { ...card, rezzed: "this-turn" } as unknown as Card)
-          : cardInit(s, side, { ...card, rezzed: "this-turn" } as unknown as Card, { resolveEffect: false, initData: true });
+          ? updateCard(s, side, {
+              ...card,
+              rezzed: "this-turn",
+            } as unknown as Card)
+          : cardInit(
+              s,
+              side,
+              { ...card, rezzed: "this-turn" } as unknown as Card,
+              { resolveEffect: false, initData: true },
+            );
 
         // Update hosted cards' zone info
         const hosted = newCard.hosted ?? [];
@@ -275,13 +285,18 @@ function completeRez(
             zone: (h.zone as any[])?.map((z: unknown) => toKeyword(z)),
             host: {
               ...((h as any).host ?? {}),
-              zone: ((h as any).host?.zone as any[])?.map((z: unknown) => toKeyword(z)),
+              zone: ((h as any).host?.zone as any[])?.map((z: unknown) =>
+                toKeyword(z),
+              ),
             },
           } as unknown as Card);
         }
 
         if (!args.noMsg) {
-          rezMessage(s, side, eid, newCard, msg as string, { ...args, costMsg: msg as string });
+          rezMessage(s, side, eid, newCard, msg as string, {
+            ...args,
+            costMsg: msg as string,
+          });
           implementationMsg(s, newCard);
         }
 
@@ -351,7 +366,7 @@ function completeRez(
               }
               if (args.pressContinue) {
                 // continue is a defmulti in runs; import the stub if available
-                const { continue: continueFn } = require("./runs.js");
+                const { continue: continueFn } = require("./runs");
                 if (continueFn) continueFn(s2, side, null);
               }
               const finalCard = getCard(s2, refreshedCard);
@@ -383,11 +398,15 @@ export function canPayToRez(
   const costs = getRezCost(state, side, resolvedCard, args ?? {}) ?? [];
   const alternativeCost =
     resolvedCard && !isDisabledReg(state, resolvedCard)
-      ? ((cardDef(resolvedCard) as any)["alternative-cost"] as CostData[] | undefined)
+      ? ((cardDef(resolvedCard) as any)["alternative-cost"] as
+          | CostData[]
+          | undefined)
       : undefined;
 
   if (alternativeCost) {
-    if (canPay(state, side, eidWithSource, resolvedCard, null, alternativeCost)) {
+    if (
+      canPay(state, side, eidWithSource, resolvedCard, null, alternativeCost)
+    ) {
       return true;
     }
   }
@@ -426,7 +445,9 @@ export function rez(
     !isDisabledReg(state, resolvedCard) &&
     !opts.declinedAlternativeCost
   ) {
-    effectiveAlternativeCost = (cardDef(resolvedCard) as any)["alternative-cost"];
+    effectiveAlternativeCost = (cardDef(resolvedCard) as any)[
+      "alternative-cost"
+    ];
   }
 
   const isRezEligible =
@@ -446,7 +467,14 @@ export function rez(
   if (
     effectiveAlternativeCost &&
     !opts.ignoreCost &&
-    canPay(state, side, eidWithSource, resolvedCard, null, effectiveAlternativeCost)
+    canPay(
+      state,
+      side,
+      eidWithSource,
+      resolvedCard,
+      null,
+      effectiveAlternativeCost,
+    )
   ) {
     continue_ability(
       state,
@@ -506,8 +534,16 @@ function rezMultipleMessage(
   const rhs = " (ignoring all costs)";
 
   const finalMsg = sourceCard
-    ? buildSpendMsg(costStr, "use", "uses") + " " + sourceCard + " to rez " + enumerateStr(titles) + rhs
-    : buildSpendMsg(costStr, "rez", "rezzes") + " " + enumerateStr(titles) + rhs;
+    ? buildSpendMsg(costStr, "use", "uses") +
+      " " +
+      sourceCard +
+      " to rez " +
+      enumerateStr(titles) +
+      rhs
+    : buildSpendMsg(costStr, "rez", "rezzes") +
+      " " +
+      enumerateStr(titles) +
+      rhs;
 
   systemMsg(state, side, finalMsg);
 }
@@ -538,10 +574,19 @@ export function rezMultipleCards(
       [
         [{ asyncResult: "result" }],
         function (s: GameState, _e: EID, _binds: any) {
-          rezMultipleCards(s, side, eid, cards.slice(1), { ...opts, noMsg: true });
+          rezMultipleCards(s, side, eid, cards.slice(1), {
+            ...opts,
+            noMsg: true,
+          });
         },
       ],
-      [rez, state, side, cards[0], { ...opts, suppressCheckpoint: true, noMsg: true }],
+      [
+        rez,
+        state,
+        side,
+        cards[0],
+        { ...opts, suppressCheckpoint: true, noMsg: true },
+      ],
       { eid },
     );
   }
@@ -569,12 +614,11 @@ function derezMessage(
   const sourceCard = eid.source as Card;
   const title = sourceCard?.title ?? sourceCard?.printedTitle;
 
-  const message =
-    !sourceCard
-      ? "derezzes " + enumerate + andThen
-      : prependCostStr
-        ? prependCostStr + " to use " + title + " to derez " + enumerate + andThen
-        : "uses " + title + " to derez " + enumerate + andThen;
+  const message = !sourceCard
+    ? "derezzes " + enumerate + andThen
+    : prependCostStr
+      ? prependCostStr + " to use " + title + " to derez " + enumerate + andThen
+      : "uses " + title + " to derez " + enumerate + andThen;
 
   systemMsg(state, side, message);
 }

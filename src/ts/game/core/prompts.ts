@@ -2,17 +2,17 @@
 // Mirrors: src/clj/game/core/prompts.clj
 
 import { randomUUID } from "crypto";
-import type { GameState, Corp, Runner, Prompt } from "./state.js";
-import { CORP_SIDE, RUNNER_SIDE, getSidePrompt } from "./state.js";
-import type { Card, Zone } from "./card.js";
-import type { EID } from "./eid.js";
-import { makeEID } from "./eid.js";
-import type { AbilityFn, MsgFn } from "./types.js";
-import { getAllCards } from "./board.js";
-import { addToPromptQueue, removeFromPromptQueue } from "./prompt_state.js";
-import { toast } from "./toasts.js";
-import { pluralize, sideStr } from "../utils.js";
-import { effectCompleted } from "./eid.js";
+import type { GameState, Corp, Runner, Prompt } from "./state";
+import { CORP_SIDE, RUNNER_SIDE, getSidePrompt } from "./state";
+import type { Card, Zone } from "./card";
+import type { EID } from "./eid";
+import { makeEID } from "./eid";
+import type { AbilityFn, MsgFn } from "./types.ts";
+import { getAllCards } from "./board";
+import { addToPromptQueue, removeFromPromptQueue } from "./prompt_state";
+import { toast } from "./toasts";
+import { pluralize, sideStr } from "../utils";
+import { effectCompleted } from "./eid";
 
 // ---------------------------------------------------------------------------
 // Selection entry (stored in per-side :selected)
@@ -22,7 +22,13 @@ export interface SelectionEntry {
   ability: Record<string, unknown>;
   cards: (Card & { selected?: boolean })[];
   card?: (c: Card) => boolean;
-  req?: (state: GameState, side: string, eid: EID, card: Card | null, targets: Card[]) => boolean;
+  req?: (
+    state: GameState,
+    side: string,
+    eid: EID,
+    card: Card | null,
+    targets: Card[],
+  ) => boolean;
   notSelf?: string;
   max?: number;
   all?: boolean;
@@ -47,7 +53,9 @@ interface ParsedChoice {
  * If choices is a map or keyword-like (object), return as-is.
  * Otherwise, wrap each choice string in a {value, uuid, idx} object.
  */
-function choiceParser(choices: unknown): Record<string, unknown> | ParsedChoice[] {
+function choiceParser(
+  choices: unknown,
+): Record<string, unknown> | ParsedChoice[] {
   if (choices == null || typeof choices === "object") {
     return (choices as Record<string, unknown>) ?? {};
   }
@@ -91,11 +99,23 @@ function updateSelectable(
 // should-show-prompt? (extracted from show-prompt body)
 // ---------------------------------------------------------------------------
 
-function shouldShowPrompt(promptType: string | undefined, choices: unknown): boolean {
+function shouldShowPrompt(
+  promptType: string | undefined,
+  choices: unknown,
+): boolean {
   if (promptType === "waiting" || promptType === "run") return true;
-  if (typeof choices === "object" && choices != null && !Array.isArray(choices)) {
+  if (
+    typeof choices === "object" &&
+    choices != null &&
+    !Array.isArray(choices)
+  ) {
     const obj = choices as Record<string, unknown>;
-    if (obj.number != null || obj.cardTitle != null || obj.credit != null || obj.counter != null) {
+    if (
+      obj.number != null ||
+      obj.cardTitle != null ||
+      obj.credit != null ||
+      obj.counter != null
+    ) {
       return true;
     }
   }
@@ -161,9 +181,15 @@ export function showPrompt(
   opts: Record<string, unknown> = {},
 ): void {
   const eid = (opts.eid as EID) ?? makeEID(state);
-  const prompt = typeof message === "string" ? message : (message as MsgFn)(state, side, eid, card, []);
+  const prompt =
+    typeof message === "string"
+      ? message
+      : (message as MsgFn)(state, side, eid, card, []);
   const parsedChoices = choiceParser(choices);
-  const selectable = updateSelectable(opts.selectable as string[] | undefined, choices);
+  const selectable = updateSelectable(
+    opts.selectable as string[] | undefined,
+    choices,
+  );
 
   const newPrompt = {
     eid,
@@ -281,14 +307,19 @@ export function showTracePrompt(
   },
 ): void {
   const eid = opts.eid ?? makeEID(state);
-  const prompt = typeof message === "string" ? message : (message as MsgFn)(state, side, eid, card, []);
+  const prompt =
+    typeof message === "string"
+      ? message
+      : (message as MsgFn)(state, side, eid, card, []);
   const corpCredits = opts.corpCredits(eid);
   const runnerCredits = opts.runnerCredits(eid);
 
   const newPrompt = {
     eid,
     message: prompt,
-    choices: (side === CORP_SIDE ? corpCredits : runnerCredits) as Prompt["choices"],
+    choices: (side === CORP_SIDE
+      ? corpCredits
+      : runnerCredits) as Prompt["choices"],
     corpCredits,
     runnerCredits,
     promptType: "trace",
@@ -341,7 +372,9 @@ export function firstSelectionByEid(
   side: string,
   eid: EID,
 ): SelectionEntry | undefined {
-  const player = (side === CORP_SIDE ? state.corp : state.runner) as Corp | Runner & { selected?: SelectionEntry[] };
+  const player = (side === CORP_SIDE ? state.corp : state.runner) as
+    | Corp
+    | (Runner & { selected?: SelectionEntry[] });
   const selected = (player as any).selected as SelectionEntry[] | undefined;
   if (!selected) return undefined;
   return selected.find((s) => {
@@ -391,7 +424,9 @@ export function resolveSelect(
   // Remove the selection entry
   const player = (side === CORP_SIDE ? state.corp : state.runner) as any;
   if (player.selected) {
-    player.selected = player.selected.filter((s: SelectionEntry) => s !== selected);
+    player.selected = player.selected.filter(
+      (s: SelectionEntry) => s !== selected,
+    );
   }
 
   if (prompt) {
@@ -459,7 +494,9 @@ export function resolveSelectBadPublicity(
     removeFromPromptQueue(state, side, prompt);
   }
 
-  resolveAbility(state, side, selected.ability, card, [button as unknown as Card]);
+  resolveAbility(state, side, selected.ability, card, [
+    button as unknown as Card,
+  ]);
 }
 
 // ---------------------------------------------------------------------------
@@ -471,7 +508,15 @@ function computeSelectable(
   side: string,
   card: Card | null,
   ability: Record<string, unknown>,
-  reqFn: ((state: GameState, side: string, eid: EID, card: Card | null, targets: Card[]) => boolean) | undefined,
+  reqFn:
+    | ((
+        state: GameState,
+        side: string,
+        eid: EID,
+        card: Card | null,
+        targets: Card[],
+      ) => boolean)
+    | undefined,
   cardFn: ((c: Card) => boolean) | undefined,
 ): string[] {
   const allCards = getAllCards(state);
@@ -531,11 +576,23 @@ export function showSelect(
 
   const maxVal = choices.max;
   if (typeof maxVal === "function") {
-    (choices as any).max = (maxVal as Function)(state, side, eid, card, targets as Card[]);
+    (choices as any).max = (maxVal as Function)(
+      state,
+      side,
+      eid,
+      card,
+      targets as Card[],
+    );
   }
   const minVal = choices.min;
   if (typeof minVal === "function") {
-    (choices as any).min = (minVal as Function)(state, side, eid, card, targets as Card[]);
+    (choices as any).min = (minVal as Function)(
+      state,
+      side,
+      eid,
+      card,
+      targets as Card[],
+    );
   }
 
   const all = choices.all as boolean | undefined;
@@ -544,11 +601,24 @@ export function showSelect(
   }
 
   const reqFn = choices.req as
-    | ((state: GameState, side: string, eid: EID, card: Card | null, targets: Card[]) => boolean)
+    | ((
+        state: GameState,
+        side: string,
+        eid: EID,
+        card: Card | null,
+        targets: Card[],
+      ) => boolean)
     | undefined;
   const cardFn = choices.card as ((c: Card) => boolean) | undefined;
 
-  const selectableCards = computeSelectable(state, side, card, processedAbility, reqFn, cardFn);
+  const selectableCards = computeSelectable(
+    state,
+    side,
+    card,
+    processedAbility,
+    reqFn,
+    cardFn,
+  );
   const minChoices = choices.min as number | undefined;
   const maxChoices = choices.max as number | undefined;
 
@@ -572,32 +642,38 @@ export function showSelect(
 
   // Build the prompt message
   const promptMsg = ability.prompt
-    ? (typeof ability.prompt === "string" ? ability.prompt : (ability.prompt as MsgFn)(state, side, eid, card, []))
-    : (
-        "Choose" +
-        (minChoices != null ? ` at least ${minChoices}` : "") +
-        (minChoices != null && maxChoices != null ? " and" : "") +
-        (maxChoices != null
-          ? ` ${all ? "" : "up to"} ${maxChoices}`
-          : "") +
-        (maxChoices != null
-          ? ` ${pluralize("target", maxChoices)}`
-          : minChoices != null
-            ? ` ${pluralize("target", minChoices)}`
-            : " a target") +
-        ` for ${card?.title ?? ""}`
-      );
+    ? typeof ability.prompt === "string"
+      ? ability.prompt
+      : (ability.prompt as MsgFn)(state, side, eid, card, [])
+    : "Choose" +
+      (minChoices != null ? ` at least ${minChoices}` : "") +
+      (minChoices != null && maxChoices != null ? " and" : "") +
+      (maxChoices != null ? ` ${all ? "" : "up to"} ${maxChoices}` : "") +
+      (maxChoices != null
+        ? ` ${pluralize("target", maxChoices)}`
+        : minChoices != null
+          ? ` ${pluralize("target", minChoices)}`
+          : " a target") +
+      ` for ${card?.title ?? ""}`;
 
   const promptChoices = all ? ["Hide"] : ["Done"];
 
   // Wrap cancel function if present
-  const wrapFunction = (argObj: Record<string, unknown>, key: string): Record<string, unknown> => {
+  const wrapFunction = (
+    argObj: Record<string, unknown>,
+    key: string,
+  ): Record<string, unknown> => {
     const val = argObj[key];
     if (val) {
       return {
         ...argObj,
-        [key]: (state: GameState, side: string, eid: EID, card: Card | null, targets: Card[]) =>
-          resolveAbility(state, side, { eid }, card, targets),
+        [key]: (
+          state: GameState,
+          side: string,
+          eid: EID,
+          card: Card | null,
+          targets: Card[],
+        ) => resolveAbility(state, side, { eid }, card, targets),
       };
     }
     return argObj;
@@ -644,7 +720,15 @@ export function showSelect(
             side,
             `You must choose at least ${minChoices} ${pluralize("card", minChoices)}`,
           );
-          showSelect(state, side, card, ability, updateFn, resolveAbility, args);
+          showSelect(
+            state,
+            side,
+            card,
+            ability,
+            updateFn,
+            resolveAbility,
+            args,
+          );
           return;
         }
 
@@ -654,7 +738,9 @@ export function showSelect(
           eid,
           card,
           Object.fromEntries(
-            Object.entries(wrapFunction(args, "cancel")).filter(([k]) => k === "cancel"),
+            Object.entries(wrapFunction(args, "cancel")).filter(
+              ([k]) => k === "cancel",
+            ),
           ),
           updateFn,
           resolveAbility,
@@ -730,7 +816,11 @@ export function clearWaitPrompt(state: GameState, side: string): void {
  * Adds a dummy prompt to both sides' prompt queues.
  * The prompt cannot be closed except by a later call to clearRunPrompts.
  */
-export function showRunPrompts(state: GameState, msg: string, card: Card | null): void {
+export function showRunPrompts(
+  state: GameState,
+  msg: string,
+  card: Card | null,
+): void {
   showPrompt(state, RUNNER_SIDE, card, `You are ${msg}`, null, null, {
     promptType: "run",
   });
@@ -768,11 +858,14 @@ export function clearRunPrompts(state: GameState): void {
  * Wraps a vector of prompt choices with a final 'Cancel' option.
  * Optionally sorts the vector alphabetically, with Cancel always last.
  */
-export function cancellable(choices: unknown[], sorted = false): (unknown | string)[] {
+export function cancellable(
+  choices: unknown[],
+  sorted = false,
+): (unknown | string)[] {
   if (sorted) {
     return [
-      ...(choices as Array<{ title?: string }>).sort(
-        (a, b) => ((a as any).title ?? "").localeCompare((b as any).title ?? ""),
+      ...(choices as Array<{ title?: string }>).sort((a, b) =>
+        ((a as any).title ?? "").localeCompare((b as any).title ?? ""),
       ),
       "Cancel",
     ];

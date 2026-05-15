@@ -1,12 +1,12 @@
 // Threat level management.
 // Mirrors: src/clj/game/core/threat.clj
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import type { EID } from "./eid.js";
-import type { Ability } from "./types.js";
-import { effectCompleted } from "./eid.js";
-import { req, continue_ability } from "../macros.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import type { EID } from "./eid";
+import type { Ability } from "./types.ts";
+import { effectCompleted } from "./eid";
+import { req, continue_ability } from "../macros";
 
 /**
  * Returns whether the threat level meets or exceeds the given threshold.
@@ -46,14 +46,22 @@ export function threat(
   return {
     req: req(() => true),
     async: true,
-    effect: req((state: GameState, side: string, eid: EID, card: Card | null, targets: Card[]) => {
-      if (threatLevel(threshold, state)) {
-        continue_ability(state, side, acceptAb, card, targets);
-      } else if (rejectAb == null) {
-        effectCompleted(state, side, eid);
-      } else {
-        continue_ability(state, side, rejectAb, card, targets);
-      }
-    }),
+    effect: req(
+      (
+        state: GameState,
+        side: string,
+        eid: EID,
+        card: Card | null,
+        targets: Card[],
+      ) => {
+        if (threatLevel(threshold, state)) {
+          continue_ability(state, side, acceptAb, card, targets);
+        } else if (rejectAb == null) {
+          effectCompleted(state, side, eid);
+        } else {
+          continue_ability(state, side, rejectAb, card, targets);
+        }
+      },
+    ),
   };
 }

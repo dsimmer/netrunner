@@ -1,23 +1,28 @@
 // Game initialization and set-up.
 // Mirrors: src/clj/game/core/set_up.clj
 
-import type { Card } from "./card.js";
-import { cardDef } from "./card_defs.js";
-import { fakeCheckpoint } from "./checkpoint.js";
-import { publicStates } from "./diffs.js";
-import { draw } from "./drawing.js";
-import type { EID } from "./eid.js";
-import { effectCompleted, makeEID, makeEIDFrom, registerEIDCallback } from "./eid.js";
-import { triggerEvent, triggerEventSync } from "./engine.js";
-import { cardInit, makeCard } from "./initializing.js";
-import type { GameState } from "./state.js";
-import { newCorp, newRunner, newGameState, getPlayer } from "./state.js";
-import { clearWaitPrompt, showPrompt, showWaitPrompt } from "./prompts.js";
-import { checkQuickDraft } from "./quick_draft.js";
-import { implementationMsg, systemMsg } from "./say.js";
-import { shuffleIntoDeck } from "./shuffling.js";
-import { makeQuote } from "../quotes.js";
-import { serverCard } from "../utils.js";
+import type { Card } from "./card";
+import { cardDef } from "./card_defs";
+import { fakeCheckpoint } from "./checkpoint";
+import { publicStates } from "./diffs";
+import { draw } from "./drawing";
+import type { EID } from "./eid";
+import {
+  effectCompleted,
+  makeEID,
+  makeEIDFrom,
+  registerEIDCallback,
+} from "./eid";
+import { triggerEvent, triggerEventSync } from "./engine";
+import { cardInit, makeCard } from "./initializing";
+import type { GameState } from "./state";
+import { newCorp, newRunner, newGameState, getPlayer } from "./state";
+import { clearWaitPrompt, showPrompt, showWaitPrompt } from "./prompts";
+import { checkQuickDraft } from "./quick_draft";
+import { implementationMsg, systemMsg } from "./say";
+import { shuffleIntoDeck } from "./shuffling";
+import { makeQuote } from "../quotes";
+import { serverCard } from "../utils";
 
 // ---------------------------------------------------------------------------
 // build-card / create-deck
@@ -39,7 +44,9 @@ export function buildCard(card: Record<string, unknown>): Card {
  * Loads card data from the server-card map if available.
  * Mirrors: create-deck
  */
-function createDeck(deck: { cards?: { card: Record<string, unknown>; qty?: number; art?: string }[] }): Card[] {
+function createDeck(deck: {
+  cards?: { card: Record<string, unknown>; qty?: number; art?: string }[];
+}): Card[] {
   const cards = deck.cards ?? [];
   const expanded: Card[] = [];
   for (const entry of cards) {
@@ -65,14 +72,20 @@ function createDeck(deck: { cards?: { card: Record<string, unknown>; qty?: numbe
  * Mulligan starting hand.
  * Mirrors: mulligan
  */
-export function mulligan(state: GameState, side: string, _eid: EID | null): void {
+export function mulligan(
+  state: GameState,
+  side: string,
+  _eid: EID | null,
+): void {
   shuffleIntoDeck(state, side, "hand");
   const eid = makeEID(state);
   draw(state, side, eid, 5, { suppressEvent: true, noUpdateDrawStats: true });
   const card = getPlayer(state, side).identity;
   if (card) {
     const cdef = cardDef(card);
-    const mul = (cdef as unknown as Record<string, unknown>).mulligan as ((s: GameState, sd: string, e: EID, c: Card, t: unknown) => void) | undefined;
+    const mul = (cdef as unknown as Record<string, unknown>).mulligan as
+      | ((s: GameState, sd: string, e: EID, c: Card, t: unknown) => void)
+      | undefined;
     if (mul) {
       mul(state, side, eid, card, null);
     }
@@ -93,7 +106,11 @@ export function mulligan(state: GameState, side: string, _eid: EID | null): void
  * Choose not to mulligan.
  * Mirrors: keep-hand
  */
-export function keepHand(state: GameState, side: string, _eid: EID | null): void {
+export function keepHand(
+  state: GameState,
+  side: string,
+  _eid: EID | null,
+): void {
   (getPlayer(state, side) as any).keep = "keep";
   systemMsg(state, side, "keeps [their] hand");
   triggerEvent(state, side, "pre-first-turn", null, null);
@@ -340,7 +357,10 @@ export function initGame(game: GameData): GameState {
   const runnerIdentity = state.runner.identity;
 
   if (game.messages && game.messages.length > 0) {
-    state.log.public = game.messages.map((m) => ({ user: "__system__", text: m }));
+    state.log.public = game.messages.map((m) => ({
+      user: "__system__",
+      text: m,
+    }));
     state.log.public.push({ user: "__system__", text: "[hr]" });
   } else {
     state.log.public = [];

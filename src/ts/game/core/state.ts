@@ -1,9 +1,9 @@
 // GameState, Corp, Runner, and all player-side state types.
 // Mirrors: src/clj/game/core/state.clj + player.clj + src/go/game/core/state.go
 
-import type { Card, Zone } from "./card.js";
-import type { EID } from "./eid.js";
-import type { Ability, AbilityFn, ReqFn } from "./types.js";
+import type { Card, Zone } from "./card";
+import type { EID } from "./eid";
+import type { Ability, AbilityFn, ReqFn } from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // Side constants
@@ -81,12 +81,30 @@ export interface Memory {
 }
 
 export interface ChoicesMap {
-  number?: (state: GameState, side: string, eid: EID, card: Card | null, targets: Card[]) => number;
-  default?: (state: GameState, side: string, eid: EID, card: Card | null, targets: Card[]) => number;
+  number?: (
+    state: GameState,
+    side: string,
+    eid: EID,
+    card: Card | null,
+    targets: Card[],
+  ) => number;
+  default?: (
+    state: GameState,
+    side: string,
+    eid: EID,
+    card: Card | null,
+    targets: Card[],
+  ) => number;
   card?: (c: Card) => boolean;
   req?: ReqFn;
   all?: boolean;
-  max?: (state: GameState, side: string, eid: EID, card: Card | null, targets: Card[]) => number;
+  max?: (
+    state: GameState,
+    side: string,
+    eid: EID,
+    card: Card | null,
+    targets: Card[],
+  ) => number;
   notSelf?: boolean;
 }
 
@@ -135,7 +153,13 @@ export interface Effect {
   type: string;
   card: Card;
   req?: ReqFn;
-  value?: (state: GameState, side: string, eid: EID, card: Card | null, targets: Card[]) => unknown;
+  value?: (
+    state: GameState,
+    side: string,
+    eid: EID,
+    card: Card | null,
+    targets: Card[],
+  ) => unknown;
   duration?: string;
   static?: boolean;
   lingering?: boolean;
@@ -577,7 +601,11 @@ export function getSidePrompt(state: GameState, side: string): Prompt[] {
 }
 
 /** Sets the prompt queue for the given side. */
-export function setSidePrompt(state: GameState, side: string, prompts: Prompt[]): void {
+export function setSidePrompt(
+  state: GameState,
+  side: string,
+  prompts: Prompt[],
+): void {
   if (side === CORP_SIDE) {
     state.corpPrompt = prompts;
   } else {

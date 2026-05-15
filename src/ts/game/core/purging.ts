@@ -1,18 +1,18 @@
 // Purging virus counters.
 // Mirrors: src/clj/game/core/purging.clj
 
-import type { GameState } from "./state.js";
-import type { EID } from "./eid.js";
-import type { Card } from "./card.js";
-import { getAllInstalled } from "./board.js";
-import { getCounters } from "./card.js";
-import { effectCompleted } from "./eid.js";
-import { getEffects } from "./effects.js";
-import { queueEvent } from "./engine.js";
-import { checkpoint } from "./checkpoint.js";
-import { updateAllIce } from "./ice.js";
-import { addCounter } from "./props.js";
-import { wait_for } from "../macros.js";
+import type { GameState } from "./state";
+import type { EID } from "./eid";
+import type { Card } from "./card";
+import { getAllInstalled } from "./board";
+import { getCounters } from "./card";
+import { effectCompleted } from "./eid";
+import { getEffects } from "./effects";
+import { queueEvent } from "./engine";
+import { checkpoint } from "./checkpoint";
+import { updateAllIce } from "./ice";
+import { addCounter } from "./props";
+import { wait_for } from "../macros";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -50,10 +50,16 @@ function removeVirusCounters(
   const [current, ...remainder] = entries;
   wait_for(
     state,
+    [() => removeVirusCounters(state, side, eid, remainder)],
     [
-      () => removeVirusCounters(state, side, eid, remainder),
+      addCounter,
+      state,
+      "runner",
+      current.card,
+      "virus",
+      -current.quantity,
+      null,
     ],
-    [addCounter, state, "runner", current.card, "virus", -current.quantity, null],
     { eid },
   );
 }
@@ -66,18 +72,22 @@ function removeVirusCounters(
  * Purges virus counters from all installed cards.
  * Mirrors `purge` in purging.clj.
  */
-export function purge(
-  state: GameState,
-  side: string,
-  eid: EID,
-): void {
+export function purge(state: GameState, side: string, eid: EID): void {
   // Build a map of cid -> purge prevention effect
   const purgePreventions: Record<string, PurgePrevention> = {};
-  const preventionEffects = getEffects(state, side, "prevent-purge-virus-counters", null, []);
+  const preventionEffects = getEffects(
+    state,
+    side,
+    "prevent-purge-virus-counters",
+    null,
+    [],
+  );
   for (const eff of preventionEffects) {
     if (eff && typeof eff === "object") {
       const card = (eff as Record<string, unknown>).card as Card | undefined;
-      const quantity = (eff as Record<string, unknown>).quantity as number | undefined;
+      const quantity = (eff as Record<string, unknown>).quantity as
+        | number
+        | undefined;
       if (card?.cid) {
         purgePreventions[card.cid] = { card, quantity: quantity ?? 0 };
       }
@@ -102,7 +112,10 @@ export function purge(
     [
       () => {
         updateAllIce(state, side);
-        const totalPurgedCounters = cardsToPurge.reduce((sum, e) => sum + e.quantity, 0);
+        const totalPurgedCounters = cardsToPurge.reduce(
+          (sum, e) => sum + e.quantity,
+          0,
+        );
         queueEvent(state, "purge", {
           totalPurgedCounters,
           purges: cardsToPurge,

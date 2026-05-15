@@ -1,16 +1,16 @@
 // Revealing cards: hand reveal/conceal, reveal events, and loud reveal with logging.
 // Mirrors: src/clj/game/core/revealing.clj
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import type { EID } from "./eid.js";
-import { effectCompleted } from "./eid.js";
-import { queueEvent } from "./engine.js";
-import { checkpoint } from "./checkpoint.js";
-import { systemMsg } from "./say.js";
-import { nameZone } from "./servers.js";
-import { enumerateCards, enumerateStr } from "../utils.js";
-import { otherSide } from "../../jinteki/utils.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import type { EID } from "./eid";
+import { effectCompleted } from "./eid";
+import { queueEvent } from "./engine";
+import { checkpoint } from "./checkpoint";
+import { systemMsg } from "./say";
+import { nameZone } from "./servers";
+import { enumerateCards, enumerateStr } from "../utils";
+import { otherSide } from "../../jinteki/utils";
 
 /**
  * Reveal a side's hand to the opponent and spectators.
@@ -54,11 +54,9 @@ export function revealAndQueueEvent(
 ): void {
   const cards = flattenCards(targets);
   state.lastRevealed = cards;
-  queueEvent(
-    state,
-    side === "corp" ? "corp-reveal" : "runner-reveal",
-    { cards },
-  );
+  queueEvent(state, side === "corp" ? "corp-reveal" : "runner-reveal", {
+    cards,
+  });
 }
 
 /**
@@ -115,9 +113,7 @@ export function revealLoud(
     const zone = JSON.parse(key.split(":")[1]);
     const sorted = false;
     strs.push(
-      enumerateCards(zoneCards, sorted) +
-        " from " +
-        nameZone(sideStr, zone),
+      enumerateCards(zoneCards, sorted) + " from " + nameZone(sideStr, zone),
     );
   }
 

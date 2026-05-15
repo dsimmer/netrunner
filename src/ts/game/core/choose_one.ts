@@ -3,14 +3,14 @@
  * Mirrors: src/clj/game/core/choose_one.clj
  */
 
-import type { GameState } from "./state.js";
-import type { EID } from "./eid.js";
-import type { Card } from "./card.js";
-import type { Ability, ReqFn, NumberFn, MsgFn } from "./types.js";
+import type { GameState } from "./state";
+import type { EID } from "./eid";
+import type { Card } from "./card";
+import type { Ability, ReqFn, NumberFn, MsgFn } from "./types.ts";
 
-import { continue_ability } from "../macros.js";
-import { buildCostString, canPay } from "./payment.js";
-import { effectCompleted, makeEID, registerEIDCallback } from "./eid.js";
+import { continue_ability } from "../macros";
+import { buildCostString, canPay } from "./payment";
+import { effectCompleted, makeEID, registerEIDCallback } from "./eid";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -118,9 +118,7 @@ function buildChooseOne(args: ChooseOneArgs, xs: ChoiceOption[]): Ability {
   const applyOptional = args.optional && !nextOptional;
 
   // If optional is set (but not :after-first), add a "Done" option
-  const processedXs = applyOptional
-    ? [...xs, { option: "Done" }]
-    : xs;
+  const processedXs = applyOptional ? [...xs, { option: "Done" }] : xs;
 
   // base-map: (select-keys args [:action :player :once :unregister-once-resolved ...])
   const baseMap: Partial<Ability> = {};
@@ -151,7 +149,10 @@ function buildChooseOne(args: ChooseOneArgs, xs: ChoiceOption[]): Ability {
     card: Card | null,
     targets: Card[],
   ): ChoiceOption | undefined => {
-    if (!x.cost || canPay(state, args.player || side, eid, card, null, x.cost)) {
+    if (
+      !x.cost ||
+      canPay(state, args.player || side, eid, card, null, x.cost)
+    ) {
       return x;
     }
     return undefined;
@@ -241,61 +242,36 @@ function buildChooseOne(args: ChooseOneArgs, xs: ChoiceOption[]): Ability {
       const count = args.count as number | undefined;
       const remainingTarget = target;
 
-      registerEIDCallback(
-        state,
-        newEid,
-        (newState, newSide, newEidInner) => {
-          if (
-            count &&
-            count > 1 &&
-            remainingTarget !== "Done"
-          ) {
-            // The 'Done' is already there, so can dissoc optional
-            const newArgs: ChooseOneArgs = {
-              ...args,
-              count: count - 1,
-              optional: nextOptional,
-            };
-            const newXs = args.noPrune
-              ? full
-              : full.filter(
-                  (x) => costedStr(x) !== remainingTarget,
-                );
-            continue_ability(
-              newState,
-              newSide,
-              buildChooseOne(newArgs, newXs),
-              card,
-              null,
-            );
-          } else {
-            effectCompleted(newState, newSide, newEidInner);
-          }
-        },
-      );
+      registerEIDCallback(state, newEid, (newState, newSide, newEidInner) => {
+        if (count && count > 1 && remainingTarget !== "Done") {
+          // The 'Done' is already there, so can dissoc optional
+          const newArgs: ChooseOneArgs = {
+            ...args,
+            count: count - 1,
+            optional: nextOptional,
+          };
+          const newXs = args.noPrune
+            ? full
+            : full.filter((x) => costedStr(x) !== remainingTarget);
+          continue_ability(
+            newState,
+            newSide,
+            buildChooseOne(newArgs, newXs),
+            card,
+            null,
+          );
+        } else {
+          effectCompleted(newState, newSide, newEidInner);
+        }
+      });
 
-      continue_ability(
-        state,
-        abSide,
-        ability,
-        card,
-        targets,
-      );
+      continue_ability(state, abSide, ability, card, targets);
 
       return;
     }
 
     // Try the next choice (recursive)
-    resolveChoices(
-      xs.slice(1),
-      full,
-      state,
-      side,
-      eid,
-      card,
-      targets,
-      target,
-    );
+    resolveChoices(xs.slice(1), full, state, side, eid, card, targets, target);
   };
 
   // Build the prompt string
@@ -335,11 +311,7 @@ function buildChooseOne(args: ChooseOneArgs, xs: ChoiceOption[]): Ability {
       if (typeof args.prompt === "function") {
         finalPrompt =
           args.prompt(state, side, eid, card, targets) || "Choose one";
-        if (
-          args.count &&
-          typeof args.count === "number" &&
-          args.count > 0
-        ) {
+        if (args.count && typeof args.count === "number" && args.count > 0) {
           finalPrompt += ` (${args.count} remaining)`;
         }
       }
@@ -347,9 +319,7 @@ function buildChooseOne(args: ChooseOneArgs, xs: ChoiceOption[]): Ability {
       // Update the prompt queue with the final computed values
       const promptQueue =
         side === "corp" ? state.corpPrompt : state.runnerPrompt;
-      const promptIndex = promptQueue.findIndex(
-        (p) => p.eid?.id === eid.id,
-      );
+      const promptIndex = promptQueue.findIndex((p) => p.eid?.id === eid.id);
       if (promptIndex >= 0) {
         promptQueue[promptIndex] = {
           ...promptQueue[promptIndex],

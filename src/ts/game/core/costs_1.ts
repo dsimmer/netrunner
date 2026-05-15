@@ -8,22 +8,22 @@
 //   - payable:      predicate for whether the cost can be paid right now
 //   - handler:      effect that actually pays the cost; signals completion via the eid
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import type { EID } from "./eid.js";
-import type { Ability, NumberFn } from "./types.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import type { EID } from "./eid";
+import type { Ability, NumberFn } from "./types.ts";
 
 import {
   badPublicityAvailable,
   gainBadPublicity,
   loseBadPublicity,
-} from "./bad_publicity.js";
+} from "./bad_publicity";
 import {
   allActive,
   allActiveInstalled,
   allInstalled,
   allInstalledRunnerType,
-} from "./board.js";
+} from "./board";
 import {
   hasSubtype,
   getCounter,
@@ -40,19 +40,19 @@ import {
   isRezzed,
   isRunner,
   isActive,
-} from "./card.js";
-import { getCardDef } from "./types.js";
-import { damage } from "./damage.js";
+} from "./card";
+import { getCardDef } from "./types.ts";
+import { damage } from "./damage";
 import {
   completeWithResult,
   makeEID,
   makeEIDFrom,
   registerEIDCallback,
-} from "./eid.js";
-import { resolveAbility, queueEvent } from "./engine.js";
-import { anyEffects, isDisabledReg } from "./effects.js";
-import { isScored } from "./flags.js";
-import { deduct, lose } from "./gaining.js";
+} from "./eid";
+import { resolveAbility, queueEvent } from "./engine";
+import { anyEffects, isDisabledReg } from "./effects";
+import { isScored } from "./flags";
+import { deduct, lose } from "./gaining";
 import {
   discardFromHand,
   flipFacedown,
@@ -61,22 +61,22 @@ import {
   move,
   trash,
   trashCards,
-} from "./moving.js";
+} from "./moving";
 import {
   pickCreditProvidingCards,
   pickCreditReducers,
   pickVirusCountersToSpend,
-} from "./pick_counters.js";
-import { addCounter, addProp } from "./props.js";
-import { reveal, revealAndQueueEvent } from "./revealing.js";
-import { derez } from "./rezzing.js";
-import { shuffleDeck } from "./shuffling.js";
-import { gainTags, loseTags } from "./tags.js";
-import { cardStr } from "./to_string.js";
-import { numberOfVirusCounters } from "./virus.js";
-import { getCard } from "./finding.js";
-import { continue_ability } from "../macros.js";
-import { enumerateCards, enumerateStr, quantify, sameCard } from "../utils.js";
+} from "./pick_counters";
+import { addCounter, addProp } from "./props";
+import { reveal, revealAndQueueEvent } from "./revealing";
+import { derez } from "./rezzing";
+import { shuffleDeck } from "./shuffling";
+import { gainTags, loseTags } from "./tags";
+import { cardStr } from "./to_string";
+import { numberOfVirusCounters } from "./virus";
+import { getCard } from "./finding";
+import { continue_ability } from "../macros";
+import { enumerateCards, enumerateStr, quantify, sameCard } from "../utils";
 
 // ---------------------------------------------------------------------------
 // Cost shape (extends the base Cost interface in types.ts with optional fields
@@ -141,7 +141,9 @@ export function payable(
   eid: EID,
   card: Card | null,
 ): boolean {
-  return payableDispatch.get(cost.type)?.(cost, state, side, eid, card) ?? false;
+  return (
+    payableDispatch.get(cost.type)?.(cost, state, side, eid, card) ?? false
+  );
 }
 
 export function handler(
@@ -162,24 +164,34 @@ function clicks(n: number): string {
   return Array(n).fill("[Click]").join("");
 }
 
-function bumpStat(state: GameState, side: string, path: string[], delta: number): void {
+function bumpStat(
+  state: GameState,
+  side: string,
+  path: string[],
+  delta: number,
+): void {
   const root = (state as any).stats ?? ((state as any).stats = {});
   let cur = (root[side] ??= {});
   for (let i = 0; i < path.length - 1; i++) {
-    cur = (cur[path[i]] ??= {});
+    cur = cur[path[i]] ??= {};
   }
   const last = path[path.length - 1];
   cur[last] = (cur[last] ?? 0) + delta;
 }
 
-function setRegister(state: GameState, side: string, key: string, val: unknown): void {
+function setRegister(
+  state: GameState,
+  side: string,
+  key: string,
+  val: unknown,
+): void {
   const sideObj: any = (state as any)[side];
   if (!sideObj.register) sideObj.register = {};
   sideObj.register[key] = val;
 }
 
 function canForfeit(card: Card | null): boolean {
-  return !((card as any)?.flags?.["cannot-forfeit"]);
+  return !(card as any)?.flags?.["cannot-forfeit"];
 }
 
 /**
@@ -214,7 +226,9 @@ function activePayCreditCards(
   card: Card | null,
   reducers: boolean,
 ): Card[] {
-  const all = Array.from(new Set([...allActive(state, side), ...allInstalled(state, side)]));
+  const all = Array.from(
+    new Set([...allActive(state, side), ...allInstalled(state, side)]),
+  );
   return all.filter((c) => {
     const pc = payCreditsCfg(c);
     if (!pc) return false;
@@ -267,7 +281,12 @@ function eligibleReduceCreditCards(
   });
 }
 
-function customAmount(state: GameState, side: string, eid: EID, c: Card): number {
+function customAmount(
+  state: GameState,
+  side: string,
+  eid: EID,
+  c: Card,
+): number {
   const cmt = payCreditsCfg(c)?.["custom-amount"];
   if (cmt == null) return 0;
   if (typeof cmt === "function") return cmt(state, side, eid, c, null);
@@ -444,7 +463,8 @@ handlerDispatch.set("credit", (c, state, side, eid, card) => {
     (reduceResult) => {
       const reduction = (reduceResult as any)?.reduction ?? 0;
       const updated = Math.max(0, value(c) - reduction);
-      const event = side === "corp" ? ":corp-spent-credits" : ":runner-spent-credits";
+      const event =
+        side === "corp" ? ":corp-spent-credits" : ":runner-spent-credits";
       if (
         updated > 0 &&
         (providerFn().length > 0 || badPublicityAvailable(state, side) > 0)
@@ -533,18 +553,27 @@ handlerDispatch.set("x-credits", (c, state, side, eid, card) => {
           const max = c.maximum;
           if (max != null) {
             const m =
-              typeof max === "function" ? max(s, sd, ei, ca, []) : (max as number);
+              typeof max === "function"
+                ? max(s, sd, ei, ca, [])
+                : (max as number);
             return Math.min(totalAvailableCredits(s, sd, ei, ca), offset + m);
           }
           return totalAvailableCredits(s, sd, ei, ca);
         }) as any,
       } as any,
-      effect: ((s: GameState, sd: string, ei: EID, ca: Card | null, targets: any[]) => {
+      effect: ((
+        s: GameState,
+        sd: string,
+        ei: EID,
+        ca: Card | null,
+        targets: any[],
+      ) => {
         const stealthForCall =
           stealthValue(c) === -1 ? c : (stealthValue(c) as any);
         const cost = targets[0] as number;
         const providerFn = () => eligiblePayCreditCards(s, sd, ei, ca);
-        const event = sd === "corp" ? ":corp-spent-credits" : ":runner-spent-credits";
+        const event =
+          sd === "corp" ? ":corp-spent-credits" : ":runner-spent-credits";
         if (cost > 0 && providerFn().length > 0) {
           waitFor(
             s,
@@ -554,7 +583,12 @@ handlerDispatch.set("x-credits", (c, state, side, eid, card) => {
                 s,
                 sd,
                 {
-                  ...pickCreditProvidingCards(providerFn, innerEid, cost, stealthForCall),
+                  ...pickCreditProvidingCards(
+                    providerFn,
+                    innerEid,
+                    cost,
+                    stealthForCall,
+                  ),
                   eid: innerEid,
                 } as any,
                 ca,
@@ -617,7 +651,11 @@ handlerDispatch.set("expend", (_c, state, side, eid, card) => {
         "corp",
         innerEid,
         { ...(getCard(state, card) ?? card), seen: true },
-        { cause: "ability-cost", unpreventable: true, "suppress-checkpoint": true },
+        {
+          cause: "ability-cost",
+          unpreventable: true,
+          "suppress-checkpoint": true,
+        },
       ),
     () => {
       completeWithResult(state, side, eid, {
@@ -636,7 +674,9 @@ handlerDispatch.set("expend", (_c, state, side, eid, card) => {
 
 function registerSelfTrash(type: string): void {
   valueDispatch.set(type, (c) => c.amount);
-  labelDispatch.set(type, () => (type === "trash-can" ? "[trash]" : "trash itself"));
+  labelDispatch.set(type, () =>
+    type === "trash-can" ? "[trash]" : "trash itself",
+  );
   payableDispatch.set(type, (c, state, _side, _eid, card) => {
     return isInstalled(getCard(state, card)) && value(c) === 1;
   });
@@ -685,12 +725,24 @@ handlerDispatch.set("forfeit", (c, state, side, eid, card) => {
       choices: {
         max: value(c),
         all: true,
-        req: ((s: GameState, sd: string, _e: EID, _ca: Card | null, targets: any[]) => {
+        req: ((
+          s: GameState,
+          sd: string,
+          _e: EID,
+          _ca: Card | null,
+          targets: any[],
+        ) => {
           const t = targets[0] as Card;
           return isScored(s, sd, t) && canForfeit(t);
         }) as any,
       } as any,
-      effect: ((s: GameState, sd: string, ei: EID, _ca: Card | null, targets: Card[]) => {
+      effect: ((
+        s: GameState,
+        sd: string,
+        ei: EID,
+        _ca: Card | null,
+        targets: Card[],
+      ) => {
         for (const ag of targets) {
           forfeit(s, sd, makeEIDFrom(s, ei), ag, {
             msg: false,
@@ -754,103 +806,131 @@ payableDispatch.set("forfeit-or-trash-x-from-hand", (c, state, side) => {
   const hand = ((state as any)[side]?.hand ?? []) as Card[];
   const scored = ((state as any)[side]?.scored ?? []) as Card[];
   return (
-    hand.length - value(c) >= 0 || scored.filter((s) => canForfeit(s)).length > 0
+    hand.length - value(c) >= 0 ||
+    scored.filter((s) => canForfeit(s)).length > 0
   );
 });
-handlerDispatch.set("forfeit-or-trash-x-from-hand", (c, state, side, eid, card) => {
-  const hand = side === "corp" ? "HQ" : "the grip";
-  const selectFn = (x: Card) =>
-    (side === "corp" ? isCorp(x) : isRunner(x)) && inHand(x);
-  const trashAbility: Ability = {
-    prompt: `Choose ${quantify(value(c), "card")} to reveal and trash`,
-    choices: { all: true, max: value(c), card: selectFn } as any,
-    async: true,
-    effect: ((s: GameState, sd: string, ei: EID, _ca: Card | null, targets: Card[]) => {
-      waitFor(
-        s,
-        ei,
-        (innerEid) => reveal(s, sd, innerEid, targets),
-        () => {
-          waitFor(
-            s,
-            ei,
-            (innerEid) =>
-              trashCards(
-                s,
-                sd,
-                innerEid,
-                targets.map((t) => ({ ...t, seen: true })),
-                {
-                  unpreventable: true,
-                  cause: "ability-cost",
-                  "suppress-checkpoint": true,
-                },
-              ),
-            (asyncResult) => {
-              const trashed = (asyncResult as Card[]) ?? [];
-              completeWithResult(s, sd, ei, {
-                "paid/msg": `reveals and trashes ${quantify(trashed.length, "card")} (${enumerateCards(targets, "sorted")}) from ${hand}`,
-                "paid/type": "trash-from-hand",
-                "paid/value": trashed.length,
-                "paid/targets": trashed,
-              });
-            },
-          );
-        },
-      );
-    }) as any,
-  };
-
-  const forfeitAbility: Ability = {
-    prompt: "Choose an Agenda to forfeit",
-    async: true,
-    choices: {
-      max: 1,
-      all: true,
-      req: ((s: GameState, sd: string, _e: EID, _ca: Card | null, targets: any[]) => {
-        const t = targets[0] as Card;
-        return isScored(s, sd, t) && canForfeit(t);
-      }) as any,
-    } as any,
-    effect: ((s: GameState, sd: string, ei: EID, _ca: Card | null, targets: Card[]) => {
-      for (const ag of targets) {
-        forfeit(s, sd, makeEIDFrom(s, ei), ag, {
-          msg: false,
-          "suppress-checkpoint": true,
-        });
-      }
-      completeWithResult(s, sd, ei, {
-        "paid/msg": `forfeits an agenda (${enumerateCards(targets, "sorted")})`,
-        "paid/type": "forfeit",
-        "paid/value": 1,
-        "paid/targets": targets,
-      });
-    }) as any,
-  };
-
-  const scored = ((state as any)[side]?.scored ?? []) as Card[];
-  const hand2 = ((state as any)[side]?.hand ?? []) as Card[];
-  let chosen: Ability;
-  if (scored.length === 0) chosen = trashAbility;
-  else if (hand2.length - value(c) < 0) chosen = forfeitAbility;
-  else
-    chosen = {
+handlerDispatch.set(
+  "forfeit-or-trash-x-from-hand",
+  (c, state, side, eid, card) => {
+    const hand = side === "corp" ? "HQ" : "the grip";
+    const selectFn = (x: Card) =>
+      (side === "corp" ? isCorp(x) : isRunner(x)) && inHand(x);
+    const trashAbility: Ability = {
+      prompt: `Choose ${quantify(value(c), "card")} to reveal and trash`,
+      choices: { all: true, max: value(c), card: selectFn } as any,
       async: true,
-      prompt: "Choose one",
-      choices: [
-        "Forfeit an Agenda",
-        `Reveal and trash ${value(c)} cards from ${hand}`,
-      ],
-      effect: ((s: GameState, sd: string, ei: EID, ca: Card | null, targets: any[]) => {
-        const t = targets[0] as string;
-        continue_ability(
+      effect: ((
+        s: GameState,
+        sd: string,
+        ei: EID,
+        _ca: Card | null,
+        targets: Card[],
+      ) => {
+        waitFor(
           s,
-          sd,
-          t === "Forfeit an Agenda" ? forfeitAbility : trashAbility,
-          ca,
-          [],
+          ei,
+          (innerEid) => reveal(s, sd, innerEid, targets),
+          () => {
+            waitFor(
+              s,
+              ei,
+              (innerEid) =>
+                trashCards(
+                  s,
+                  sd,
+                  innerEid,
+                  targets.map((t) => ({ ...t, seen: true })),
+                  {
+                    unpreventable: true,
+                    cause: "ability-cost",
+                    "suppress-checkpoint": true,
+                  },
+                ),
+              (asyncResult) => {
+                const trashed = (asyncResult as Card[]) ?? [];
+                completeWithResult(s, sd, ei, {
+                  "paid/msg": `reveals and trashes ${quantify(trashed.length, "card")} (${enumerateCards(targets, "sorted")}) from ${hand}`,
+                  "paid/type": "trash-from-hand",
+                  "paid/value": trashed.length,
+                  "paid/targets": trashed,
+                });
+              },
+            );
+          },
         );
       }) as any,
     };
-  continue_ability(state, side, chosen, card, []);
-});
+
+    const forfeitAbility: Ability = {
+      prompt: "Choose an Agenda to forfeit",
+      async: true,
+      choices: {
+        max: 1,
+        all: true,
+        req: ((
+          s: GameState,
+          sd: string,
+          _e: EID,
+          _ca: Card | null,
+          targets: any[],
+        ) => {
+          const t = targets[0] as Card;
+          return isScored(s, sd, t) && canForfeit(t);
+        }) as any,
+      } as any,
+      effect: ((
+        s: GameState,
+        sd: string,
+        ei: EID,
+        _ca: Card | null,
+        targets: Card[],
+      ) => {
+        for (const ag of targets) {
+          forfeit(s, sd, makeEIDFrom(s, ei), ag, {
+            msg: false,
+            "suppress-checkpoint": true,
+          });
+        }
+        completeWithResult(s, sd, ei, {
+          "paid/msg": `forfeits an agenda (${enumerateCards(targets, "sorted")})`,
+          "paid/type": "forfeit",
+          "paid/value": 1,
+          "paid/targets": targets,
+        });
+      }) as any,
+    };
+
+    const scored = ((state as any)[side]?.scored ?? []) as Card[];
+    const hand2 = ((state as any)[side]?.hand ?? []) as Card[];
+    let chosen: Ability;
+    if (scored.length === 0) chosen = trashAbility;
+    else if (hand2.length - value(c) < 0) chosen = forfeitAbility;
+    else
+      chosen = {
+        async: true,
+        prompt: "Choose one",
+        choices: [
+          "Forfeit an Agenda",
+          `Reveal and trash ${value(c)} cards from ${hand}`,
+        ],
+        effect: ((
+          s: GameState,
+          sd: string,
+          ei: EID,
+          ca: Card | null,
+          targets: any[],
+        ) => {
+          const t = targets[0] as string;
+          continue_ability(
+            s,
+            sd,
+            t === "Forfeit an Agenda" ? forfeitAbility : trashAbility,
+            ca,
+            [],
+          );
+        }) as any,
+      };
+    continue_ability(state, side, chosen, card, []);
+  },
+);

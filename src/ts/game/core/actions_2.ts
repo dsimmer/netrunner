@@ -1,67 +1,102 @@
 // Player-initiated actions: ability play, card movement, advance, score, etc.
 // Mirrors: src/clj/game/core/actions.clj
 
-import type { GameState, Prompt } from "./state.js";
-import { CORP_SIDE, RUNNER_SIDE, getPlayer, getSidePrompt } from "./state.js";
-import type { Card } from "./card.js";
+import type { GameState, Prompt } from "./state";
+import { CORP_SIDE, RUNNER_SIDE, getPlayer, getSidePrompt } from "./state";
+import type { Card } from "./card";
 import {
-  getCard, getAdvancementRequirement, getAgendaPoints, getCounters,
-} from "./card.js";
-import type { EID } from "./eid.js";
-import { makeEID, makeEIDFrom, effectCompleted } from "./eid.js";
-import type { Ability } from "./types.js";
-import type { CostData } from "./payment.js";
+  getCard,
+  getAdvancementRequirement,
+  getAgendaPoints,
+  getCounters,
+} from "./card";
+import type { EID } from "./eid";
+import { makeEID, makeEIDFrom, effectCompleted } from "./eid";
+import type { Ability } from "./types.ts";
+import type { CostData } from "./payment";
 import {
-  updateAdvancementRequirement, updateAllAdvancementRequirements,
+  updateAdvancementRequirement,
+  updateAllAdvancementRequirements,
   updateAllAgendaPoints,
-} from "./agendas.js";
-import { badPublicityAvailable } from "./bad_publicity.js";
-import { installableServers } from "./board.js";
-import { cardDef } from "./card_defs.js";
+} from "./agendas";
+import { badPublicityAvailable } from "./bad_publicity";
+import { installableServers } from "./board";
+import { cardDef } from "./card_defs";
 import {
-  breakSubAbilityCost, cardAbilityCost, scoreAdditionalCostBonus,
-} from "./cost_fns.js";
-import { anyEffects, isDisabledReg } from "./effects.js";
+  breakSubAbilityCost,
+  cardAbilityCost,
+  scoreAdditionalCostBonus,
+} from "./cost_fns";
+import { anyEffects, isDisabledReg } from "./effects";
 import {
-  abilityAsHandler, checkpoint, registerOnce, registerPendingEvent,
-  pay, queueEvent, resolveAbility, triggerEventSimult,
-} from "./engine.js";
-import { canAdvance, canScore } from "./flags.js";
+  abilityAsHandler,
+  checkpoint,
+  registerOnce,
+  registerPendingEvent,
+  pay,
+  queueEvent,
+  resolveAbility,
+  triggerEventSimult,
+} from "./engine";
+import { canAdvance, canScore } from "./flags";
 import {
-  breakSubroutine, breakSubsEventContext, getCurrentIce, getPumpStrength,
-  getStrength, pump, resolveSubroutine, resolveUnbrokenSubs,
+  breakSubroutine,
+  breakSubsEventContext,
+  getCurrentIce,
+  getPumpStrength,
+  getStrength,
+  pump,
+  resolveSubroutine,
+  resolveUnbrokenSubs,
   substituteXCreditCosts,
-} from "./ice.js";
-import { cardInit } from "./initializing.js";
-import { move, trash } from "./moving.js";
+} from "./ice";
+import { cardInit } from "./initializing";
+import { move, trash } from "./moving";
+import { buildSpendMsg, canPay, mergeCosts, buildCostString } from "./payment";
+import { playInstant } from "./play_instants";
+import { expend, expendable } from "./expend";
+import { removeFromPromptQueue } from "./prompt_state";
 import {
-  buildSpendMsg, canPay, mergeCosts, buildCostString,
-} from "./payment.js";
-import { playInstant } from "./play_instants.js";
-import { expend, expendable } from "./expend.js";
-import { removeFromPromptQueue } from "./prompt_state.js";
+  resolveSelect,
+  firstPromptByEid,
+  firstSelectionByEid,
+} from "./prompts";
+import { addCounter, addProp, setProp } from "./props";
+import { continueRun, getRunnableZones } from "./runs";
+import { playSfx, systemMsg, implementationMsg, nLastLogs } from "./say";
+import { nameZone, zonesToSortedNames } from "./servers";
+import { cardStr } from "./to_string";
+import { toast } from "./toasts";
+import { update } from "./update";
+import { continue_ability, req, wait_for } from "../macros";
 import {
-  resolveSelect, firstPromptByEid, firstSelectionByEid,
-} from "./prompts.js";
-import { addCounter, addProp, setProp } from "./props.js";
-import { continueRun, getRunnableZones } from "./runs.js";
-import {
-  playSfx, systemMsg, implementationMsg, nLastLogs,
-} from "./say.js";
-import { nameZone, zonesToSortedNames } from "./servers.js";
-import { cardStr } from "./to_string.js";
-import { toast } from "./toasts.js";
-import { update } from "./update.js";
-import { continue_ability, req, wait_for } from "../macros.js";
-import {
-  dissocIn, quantify, removeOnce, sameCard, sameSide, serverCards, toKeyword,
-} from "../utils.js";
+  dissocIn,
+  quantify,
+  removeOnce,
+  sameCard,
+  sameSide,
+  serverCards,
+  toKeyword,
+} from "../utils";
 
-import { c, doPlayAbility, makeAbilityEID, noBlockingOrPreventPrompt, play, playAbility, playAutoPump, playHeapBreakerAutoPumpAndBreakImpl, side_, sumCostAmount } from './actions_1';
+import {
+  c,
+  doPlayAbility,
+  makeAbilityEID,
+  noBlockingOrPreventPrompt,
+  play,
+  playAbility,
+  playAutoPump,
+  playHeapBreakerAutoPumpAndBreakImpl,
+  side_,
+  sumCostAmount,
+} from "./actions_1";
 
 /** Mirrors `play-heap-breaker-auto-pump-and-break`. */
 export function playHeapBreakerAutoPumpAndBreak(
-  state: GameState, side: string, args: { card: Card },
+  state: GameState,
+  side: string,
+  args: { card: Card },
 ): void {
   const card = getCard(state, args.card);
   if (!card) return;
@@ -71,34 +106,52 @@ export function playHeapBreakerAutoPumpAndBreak(
 
   const canPump = (ability: Ability): boolean => {
     if (!(ability as any)["heap-breaker-pump"]) return false;
-    if (anyEffects(state, side, "prevent-paid-ability", (v) => v === true, card, [ability as any])) {
+    if (
+      anyEffects(state, side, "prevent-paid-ability", (v) => v === true, card, [
+        ability as any,
+      ])
+    ) {
       return false;
     }
     const reqFn = (ability as any).req ?? (() => true);
     return reqFn(state, side, eid, card, null);
   };
 
-  const breakerAbility = ((cardDef(card) as any).abilities ?? []).find(canPump) as Ability | undefined;
-  const pumpStrengthAtOnce = breakerAbility ? (breakerAbility as any)["heap-breaker-pump"] : null;
-  const subsBrokenAtOnce = breakerAbility ? (breakerAbility as any)["heap-breaker-break"] : null;
+  const breakerAbility = ((cardDef(card) as any).abilities ?? []).find(
+    canPump,
+  ) as Ability | undefined;
+  const pumpStrengthAtOnce = breakerAbility
+    ? (breakerAbility as any)["heap-breaker-pump"]
+    : null;
+  const subsBrokenAtOnce = breakerAbility
+    ? (breakerAbility as any)["heap-breaker-break"]
+    : null;
 
   const ciStrength = getStrength(currentIce);
   const cardStrength = getStrength(card);
   const strengthDiff =
-    ciStrength != null && cardStrength != null ? Math.max(0, ciStrength - cardStrength) : null;
+    ciStrength != null && cardStrength != null
+      ? Math.max(0, ciStrength - cardStrength)
+      : null;
   const subroutines: any[] = (currentIce as any).subroutines ?? [];
   const unbrokenSubs = subroutines.filter((s) => !s.broken).length;
   const xNumber =
-    strengthDiff != null && unbrokenSubs != null ? Math.max(strengthDiff, unbrokenSubs) : null;
+    strengthDiff != null && unbrokenSubs != null
+      ? Math.max(strengthDiff, unbrokenSubs)
+      : null;
   const xBreaker = pumpStrengthAtOnce === "x";
 
   const pumpsNeeded =
     strengthDiff != null && pumpStrengthAtOnce != null
-      ? xBreaker ? 1 : Math.ceil(strengthDiff / pumpStrengthAtOnce)
+      ? xBreaker
+        ? 1
+        : Math.ceil(strengthDiff / pumpStrengthAtOnce)
       : null;
   const breaksNeeded =
     unbrokenSubs != null && subsBrokenAtOnce != null
-      ? xBreaker ? 1 : Math.ceil(unbrokenSubs / subsBrokenAtOnce)
+      ? xBreaker
+        ? 1
+        : Math.ceil(unbrokenSubs / subsBrokenAtOnce)
       : null;
   const abilityUsesNeeded =
     pumpsNeeded != null && breaksNeeded != null
@@ -114,7 +167,11 @@ export function playHeapBreakerAutoPumpAndBreak(
         : new Array(abilityUsesNeeded).fill((breakerAbility as any).cost).flat()
       : null;
 
-  if (!breakerAbility || !canPay(state, side, eid, card, card.title ?? "", totalCost)) return;
+  if (
+    !breakerAbility ||
+    !canPay(state, side, eid, card, card.title ?? "", totalCost)
+  )
+    return;
 
   wait_for(
     state,
@@ -124,12 +181,20 @@ export function playHeapBreakerAutoPumpAndBreak(
         if (xBreaker) {
           pump(s, side, getCard(s, card), xNumber as number);
         } else {
-          pump(s, side, getCard(s, card), pumpStrengthAtOnce * (abilityUsesNeeded as number));
+          pump(
+            s,
+            side,
+            getCard(s, card),
+            pumpStrengthAtOnce * (abilityUsesNeeded as number),
+          );
         }
         const paymentStr = (binds.asyncResult as any)?.msg as string;
         const subGroupsToBreak: any[][] =
           typeof subsBrokenAtOnce === "number" && subsBrokenAtOnce > 0
-            ? partition(subsBrokenAtOnce, subroutines.filter((x) => !x.broken))
+            ? partition(
+                subsBrokenAtOnce,
+                subroutines.filter((x) => !x.broken),
+              )
             : [subroutines.filter((x) => !x.broken)];
         wait_for(
           s,
@@ -137,16 +202,25 @@ export function playHeapBreakerAutoPumpAndBreak(
             { asyncResult: "result" },
             function (s2: GameState, _e2: EID, _b2: any) {
               systemMsg(
-                s2, side,
+                s2,
+                side,
                 `${buildSpendMsg(paymentStr, "increase")}the strength of ${card.title} to ${getStrength(getCard(s2, card))} and break all subroutines on ${(currentIce as any).title}`,
               );
               continueRun(s2, side, null as any);
             },
           ],
           [
-            resolveAbility, s, side,
-            playHeapBreakerAutoPumpAndBreakImpl(s, side, subGroupsToBreak, currentIce),
-            card, null,
+            resolveAbility,
+            s,
+            side,
+            playHeapBreakerAutoPumpAndBreakImpl(
+              s,
+              side,
+              subGroupsToBreak,
+              currentIce,
+            ),
+            card,
+            null,
           ],
           { eid },
         );
@@ -175,7 +249,9 @@ function playAutoPumpAndBreakImpl(
         breakSubroutine(s, getCard(s, currentIce), sub, card);
       }
       const ice = getCard(s, currentIce);
-      const onBreakSubs = ice ? (cardDef(currentIce) as any)["on-break-subs"] : null;
+      const onBreakSubs = ice
+        ? (cardDef(currentIce) as any)["on-break-subs"]
+        : null;
       const eventArgs = onBreakSubs
         ? { "card-abilities": abilityAsHandler(ice as Card, onBreakSubs) }
         : null;
@@ -193,17 +269,28 @@ function playAutoPumpAndBreakImpl(
                     effectCompleted(s3, side, eid);
                   } else {
                     continue_ability(
-                      s3, side,
+                      s3,
+                      side,
                       playAutoPumpAndBreakImpl(
-                        s3, side, paymentEid, rest, currentIce, breakAbility,
+                        s3,
+                        side,
+                        paymentEid,
+                        rest,
+                        currentIce,
+                        breakAbility,
                       ),
-                      card, null as any,
+                      card,
+                      null as any,
                     );
                   }
                 },
               ],
               [
-                triggerEventSimult, s2, side, "subroutines-broken", eventArgs,
+                triggerEventSimult,
+                s2,
+                side,
+                "subroutines-broken",
+                eventArgs,
                 breakSubsEventContext(s2, ice as Card, subsToBreak, card),
               ],
               { eid },
@@ -211,9 +298,15 @@ function playAutoPumpAndBreakImpl(
           },
         ],
         [
-          resolveAbility, s, side,
-          { ...((breakAbility as any)["additional-ability"]), eid: makeEIDFrom(s, paymentEid) } as Ability,
-          getCard(s, card), null,
+          resolveAbility,
+          s,
+          side,
+          {
+            ...(breakAbility as any)["additional-ability"],
+            eid: makeEIDFrom(s, paymentEid),
+          } as Ability,
+          getCard(s, card),
+          null,
         ],
         { eid },
       );
@@ -230,11 +323,14 @@ function partition<T>(n: number, coll: T[]): T[][] {
 
 /** Mirrors `play-auto-pump-and-break`. */
 export function playAutoPumpAndBreak(
-  state: GameState, side: string, args: { card: Card },
+  state: GameState,
+  side: string,
+  args: { card: Card },
 ): void {
   const baseCard = getCard(state, args.card);
   if (!baseCard) return;
-  const baseAbilities: Ability[] = ((cardDef(baseCard) as any).abilities ?? []) as Ability[];
+  const baseAbilities: Ability[] = ((cardDef(baseCard) as any).abilities ??
+    []) as Ability[];
   if (baseAbilities.some((a) => (a as any)["heap-breaker-break"])) {
     playHeapBreakerAutoPumpAndBreak(state, side, args);
     return;
@@ -254,14 +350,20 @@ export function playAutoPumpAndBreak(
     .filter((a) => !(a as any)["auto-pump-ignore"])
     .flatMap((a) => {
       if (!canPump(a)) return [];
-      return [[a, cardAbilityCost(state, side, a, card, currentIce)] as [Ability, CostData[]]];
+      return [
+        [a, cardAbilityCost(state, side, a, card, currentIce)] as [
+          Ability,
+          CostData[],
+        ],
+      ];
     });
   let pumpAbility: Ability | undefined;
   let pumpCost: CostData[] | undefined;
   if (pumpCandidates.length > 0) {
     pumpCandidates.sort(
       (a: any, b: any) =>
-        ((a[0] as any)["auto-pump-sort"] ?? 0) - ((b[0] as any)["auto-pump-sort"] ?? 0),
+        ((a[0] as any)["auto-pump-sort"] ?? 0) -
+        ((b[0] as any)["auto-pump-sort"] ?? 0),
     );
     const best = pumpCandidates.reduce((acc: any, cur: any) =>
       sumCostAmount(cur[1]) < sumCostAmount(acc[1]) ? cur : acc,
@@ -269,34 +371,58 @@ export function playAutoPumpAndBreak(
     pumpAbility = best[0];
     pumpCost = best[1];
   }
-  const pumpStrength = pumpAbility ? getPumpStrength(state, side, pumpAbility, card) : 0;
+  const pumpStrength = pumpAbility
+    ? getPumpStrength(state, side, pumpAbility, card)
+    : 0;
   const ciStrength = getStrength(currentIce);
   const cardStrength = getStrength(card);
   const strengthDiff =
-    ciStrength != null && cardStrength != null ? Math.max(0, ciStrength - cardStrength) : null;
+    ciStrength != null && cardStrength != null
+      ? Math.max(0, ciStrength - cardStrength)
+      : null;
   const timesPump =
-    strengthDiff != null && pumpStrength > 0 ? Math.ceil(strengthDiff / pumpStrength) : 0;
+    strengthDiff != null && pumpStrength > 0
+      ? Math.ceil(strengthDiff / pumpStrength)
+      : 0;
   const totalPumpCost: CostData[] | null =
-    pumpAbility && timesPump > 0 ? new Array(timesPump).fill(pumpCost).flat() : null;
+    pumpAbility && timesPump > 0
+      ? new Array(timesPump).fill(pumpCost).flat()
+      : null;
 
   // Break
   const canBreak = (ability: Ability): boolean => {
     if (!(ability as any)["break-req"]) return false;
-    if (anyEffects(state, side, "prevent-paid-ability", (v) => v === true, card, [ability as any])) {
+    if (
+      anyEffects(state, side, "prevent-paid-ability", (v) => v === true, card, [
+        ability as any,
+      ])
+    ) {
       return false;
     }
-    return ((ability as any)["break-req"] as Function)(state, side, eid, card, null);
+    return ((ability as any)["break-req"] as Function)(
+      state,
+      side,
+      eid,
+      card,
+      null,
+    );
   };
   const breakCandidates = baseAbilities.flatMap((a) => {
     if (!canBreak(a)) return [];
-    return [[a, breakSubAbilityCost(state, side, a, card, currentIce)] as [Ability, CostData[]]];
+    return [
+      [a, breakSubAbilityCost(state, side, a, card, currentIce)] as [
+        Ability,
+        CostData[],
+      ],
+    ];
   });
   let breakAbility: Ability | undefined;
   let breakCost: CostData[] | undefined;
   if (breakCandidates.length > 0) {
     breakCandidates.sort(
       (a: any, b: any) =>
-        ((a[0] as any)["auto-break-sort"] ?? 0) - ((b[0] as any)["auto-break-sort"] ?? 0),
+        ((a[0] as any)["auto-break-sort"] ?? 0) -
+        ((b[0] as any)["auto-break-sort"] ?? 0),
     );
     const best = breakCandidates.reduce((acc: any, cur: any) =>
       sumCostAmount(cur[1]) < sumCostAmount(acc[1]) ? cur : acc,
@@ -305,7 +431,9 @@ export function playAutoPumpAndBreak(
     breakCost = best[1];
   }
   const onceKey = breakAbility ? (breakAbility as any).once : undefined;
-  const subsBrokenAtOnce = breakAbility ? ((breakAbility as any).break ?? 1) : null;
+  const subsBrokenAtOnce = breakAbility
+    ? ((breakAbility as any).break ?? 1)
+    : null;
   const subroutines: any[] = (currentIce as any).subroutines ?? [];
   const unbrokenSubsCount =
     subroutines.length > 0 ? subroutines.filter((s) => !s.broken).length : null;
@@ -326,10 +454,14 @@ export function playAutoPumpAndBreak(
       ? new Array(timesBreak).fill(adjustedBreakCost).flat()
       : null;
   const totalCost = mergeCosts([
-    ...(totalPumpCost ?? []), ...(totalBreakCost ?? []),
+    ...(totalPumpCost ?? []),
+    ...(totalBreakCost ?? []),
   ] as any);
 
-  if (!breakAbility || !canPay(state, side, eid, card, card.title ?? "", totalCost)) {
+  if (
+    !breakAbility ||
+    !canPay(state, side, eid, card, card.title ?? "", totalCost)
+  ) {
     return;
   }
 
@@ -360,25 +492,36 @@ export function playAutoPumpAndBreak(
             function (s2: GameState, _e2: EID, _b2: any) {
               if (timesPump > 0) {
                 systemMsg(
-                  s2, side,
+                  s2,
+                  side,
                   `${buildSpendMsg(paymentStr, "increase")}the strength of ${card.title} to ${getStrength(getCard(s2, card))} and break all ${(unbrokenSubsCount as number) > 1 ? unbrokenSubsCount : ""} subroutines on ${(currentIce as any).title}`,
                 );
               } else {
                 systemMsg(
-                  s2, side,
+                  s2,
+                  side,
                   `${buildSpendMsg(paymentStr, "use")}${card.title} to break ${someAlreadyBroken ? "the remaining " : "all "}${unbrokenSubsCount} subroutines on ${(currentIce as any).title}`,
                 );
               }
-              if (onceKey) registerOnce(s2, side, { once: onceKey } as any, card);
+              if (onceKey)
+                registerOnce(s2, side, { once: onceKey } as any, card);
               continueRun(s2, side, null as any);
             },
           ],
           [
-            resolveAbility, s, side,
+            resolveAbility,
+            s,
+            side,
             playAutoPumpAndBreakImpl(
-              s, side, paymentEid, subGroupsToBreak, currentIce, breakAbility as Ability,
+              s,
+              side,
+              paymentEid,
+              subGroupsToBreak,
+              currentIce,
+              breakAbility as Ability,
             ),
-            card, null,
+            card,
+            null,
           ],
           { eid },
         );
@@ -411,7 +554,12 @@ export function playDynamicAbility(
     const fn = dynamicAbilities[args.dynamic];
     if (fn) fn(state, toKeyword(side), args);
   } else {
-    toast(state, side, "You cannot play abilities while other abilities are resolving.", "warning");
+    toast(
+      state,
+      side,
+      "You cannot play abilities while other abilities are resolving.",
+      "warning",
+    );
   }
 }
 
@@ -421,10 +569,15 @@ export function playDynamicAbility(
 
 /** Mirrors `play-corp-ability`. */
 export function playCorpAbility(
-  state: GameState, side: string, args: { card: Card; ability: number },
+  state: GameState,
+  side: string,
+  args: { card: Card; ability: number },
 ): void;
 export function playCorpAbility(
-  state: GameState, side: string, eid: EID | null, args: { card: Card; ability: number },
+  state: GameState,
+  side: string,
+  eid: EID | null,
+  args: { card: Card; ability: number },
 ): void;
 export function playCorpAbility(
   state: GameState,
@@ -438,11 +591,14 @@ export function playCorpAbility(
   if (!card) return;
   const cdef = cardDef(card) as any;
   const abilityIdx = args.ability;
-  const ability = (cdef.corpAbilities ?? cdef["corp-abilities"] ?? [])[abilityIdx] as Ability;
+  const ability = (cdef.corpAbilities ?? cdef["corp-abilities"] ?? [])[
+    abilityIdx
+  ] as Ability;
   const cannotPlay =
     card.disabled === true ||
     anyEffects(state, side, "prevent-paid-ability", (v) => v === true, card, [
-      ability as any, abilityIdx as any,
+      ability as any,
+      abilityIdx as any,
     ]);
   if (cannotPlay) return;
   doPlayAbility(state, side, eid, {
@@ -455,10 +611,15 @@ export function playCorpAbility(
 
 /** Mirrors `play-runner-ability`. */
 export function playRunnerAbility(
-  state: GameState, side: string, args: { card: Card; ability: number; targets?: unknown[] },
+  state: GameState,
+  side: string,
+  args: { card: Card; ability: number; targets?: unknown[] },
 ): void;
 export function playRunnerAbility(
-  state: GameState, side: string, eid: EID | null, args: { card: Card; ability: number; targets?: unknown[] },
+  state: GameState,
+  side: string,
+  eid: EID | null,
+  args: { card: Card; ability: number; targets?: unknown[] },
 ): void;
 export function playRunnerAbility(
   state: GameState,
@@ -467,16 +628,23 @@ export function playRunnerAbility(
   maybeArgs?: { card: Card; ability: number; targets?: unknown[] },
 ): void {
   const eid = (maybeArgs ? eidOrArgs : null) as EID | null;
-  const args = (maybeArgs ?? eidOrArgs) as { card: Card; ability: number; targets?: unknown[] };
+  const args = (maybeArgs ?? eidOrArgs) as {
+    card: Card;
+    ability: number;
+    targets?: unknown[];
+  };
   const card = getCard(state, args.card);
   if (!card) return;
   const cdef = cardDef(card) as any;
   const abilityIdx = args.ability;
-  const ability = (cdef.runnerAbilities ?? cdef["runner-abilities"] ?? [])[abilityIdx] as Ability;
+  const ability = (cdef.runnerAbilities ?? cdef["runner-abilities"] ?? [])[
+    abilityIdx
+  ] as Ability;
   const cannotPlay =
     card.disabled === true ||
     anyEffects(state, side, "prevent-paid-ability", (v) => v === true, card, [
-      ability as any, abilityIdx as any,
+      ability as any,
+      abilityIdx as any,
     ]);
   if (cannotPlay) return;
   doPlayAbility(state, side, eid, {
@@ -493,26 +661,42 @@ export function playRunnerAbility(
 
 /** Mirrors `play-subroutine`. */
 export function playSubroutine(
-  state: GameState, side: string, args: { card: Card; subroutine: number },
+  state: GameState,
+  side: string,
+  args: { card: Card; subroutine: number },
 ): void {
   if (noBlockingOrPreventPrompt(state, side)) {
     const card = getCard(state, args.card);
-    const sub = card ? (card.subroutines ?? [])[args.subroutine] ?? null : null;
+    const sub = card
+      ? ((card.subroutines ?? [])[args.subroutine] ?? null)
+      : null;
     if (card) resolveSubroutine(state, side, card, sub);
   } else {
-    toast(state, side, "You cannot fire subroutines while abilities are being resolved.", "warning");
+    toast(
+      state,
+      side,
+      "You cannot fire subroutines while abilities are being resolved.",
+      "warning",
+    );
   }
 }
 
 /** Mirrors `play-unbroken-subroutines`. */
 export function playUnbrokenSubroutines(
-  state: GameState, side: string, args: { card: Card },
+  state: GameState,
+  side: string,
+  args: { card: Card },
 ): void {
   if (noBlockingOrPreventPrompt(state, side)) {
     const card = getCard(state, args.card);
     if (card) resolveUnbrokenSubs(state, side, card);
   } else {
-    toast(state, side, "You cannot fire subroutines while abilities are being resolved.", "warning");
+    toast(
+      state,
+      side,
+      "You cannot fire subroutines while abilities are being resolved.",
+      "warning",
+    );
   }
 }
 
@@ -521,7 +705,11 @@ export function playUnbrokenSubroutines(
 // ---------------------------------------------------------------------------
 
 /** Click to trash a resource. Mirrors `trash-resource`. */
-export function trashResource(state: GameState, side: string, _: unknown): void {
+export function trashResource(
+  state: GameState,
+  side: string,
+  _: unknown,
+): void {
   const basic = state.corp.basicActionCard;
   if (!basic) return;
   playAbility(state, side, { card: basic, ability: 5 });
@@ -536,7 +724,9 @@ export function doPurge(state: GameState, side: string, _: unknown): void {
 
 /** Click to advance an installed card. Mirrors `click-advance`. */
 export function clickAdvance(
-  state: GameState, side: string, ctx: { card: Card } & Record<string, unknown>,
+  state: GameState,
+  side: string,
+  ctx: { card: Card } & Record<string, unknown>,
 ): void {
   const card = getCard(state, ctx.card);
   if (!card) return;
@@ -586,12 +776,17 @@ export function closeDeck(state: GameState, side: string, _: unknown): void {
 
 /** Mirrors `generate-install-list`. */
 export function generateInstallList(
-  state: GameState, _side: unknown, args: { card: Card | null },
+  state: GameState,
+  _side: unknown,
+  args: { card: Card | null },
 ): void {
   const card = args.card ? getCard(state, args.card) : null;
   if (card) {
     if (expendable(state, card)) {
-      (state.corp as any).installList = [...installableServers(state, card), "Expend"];
+      (state.corp as any).installList = [
+        ...installableServers(state, card),
+        "Expend",
+      ];
     } else {
       (state.corp as any).installList = installableServers(state, card);
     }
@@ -602,9 +797,13 @@ export function generateInstallList(
 
 /** Mirrors `generate-runnable-zones`. */
 export function generateRunnableZones(
-  state: GameState, _side: unknown, _args: unknown,
+  state: GameState,
+  _side: unknown,
+  _args: unknown,
 ): void {
-  (state.runner as any).runnableList = zonesToSortedNames(getRunnableZones(state));
+  (state.runner as any).runnableList = zonesToSortedNames(
+    getRunnableZones(state),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -615,10 +814,23 @@ export function generateRunnableZones(
  * Advance a corp card that can be advanced. If no-cost is truthy, advances
  * for free (used by the card Success). Mirrors `advance`.
  */
-export function advance(state: GameState, side: string, args: { card: Card }): void;
-export function advance(state: GameState, side: string, card: Card, noCost: boolean): void;
 export function advance(
-  state: GameState, side: string, eid: EID, card: Card, noCost: boolean,
+  state: GameState,
+  side: string,
+  args: { card: Card },
+): void;
+export function advance(
+  state: GameState,
+  side: string,
+  card: Card,
+  noCost: boolean,
+): void;
+export function advance(
+  state: GameState,
+  side: string,
+  eid: EID,
+  card: Card,
+  noCost: boolean,
 ): void;
 export function advance(
   state: GameState,
@@ -660,7 +872,8 @@ export function advance(
           const paymentStr = (binds.asyncResult as any)?.msg as string;
           if (paymentStr) {
             systemMsg(
-              s, side,
+              s,
+              side,
               `${buildSpendMsg(paymentStr, "advance")}${cardStr(s, card)}`,
             );
             updateAdvancementRequirement(s, card as Card);
@@ -673,7 +886,14 @@ export function advance(
                   effectCompleted(s2, side, eid);
                 },
               ],
-              [addProp, s, side, getCard(s, card as Card), "advance-counter", 1],
+              [
+                addProp,
+                s,
+                side,
+                getCard(s, card as Card),
+                "advance-counter",
+                1,
+              ],
               { eid },
             );
           } else {
@@ -682,8 +902,13 @@ export function advance(
         },
       ],
       [
-        pay, state, side, payEid, card,
-        c("click", noCost ? 0 : 1), c("credit", noCost ? 0 : 1),
+        pay,
+        state,
+        side,
+        payEid,
+        card,
+        c("click", noCost ? 0 : 1),
+        c("credit", noCost ? 0 : 1),
       ],
       { eid },
     );
@@ -698,14 +923,22 @@ export function resolveScore(
   side: string,
   eid: EID,
   card: Card,
-  args: { advancementTokens?: number; advancementRequirement?: number; "advancement-tokens"?: number; "advancement-requirement"?: number },
+  args: {
+    advancementTokens?: number;
+    advancementRequirement?: number;
+    "advancement-tokens"?: number;
+    "advancement-requirement"?: number;
+  },
 ): void {
-  const advancementTokens = args.advancementTokens ?? args["advancement-tokens"];
-  const advancementRequirement = args.advancementRequirement ?? args["advancement-requirement"];
+  const advancementTokens =
+    args.advancementTokens ?? args["advancement-tokens"];
+  const advancementRequirement =
+    args.advancementRequirement ?? args["advancement-requirement"];
 
   const moved = move(state, CORP_SIDE, card, "scored") as unknown as Card;
   const initialised = cardInit(state, CORP_SIDE, moved, {
-    "resolve-effect": false, "init-data": true,
+    "resolve-effect": false,
+    "init-data": true,
   } as any) as unknown as Card;
   updateAllAdvancementRequirements(state);
   updateAllAgendaPoints(state);
@@ -717,14 +950,19 @@ export function resolveScore(
     [
       { asyncResult: "result" },
       function (s: GameState, _e: EID, _b: any) {
-        systemMsg(s, CORP_SIDE, `scores ${c2.title} and gains ${quantify(points, "agenda point")}`);
+        systemMsg(
+          s,
+          CORP_SIDE,
+          `scores ${c2.title} and gains ${quantify(points, "agenda point")}`,
+        );
         implementationMsg(s, card);
         setProp(s, CORP_SIDE, getCard(s, c2), "advance-counter", 0);
         const reg = (s.corp.register ?? {}) as any;
         reg["scored-agenda"] = (reg["scored-agenda"] ?? 0) + points;
         s.corp.register = reg;
         playSfx(s, side, "agenda-score");
-        const onScore = (cardDef(c2) as any)["on-score"] ?? (cardDef(c2) as any).onScore;
+        const onScore =
+          (cardDef(c2) as any)["on-score"] ?? (cardDef(c2) as any).onScore;
         if (onScore) registerPendingEvent(s, "agenda-scored", c2, onScore);
         queueEvent(s, "agenda-scored", {
           card: c2,
@@ -737,7 +975,11 @@ export function resolveScore(
       },
     ],
     [
-      triggerEventSimult, state, side, "pre-agenda-scored", null,
+      triggerEventSimult,
+      state,
+      side,
+      "pre-agenda-scored",
+      null,
       {
         card: c2,
         "scored-card": card,
@@ -751,9 +993,17 @@ export function resolveScore(
 }
 
 /** Score an agenda. Mirrors `score`. */
-export function score(state: GameState, side: string, eid: EID, card: Card): void;
 export function score(
-  state: GameState, side: string, eid: EID, card: Card,
+  state: GameState,
+  side: string,
+  eid: EID,
+  card: Card,
+): void;
+export function score(
+  state: GameState,
+  side: string,
+  eid: EID,
+  card: Card,
   opts: { noReq?: boolean; ignoreTurn?: boolean; ignoreAdv?: boolean } | null,
 ): void;
 export function score(
@@ -773,11 +1023,22 @@ export function score(
   }
 
   const cost = scoreAdditionalCostBonus(state, side, card);
-  const advCost = noReq || ignoreAdv ? 0 : (getAdvancementRequirement(card) ?? 0);
+  const advCost =
+    noReq || ignoreAdv ? 0 : (getAdvancementRequirement(card) ?? 0);
   const advTokens = getCounters(card, "advancement");
   const costStrs = buildCostString(cost);
-  const additionalEid = makeEIDFrom(state, { ...eid, additionalCosts: cost } as any);
-  const canPayResult = canPay(state, side, additionalEid, card, card.title ?? "", cost);
+  const additionalEid = makeEIDFrom(state, {
+    ...eid,
+    additionalCosts: cost,
+  } as any);
+  const canPayResult = canPay(
+    state,
+    side,
+    additionalEid,
+    card,
+    card.title ?? "",
+    cost,
+  );
 
   if (!costStrs || costStrs.trim() === "") {
     resolveScore(state, side, eid, card, {

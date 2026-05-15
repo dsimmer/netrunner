@@ -1,25 +1,28 @@
 // Checkpoint logic: update all cards and clear empty remotes.
 // Mirrors: src/clj/game/core/checkpoint.clj
 
-import type { GameState } from "./state.js";
-import type { EID } from "./eid.js";
-import { clearEmptyRemotes } from "./board.js";
+import type { GameState } from "./state";
+import type { EID } from "./eid";
+import { clearEmptyRemotes } from "./board";
 
 // These functions need to be implemented in their respective modules
 // Mirrors the clojure defn signatures.
-import { updateAllIce } from "./ice.js";
-import { updateAllIcebreakers } from "./ice.js";
-import { updateAllAdvancementRequirements, updateAllAgendaPoints } from "./agendas.js";
-import { updateAllCardLabels } from "./initializing.js";
-import { updateMu } from "./memory.js";
-import { updateAllSubtypes } from "./subtypes.js";
-import { updateTagStatus } from "./tags.js";
-import { updateHandSize } from "./hand_size.js";
-import { updateLink } from "./link.js";
-import { generateRunnableZones } from "./actions.js";
-import { effectCompleted } from "./eid.js";
-import { checkWinByAgenda } from "./winning.js";
-import { updateDisabledCards } from "./effects.js";
+import { updateAllIce } from "./ice";
+import { updateAllIcebreakers } from "./ice";
+import {
+  updateAllAdvancementRequirements,
+  updateAllAgendaPoints,
+} from "./agendas";
+import { updateAllCardLabels } from "./initializing";
+import { updateMu } from "./memory";
+import { updateAllSubtypes } from "./subtypes.ts";
+import { updateTagStatus } from "./tags";
+import { updateHandSize } from "./hand_size";
+import { updateLink } from "./link";
+import { generateRunnableZones } from "./actions";
+import { effectCompleted } from "./eid";
+import { checkWinByAgenda } from "./winning";
+import { updateDisabledCards } from "./effects";
 
 /**
  * fake-checkpoint: iteratively update all cards until no more changes,
@@ -54,7 +57,7 @@ export function fakeCheckpoint(state: GameState): void {
  * illegal state are corrected, expired effects are removed, and other important
  * conditions are checked.
  * Mirrors: checkpoint in engine.clj
- * 
+ *
  * Stub implementation pending full port of pending ability machinery.
  */
 export function checkpoint(

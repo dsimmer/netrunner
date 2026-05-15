@@ -29,12 +29,12 @@ async function getAllUsernames(db: import("mongodb").Db): Promise<string[]> {
  * Mirrors: (get-deck db deck-id)
  * @returns deck without _id, or undefined if not found
  */
-function getDeck(
+async function getDeck(
 	db: import("mongodb").Db,
 	deckId: string,
-): Record<string, unknown> | undefined {
+): Promise<Record<string, unknown> | undefined> {
 	const objId = toObjectId(deckId);
-	const doc = db.collection("decks").findOne({ _id: objId });
+	const doc = await db.collection("decks").findOne({ _id: objId });
 	if (!doc) return undefined;
 	// dissoc the _id field (mirrors: (dissoc doc :_id))
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -55,7 +55,7 @@ export async function addForAllUsers(deckId: string): Promise<void> {
 	const db = client.db(uri.split("/").pop()?.split("?")[0] || "netrunner");
 
 	try {
-		const deck = getDeck(db, deckId);
+		const deck = await getDeck(db, deckId);
 
 		if (!deck) {
 			console.log("ERROR: Unknown deck-id", deckId);

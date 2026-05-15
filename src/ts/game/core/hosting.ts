@@ -1,29 +1,24 @@
 // Card hosting.
 // Mirrors: src/clj/game/core/hosting.clj
 
-import type { GameState } from "./state.js";
-import type { Card, Zone } from "./card.js";
-import type { EID } from "./eid.js";
+import type { GameState } from "./state";
+import type { Card, Zone } from "./card";
+import type { EID } from "./eid";
 
-import {
-  isCorp,
-  isProgram,
-  isRezzed,
-  isRunner,
-} from "./card.js";
-import { cardDef } from "./card_defs.js";
-import { registerStaticAbilities, unregisterStaticAbilities } from "./effects.js";
-import { makeEID } from "./eid.js";
+import { isCorp, isProgram, isRezzed, isRunner } from "./card";
+import { cardDef } from "./card_defs";
+import { registerStaticAbilities, unregisterStaticAbilities } from "./effects";
+import { makeEID } from "./eid";
 import {
   registerDefaultEvents,
   registerEvents,
   unregisterEvents,
-} from "./engine.js";
-import { cardInit } from "./initializing.js";
-import { getCard } from "./finding.js";
-import { initMuCost } from "./memory.js";
-import { update } from "./update.js";
-import { makeTimestamp, removeOnce, sameCard } from "../utils.js";
+} from "./engine";
+import { cardInit } from "./initializing";
+import { getCard } from "./finding";
+import { initMuCost } from "./memory";
+import { update } from "./update";
+import { makeTimestamp, removeOnce, sameCard } from "../utils";
 
 // ---------------------------------------------------------------------------
 // Type aliases for hosted-gained / hosted-lost callbacks
@@ -61,21 +56,19 @@ type LeavePlayFn = (
  * Removes a card from its host.
  * Mirrors: remove-from-host
  */
-export function remove(
-  state: GameState,
-  side: string,
-  card: Card,
-): void {
+export function remove(state: GameState, side: string, card: Card): void {
   const hostCard = getCard(state, card.host);
   if (!hostCard) return;
 
-  const updatedHost = update(state, side, (h: Card) => {
-    h.hosted = removeOnce(
-      (c: Card) => c.cid === card.cid,
-      h.hosted ?? [],
-    );
-    return h;
-  }, hostCard);
+  const updatedHost = update(
+    state,
+    side,
+    (h: Card) => {
+      h.hosted = removeOnce((c: Card) => c.cid === card.cid, h.hosted ?? []);
+      return h;
+    },
+    hostCard,
+  );
 
   const cdef = cardDef(updatedHost);
   const hostedLost = (cdef as any).hostedLost as HostedLostCallback | undefined;
@@ -99,7 +92,10 @@ export function remove(
  * Determines if the target is an ancestor of the given card (a card is its own ancestor).
  * Mirrors: has-ancestor?
  */
-export function hasAncestor(card: Card | null | undefined, target: Card | null | undefined): boolean {
+export function hasAncestor(
+  card: Card | null | undefined,
+  target: Card | null | undefined,
+): boolean {
   if (!card || !target) return false;
   return sameCard(card, target) || hasAncestor(card.host, target);
 }
@@ -158,9 +154,11 @@ function isCardActive(card: Card): boolean {
   // Condition counters
   if (card.type === "Counter") return true;
   // Corp installed and rezzed
-  if (isCorp(card) && card.installed === true && card.rezzed === true) return true;
+  if (isCorp(card) && card.installed === true && card.rezzed === true)
+    return true;
   // Runner installed and not facedown
-  if (isRunner(card) && card.installed === true && card.facedown !== true) return true;
+  if (isRunner(card) && card.installed === true && card.facedown !== true)
+    return true;
   return false;
 }
 
@@ -170,7 +168,8 @@ function isCardActive(card: Card): boolean {
 function isInPlayArea(card: Card): boolean {
   const zone = card.zone ?? [];
   // Corp ICE on a server
-  if (card.type === "ICE" && zone[0] === "corp" && zone[1] === "servers") return true;
+  if (card.type === "ICE" && zone[0] === "corp" && zone[1] === "servers")
+    return true;
   // Corp Asset
   if (card.type === "Asset" && card.installed === true) return true;
   // Runner installed cards
@@ -229,10 +228,15 @@ function hostInternal(
     if (existingHost) {
       const hostCard = getCard(state, existingHost);
       if (hostCard) {
-        update(state, side, (h: Card) => {
-          h.hosted = removeOnce((c: Card) => c.cid === cid, h.hosted ?? []);
-          return h;
-        }, hostCard);
+        update(
+          state,
+          side,
+          (h: Card) => {
+            h.hosted = removeOnce((c: Card) => c.cid === cid, h.hosted ?? []);
+            return h;
+          },
+          hostCard,
+        );
       }
     } else {
       const path = [s, ...zone.map((z: string) => String(z))];
@@ -270,20 +274,31 @@ function hostInternal(
   }
 
   // Add target to host card's hosted array
-  update(state, side, (h: Card) => {
-    h.hosted = [...(h.hosted ?? []), newTarget];
-    return h;
-  }, updatedHost);
+  update(
+    state,
+    side,
+    (h: Card) => {
+      h.hosted = [...(h.hosted ?? []), newTarget];
+      return h;
+    },
+    updatedHost,
+  );
 
   const cdef = cardDef(updatedHost);
   const tdef = cardDef(newTarget);
 
   // Check if the target should be fully initialized (active)
-  const shouldBeActive = newTarget.installed === true &&
+  const shouldBeActive =
+    newTarget.installed === true &&
     (isRunner(newTarget) || (isCorp(newTarget) && isRezzed(newTarget)));
 
   if (shouldBeActive) {
-    if (tdef.recurring || (tdef as any).prevent || tdef.corpAbilities || tdef.runnerAbilities) {
+    if (
+      tdef.recurring ||
+      (tdef as any).prevent ||
+      tdef.corpAbilities ||
+      tdef.runnerAbilities
+    ) {
       // Initialize the whole card
       cardInit(state, side, newTarget, {
         resolveEffect: false,
@@ -304,12 +319,19 @@ function hostInternal(
       (e) => (e as any).location === "hosted",
     );
     if (events.length > 0) {
-      registerEvents(state, side, getCard(state, newTarget) ?? newTarget, events);
+      registerEvents(
+        state,
+        side,
+        getCard(state, newTarget) ?? newTarget,
+        events,
+      );
     }
   }
 
   // Call hosted-gained callback on the host card def
-  const hostedGained = (cdef as any).hostedGained as HostedGainedCallback | undefined;
+  const hostedGained = (cdef as any).hostedGained as
+    | HostedGainedCallback
+    | undefined;
   if (hostedGained) {
     hostedGained(
       state,
@@ -364,7 +386,9 @@ function removeFromZone(state: GameState, path: string[], cid: string): void {
  * Mirrors: assoc-host-zones
  */
 function assocHostZones(card: Card): Card {
-  const newZone = card.zone ? card.zone.map((z: string) => String(z)) : card.zone;
+  const newZone = card.zone
+    ? card.zone.map((z: string) => String(z))
+    : card.zone;
   const updated = { ...card, zone: newZone };
   if (updated.host) {
     updated.host = assocHostZones(updated.host);

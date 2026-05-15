@@ -1,50 +1,82 @@
 // Card moving: move, trash, swap, forfeit, mill, flip.
 // Mirrors: src/clj/game/core/moving.clj
 
-import type { GameState } from "./state.js";
-import type { Card, Zone } from "./card.js";
-import type { EID } from "./eid.js";
-import type { Ability, ReqFn } from "./types.js";
+import type { GameState } from "./state";
+import type { Card, Zone } from "./card";
+import type { EID } from "./eid";
+import type { Ability, ReqFn } from "./types.ts";
 
 import {
-  isAgenda, isAsset, isCorp, isRunner, isICE, isProgram, isResource,
-  isInstalled, isRezzed, isFacedown, hasSubtype, getZone, getTitle, inHand,
-  TYPE_AGENDA, TYPE_COUNTER,
-} from "./card.js";
-import { getCardDef } from "./types.js";
-import { updateAllAgendaPoints } from "./agendas.js";
-import { allActiveInstalled } from "./board.js";
+  isAgenda,
+  isAsset,
+  isCorp,
+  isRunner,
+  isICE,
+  isProgram,
+  isResource,
+  isInstalled,
+  isRezzed,
+  isFacedown,
+  hasSubtype,
+  getZone,
+  getTitle,
+  inHand,
+  TYPE_AGENDA,
+  TYPE_COUNTER,
+} from "./card";
+import { getCardDef } from "./types.ts";
+import { updateAllAgendaPoints } from "./agendas";
+import { allActiveInstalled } from "./board";
 import {
-  triggerEvent, triggerEventSync, registerEvents, registerDefaultEvents,
-  unregisterEvents, registerStaticAbilities, unregisterStaticAbilities,
-  registerPendingEvent, queueEvent, dissocReq,
-} from "./engine.js";
-import { isDisabledReg } from "./effects.js";
+  triggerEvent,
+  triggerEventSync,
+  registerEvents,
+  registerDefaultEvents,
+  unregisterEvents,
+  registerStaticAbilities,
+  unregisterStaticAbilities,
+  registerPendingEvent,
+  queueEvent,
+  dissocReq,
+} from "./engine";
+import { isDisabledReg } from "./effects";
 import {
-  effectCompleted, completeWithResult, makeEID, makeEIDFrom, makeResult,
-} from "./eid.js";
-import { fakeCheckpoint } from "./checkpoint.js";
-import { getCard, getScoringOwner } from "./finding.js";
+  effectCompleted,
+  completeWithResult,
+  makeEID,
+  makeEIDFrom,
+  makeResult,
+} from "./eid";
+import { fakeCheckpoint } from "./checkpoint";
+import { getCard, getScoringOwner } from "./finding";
 import {
-  canTrash, cardFlag, untrashableWhileResources, untrashableWhileRezzed,
+  canTrash,
+  cardFlag,
+  untrashableWhileResources,
+  untrashableWhileRezzed,
   zoneLocked,
-} from "./flags.js";
-import { remove as removeFromHost } from "./hosting.js";
-import { getCurrentIce, setCurrentIce, updateBreakerStrength } from "./ice.js";
-import { cardInit, deactivate, resetCard } from "./initializing.js";
-import { initMuCost } from "./memory.js";
-import { resolveTrashPrevention } from "./prevention.js";
-import { showPrompt, showWaitPrompt, clearWaitPrompt } from "./prompts.js";
-import { systemMsg } from "./say.js";
-import { update as updateCard } from "./update.js";
-import { clearWin as checkWinByAgenda } from "./winning.js";
-import { wait_for } from "../macros.js";
+} from "./flags";
+import { remove as removeFromHost } from "./hosting";
+import { getCurrentIce, setCurrentIce, updateBreakerStrength } from "./ice";
+import { cardInit, deactivate, resetCard } from "./initializing";
+import { initMuCost } from "./memory";
+import { resolveTrashPrevention } from "./prevention";
+import { showPrompt, showWaitPrompt, clearWaitPrompt } from "./prompts";
+import { systemMsg } from "./say";
+import { update as updateCard } from "./update";
+import { clearWin as checkWinByAgenda } from "./winning";
+import { wait_for } from "../macros";
 import {
-  dissocIn, makeCID, makeTimestamp, removeOnce, sameCard, sameSide, toKeyword,
-} from "../utils.js";
+  dissocIn,
+  makeCID,
+  makeTimestamp,
+  removeOnce,
+  sameCard,
+  sameSide,
+  toKeyword,
+} from "../utils";
 
-import { trash } from './moving_2';
-
+import { trash } from "./moving_2";
 
 // ---------------------------------------------------------------------------
 // Local helpers (analogues of Clojure utilities not yet in TS modules)
@@ -111,7 +143,9 @@ export function convertToAgenda(card: Card, n: number): Card {
 }
 
 /** Mirrors `target-server` for the active run (returns the server name as kw). */
-function targetServer(run: { server?: string[] } | null | undefined): string | null {
+function targetServer(
+  run: { server?: string[] } | null | undefined,
+): string | null {
   return run?.server?.[0] ?? null;
 }
 
@@ -132,10 +166,14 @@ function isRemoteZone(zone: Zone): boolean {
 /** Mirrors `type->rig-zone` from servers.clj — maps card type to rig sub-zone. */
 export function typeToRigZone(cardType: string | undefined): Zone {
   switch (cardType) {
-    case "Hardware": return ["rig", "hardware"];
-    case "Program": return ["rig", "program"];
-    case "Resource": return ["rig", "resource"];
-    default: return ["rig", "facedown"];
+    case "Hardware":
+      return ["rig", "hardware"];
+    case "Program":
+      return ["rig", "program"];
+    case "Resource":
+      return ["rig", "resource"];
+    default:
+      return ["rig", "facedown"];
   }
 }
 
@@ -150,7 +188,8 @@ export function shouldTrigger(
   ability: Ability | undefined,
 ): boolean {
   if (!ability) return false;
-  if (ability.req) return ability.req(state, side, eid, card, targets as Card[]);
+  if (ability.req)
+    return ability.req(state, side, eid, card, targets as Card[]);
   return true;
 }
 
@@ -158,9 +197,14 @@ export function shouldTrigger(
 function isActive(card: Card | null): boolean {
   if (!card) return false;
   if (card.type === "Basic Action") return true;
-  if ((card.type === "Identity" || card.type === "Fake-Identity") && !isFacedown(card)) return true;
+  if (
+    (card.type === "Identity" || card.type === "Fake-Identity") &&
+    !isFacedown(card)
+  )
+    return true;
   const z = getZone(card);
-  if (z[0] === "play-area" || z[0] === "current" || z[0] === "scored") return true;
+  if (z[0] === "play-area" || z[0] === "current" || z[0] === "scored")
+    return true;
   if (card.type === "Counter") return true;
   if (isCorp(card) && isInstalled(card) && isRezzed(card)) return true;
   if (isRunner(card) && isInstalled(card) && !isFacedown(card)) return true;
@@ -168,15 +212,21 @@ function isActive(card: Card | null): boolean {
 }
 
 /** Setter on side.register.currentlyDrawing (last element of the queue). */
-function pop<T>(arr: T[]): T[] { return arr.slice(0, -1); }
-export function peek<T>(arr: T[]): T | undefined { return arr[arr.length - 1]; }
+function pop<T>(arr: T[]): T[] {
+  return arr.slice(0, -1);
+}
+export function peek<T>(arr: T[]): T | undefined {
+  return arr[arr.length - 1];
+}
 
 // ---------------------------------------------------------------------------
 // trim-cause-card
 // ---------------------------------------------------------------------------
 
 /** Strips cause-card down to just keys used by its handlers. */
-export function trimCauseCard(card: Card | null | undefined): Partial<Card> | null {
+export function trimCauseCard(
+  card: Card | null | undefined,
+): Partial<Card> | null {
   if (!card) return null;
   return { cid: card.cid, name: (card as any).name, side: card.side };
 }
@@ -211,21 +261,29 @@ function removeOldCard(state: GameState, side: string, card: Card): void {
 
 /** Triggers :uninstall effects. */
 export function uninstall(
-  state: GameState, side: string, card: Card, oldCard: Card,
+  state: GameState,
+  side: string,
+  card: Card,
+  oldCard: Card,
 ): Card {
   const cdef = getCardDef(card);
   const uninstallEffect = (cdef as any).uninstall as
     | ((s: GameState, sd: string, eid: EID, c: Card, t: unknown[]) => void)
     | undefined;
   if (uninstallEffect && !card.disabled) {
-    uninstallEffect(state, side, makeEID(state), card, [{ "old-card": oldCard }]);
+    uninstallEffect(state, side, makeEID(state), card, [
+      { "old-card": oldCard },
+    ]);
   }
   return card;
 }
 
 /** Mirrors `should-moved-card-be-known?`. */
 function shouldMovedCardBeKnown(
-  state: GameState, side: string, card: Card, to: string | Zone,
+  state: GameState,
+  side: string,
+  card: Card,
+  to: string | Zone,
 ): boolean {
   const target = Array.isArray(to) ? to[0] : to;
   if (target !== "discard" || side !== "corp") return false;
@@ -233,7 +291,8 @@ function shouldMovedCardBeKnown(
 
   const z = getZone(card);
   const top = z[0];
-  const fromZone = (top === "discard" || top === "deck" || top === "hand") ? top : z[1];
+  const fromZone =
+    top === "discard" || top === "deck" || top === "hand" ? top : z[1];
   const known = (state as any).breach?.["known-cids"]?.[fromZone];
   if (!Array.isArray(known)) return false;
   return known.includes(card.cid);
@@ -254,31 +313,44 @@ interface MoveCardOpts {
 }
 
 function getMovedCard(
-  state: GameState, side: string, card: Card, to: string | Zone,
+  state: GameState,
+  side: string,
+  card: Card,
+  to: string | Zone,
 ): Card {
-  const zone = card.host ? (card.host.zone ?? []).map((z) => toKeyword(z)) : (card.zone ?? []);
+  const zone = card.host
+    ? (card.host.zone ?? []).map((z) => toKeyword(z))
+    : (card.zone ?? []);
   const srcZone = zone[0];
   const targetZone = Array.isArray(to) ? to[0] : to;
   const sameZone = srcZone === targetZone;
   const dest: Zone = Array.isArray(to) ? to.slice() : [to];
-  const toFacedown = dest.length === 2 && dest[0] === "rig" && dest[1] === "facedown";
+  const toFacedown =
+    dest.length === 2 && dest[0] === "rig" && dest[1] === "facedown";
   const toInstalled = dest[0] === "servers" || dest[0] === "rig";
   const fromInstalled = srcZone === "servers" || srcZone === "rig";
 
   const trashHosted = (h: Card): null => {
-    moveStar(state, "" as any, makeEID(state), "trash" as any,
+    moveStar(
+      state,
+      "" as any,
+      makeEID(state),
+      "trash" as any,
       { ...h, zone: (h.zone ?? []).map((z) => toKeyword(z)) },
       {
         unpreventable: true,
         suppressCheckpoint: true,
         hostTrashed: true,
         gameTrash: true,
-      });
+      },
+    );
     return null;
   };
 
   const updateHostedCard = (h: Card): Card[] => {
-    const newz = ([] as string[]).concat(...dest.map((d) => Array.isArray(d) ? d : [d]));
+    const newz = ([] as string[]).concat(
+      ...dest.map((d) => (Array.isArray(d) ? d : [d])),
+    );
     const newh: Card = {
       ...h,
       zone: ["onhost"],
@@ -322,14 +394,25 @@ function getMovedCard(
   const stolenAgendaCase =
     getScoringOwner(state, card) === "runner" &&
     srcZone === "scored" &&
-    (targetZone === "hand" || targetZone === "deck" || targetZone === "discard" || targetZone === "rfg");
+    (targetZone === "hand" ||
+      targetZone === "deck" ||
+      targetZone === "discard" ||
+      targetZone === "rfg");
 
-  const goingInactive = (targetZone === "hand" || targetZone === "deck" ||
-                        targetZone === "discard" || targetZone === "rfg") || toFacedown;
+  const goingInactive =
+    targetZone === "hand" ||
+    targetZone === "deck" ||
+    targetZone === "discard" ||
+    targetZone === "rfg" ||
+    toFacedown;
 
-  const wasActiveZone = card.installed || card.host ||
-    srcZone === "servers" || srcZone === "scored" ||
-    srcZone === "current" || srcZone === "play-area";
+  const wasActiveZone =
+    card.installed ||
+    card.host ||
+    srcZone === "servers" ||
+    srcZone === "scored" ||
+    srcZone === "current" ||
+    srcZone === "play-area";
 
   if (!stolenAgendaCase && wasActiveZone && goingInactive && !isFacedown(c)) {
     c = deactivate(state, side, c);
@@ -364,10 +447,11 @@ function getMovedCard(
   const isFromHub = isHubZone(srcZone);
   const isToHub = isHubZone(targetZone);
 
-  const cid = (!isFromHub && isToHub) ? makeCID() : c.cid;
-  const timestamp = ((!isFromHub && isToHub) || (!card.installed && toInstalled))
-    ? makeTimestamp().getTime()
-    : c.timestamp;
+  const cid = !isFromHub && isToHub ? makeCID() : c.cid;
+  const timestamp =
+    (!isFromHub && isToHub) || (!card.installed && toInstalled)
+      ? makeTimestamp().getTime()
+      : c.timestamp;
 
   let movedCard: Card = {
     ...c,
@@ -380,7 +464,10 @@ function getMovedCard(
   };
 
   // Set up abilities for stolen agendas
-  if (dest[0] === "scored" && cardFlag(movedCard, "has-abilities-when-stolen", true)) {
+  if (
+    dest[0] === "scored" &&
+    cardFlag(movedCard, "has-abilities-when-stolen", true)
+  ) {
     const cdef = getCardDef(movedCard);
     movedCard = { ...movedCard, abilities: cdef.abilities };
   }
@@ -403,8 +490,8 @@ function updateEffects(state: GameState, card: Card, movedCard: Card): void {
       return eff;
     });
   } else {
-    state.effects = state.effects.filter((eff) =>
-      !(sameCard(card, eff.card) && eff.duration === "while-active"),
+    state.effects = state.effects.filter(
+      (eff) => !(sameCard(card, eff.card) && eff.duration === "while-active"),
     );
   }
 }
@@ -414,7 +501,9 @@ function updateEffects(state: GameState, card: Card, movedCard: Card): void {
 // ---------------------------------------------------------------------------
 
 export function updateInstalledCardIndices(
-  state: GameState, side: string, server: Zone,
+  state: GameState,
+  side: string,
+  server: Zone,
 ): void {
   const path = [side, ...server.map(String)];
   let parent: any = state;
@@ -434,7 +523,11 @@ export function updateInstalledCardIndices(
 
 /** If there is an active run, update Runner's position when ICE moves to/from
  *  an inward position. */
-function updateRunPosition(state: GameState, oldCard: Card, movedCard: Card): void {
+function updateRunPosition(
+  state: GameState,
+  oldCard: Card,
+  movedCard: Card,
+): void {
   const run = state.run;
   if (!run) return;
   const position = run.position;
@@ -445,7 +538,8 @@ function updateRunPosition(state: GameState, oldCard: Card, movedCard: Card): vo
     const z = c.zone ?? [];
     return z[1] === targetServer(run as any) && z[z.length - 1] === "ices";
   };
-  const inward = (c: Card): boolean => typeof c.index === "number" && c.index < position;
+  const inward = (c: Card): boolean =>
+    typeof c.index === "number" && c.index < position;
 
   if (protectingRunServer(oldCard) && inward(oldCard)) {
     state.run!.position = position - 1;
@@ -459,11 +553,24 @@ function updateRunPosition(state: GameState, oldCard: Card, movedCard: Card): vo
 // ---------------------------------------------------------------------------
 
 export function move(
-  state: GameState, side: string, card: Card, to: string | Zone,
+  state: GameState,
+  side: string,
+  card: Card,
+  to: string | Zone,
   opts: MoveCardOpts = {},
 ): Card | null {
-  const { front, index, keepServerAlive, force, suppressEvent, shuffled, swap } = opts;
-  const zone = card.host ? (card.host.zone ?? []).map((z) => toKeyword(z)) : (card.zone ?? []);
+  const {
+    front,
+    index,
+    keepServerAlive,
+    force,
+    suppressEvent,
+    shuffled,
+    swap,
+  } = opts;
+  const zone = card.host
+    ? (card.host.zone ?? []).map((z) => toKeyword(z))
+    : (card.zone ?? []);
 
   if (isFakeIdentity(card)) {
     deactivate(state, side, card);
@@ -496,11 +603,18 @@ export function move(
   const cdef = getCardDef(card);
   const dest: Zone = Array.isArray(to) ? to.slice() : [to];
   const destReplacementFn = (cdef as any)["move-zone-replacement"] as
-    | ((s: GameState, sd: string, eid: EID, c: Card, t: unknown[]) => Zone | null | undefined)
+    | ((
+        s: GameState,
+        sd: string,
+        eid: EID,
+        c: Card,
+        t: unknown[],
+      ) => Zone | null | undefined)
     | undefined;
   const destReplacement = destReplacementFn
-    ? destReplacementFn(state, side, makeEID(state), card,
-      [{ card, "target-zone": dest, shuffled }])
+    ? destReplacementFn(state, side, makeEID(state), card, [
+        { card, "target-zone": dest, shuffled },
+      ])
     : null;
   const finalDest: Zone = destReplacement ?? dest;
   const moveTarget = destReplacement ? finalDest[finalDest.length - 1] : to;
@@ -516,19 +630,21 @@ export function move(
   const key = sidePath[sidePath.length - 1];
   const list: Card[] = Array.isArray(parent[key]) ? parent[key] : [];
   const posToMoveTo =
-    typeof index === "number" ? index :
-    front ? 0 : list.length;
+    typeof index === "number" ? index : front ? 0 : list.length;
   parent[key] = insertNth(posToMoveTo, movedCard, list);
 
   if (zone.length) updateInstalledCardIndices(state, side, zone);
   updateInstalledCardIndices(state, side, finalDest);
 
-  if (!swap) updateRunPosition(state, card, getCard(state, movedCard) ?? movedCard);
+  if (!swap)
+    updateRunPosition(state, card, getCard(state, movedCard) ?? movedCard);
 
   // Clean up empty remote server records
   const z2: Zone = ["corp", ...zone.slice(0, -1).map(String)];
-  if (!keepServerAlive && isRemoteZone(zone) &&
-      Array.isArray((state as any).corp?.servers)
+  if (
+    !keepServerAlive &&
+    isRemoteZone(zone) &&
+    Array.isArray((state as any).corp?.servers)
   ) {
     /* fall-through; no-op for malformed */
   }
@@ -541,8 +657,11 @@ export function move(
     const node = cur?.[k];
     if (
       isRemoteZone(["servers", String(k)] as Zone) &&
-      node && Array.isArray(node.content) && Array.isArray(node.ices) &&
-      node.content.length === 0 && node.ices.length === 0
+      node &&
+      Array.isArray(node.content) &&
+      Array.isArray(node.ices) &&
+      node.content.length === 0 &&
+      node.ices.length === 0
     ) {
       delete cur[k];
     }
@@ -558,24 +677,30 @@ export function move(
   }
 
   if (!suppressEvent) {
-    triggerEvent(state, side, "card-moved",
-      { card, "moved-card": getCard(state, movedCard) });
+    triggerEvent(state, side, "card-moved", {
+      card,
+      "moved-card": getCard(state, movedCard),
+    });
   }
 
   // After move-zone-fn and event, refresh and rewire location-bound events
   const refreshed = getCard(state, movedCard) ?? movedCard;
   const previousFirst = refreshed.previousZone?.[0];
   const oldEvents = ((movedCdef as any).events ?? []).filter(
-    (e: any) => previousFirst && (e.location === previousFirst ||
-      (Array.isArray(e.location) && e.location.includes(previousFirst))),
+    (e: any) =>
+      previousFirst &&
+      (e.location === previousFirst ||
+        (Array.isArray(e.location) && e.location.includes(previousFirst))),
   );
   if (oldEvents.length) {
     unregisterEvents(state, side, refreshed, { events: oldEvents } as any);
   }
   const newFirst = refreshed.zone?.[0];
   const newEvents = ((movedCdef as any).events ?? []).filter(
-    (e: any) => newFirst && (e.location === newFirst ||
-      (Array.isArray(e.location) && e.location.includes(newFirst))),
+    (e: any) =>
+      newFirst &&
+      (e.location === newFirst ||
+        (Array.isArray(e.location) && e.location.includes(newFirst))),
   );
   if (newEvents.length) {
     registerEvents(state, side, refreshed, newEvents);
@@ -595,8 +720,12 @@ export function move(
 // ---------------------------------------------------------------------------
 
 type MoveStarFn = (
-  state: GameState, side: string, eid: EID, action: string,
-  cardOrCards: any, args: any,
+  state: GameState,
+  side: string,
+  eid: EID,
+  action: string,
+  cardOrCards: any,
+  args: any,
 ) => void;
 
 const moveStarMethods = new Map<string, MoveStarFn>();
@@ -606,8 +735,12 @@ export function registerMoveStar(action: string, fn: MoveStarFn): void {
 }
 
 export function moveStar(
-  state: GameState, side: string, eid: EID, action: string,
-  cardOrCards: any, args: any,
+  state: GameState,
+  side: string,
+  eid: EID,
+  action: string,
+  cardOrCards: any,
+  args: any,
 ): void {
   const fn = moveStarMethods.get(action);
   if (!fn) {
@@ -626,7 +759,10 @@ registerMoveStar("move", (state, side, _eid, _action, card, args) => {
 // ---------------------------------------------------------------------------
 
 export function moveZone(
-  state: GameState, side: string, server: string, to: string | Zone,
+  state: GameState,
+  side: string,
+  server: string,
+  to: string | Zone,
 ): void {
   if (zoneLocked(state, side, server)) return;
   const sideRef = (state as any)[side];
@@ -638,7 +774,10 @@ export function moveZone(
 // Trashing
 // ---------------------------------------------------------------------------
 
-export function updateCurrentIceToTrash(state: GameState, trashlist: Card[]): void {
+export function updateCurrentIceToTrash(
+  state: GameState,
+  trashlist: Card[],
+): void {
   const currentIce = getCurrentIce(state);
   if (!currentIce) return;
   const match = trashlist.find((c) => sameCard(c, currentIce));

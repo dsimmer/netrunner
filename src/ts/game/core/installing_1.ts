@@ -1,10 +1,10 @@
 // Card installation mechanics.
 // Mirrors: src/clj/game/core/installing.clj
 
-import type { GameState, ServerZone } from "./state.js";
-import type { Card, Zone } from "./card.js";
-import type { EID } from "./eid.js";
-import type { Ability } from "./types.js";
+import type { GameState, ServerZone } from "./state";
+import type { Card, Zone } from "./card";
+import type { EID } from "./eid";
+import type { Ability } from "./types.ts";
 
 import {
   isAgenda,
@@ -22,80 +22,55 @@ import {
   getTitle,
   getType,
   hasSubtype,
-} from "./card.js";
-import { cardDef, getCardDef } from "./types.js";
+} from "./card";
+import { cardDef, getCardDef } from "./types.ts";
 import {
   ignoreInstallCost,
   installAdditionalCostBonus,
   installCost,
-} from "./cost_fns.js";
-import { totalAvailableCredits, canPay, mergeCosts } from "./costs.js";
+} from "./cost_fns";
+import { totalAvailableCredits, canPay, mergeCosts } from "./costs";
 import {
   makeEID,
   effectCompleted,
   completeWithResult,
   registerEIDCallback,
-} from "./eid.js";
+} from "./eid";
 import {
   queueEvent,
   registerEvents,
   unregisterEvents,
   registerPendingEvent,
-} from "./engine.js";
+} from "./engine";
 import {
   isDisabledReg,
   updateDisabledCards,
   registerStaticAbilities,
   unregisterStaticAbilities,
-} from "./effects.js";
-import {
-  turnFlag,
-  zoneLocked,
-} from "./flags.js";
-import {
-  hasAncestor,
-  host,
-} from "./hosting.js";
-import { updateBreakerStrength } from "./ice.js";
+} from "./effects";
+import { turnFlag, zoneLocked } from "./flags";
+import { hasAncestor, host } from "./hosting";
+import { updateBreakerStrength } from "./ice";
 import {
   abilityInit,
   cardInit,
   corpAbilityInit,
   runnerAbilityInit,
-} from "./initializing.js";
-import {
-  availableMU,
-  expectedMU,
-  sufficientMU,
-  updateMU,
-} from "./memory.js";
-import {
-  move,
-  trash,
-  trashCards,
-  swapCards,
-  swapInstalled,
-} from "./moving.js";
-import {
-  createCreditCost,
-  mergeCosts as mergeCostsPayment,
-} from "./payment.js";
-import type { CostData } from "./payment.js";
-import { addProp } from "./props.js";
-import { reveal } from "./revealing.js";
-import { rez } from "./rezzing.js";
-import {
-  multiMsg,
-  playSfx,
-  systemMsg,
-  implementationMsg,
-} from "./say.js";
-import { nameZone, remoteNumToName } from "./servers.js";
-import { makeRID } from "./state.js";
-import { cardStr } from "./to_string.js";
-import { toast } from "./toasts.js";
-import { updateCard } from "./update.js";
-import { updateAdvancementRequirement } from "./agendas.js";
+} from "./initializing";
+import { availableMU, expectedMU, sufficientMU, updateMU } from "./memory";
+import { move, trash, trashCards, swapCards, swapInstalled } from "./moving";
+import { createCreditCost, mergeCosts as mergeCostsPayment } from "./payment";
+import type { CostData } from "./payment";
+import { addProp } from "./props";
+import { reveal } from "./revealing";
+import { rez } from "./rezzing";
+import { multiMsg, playSfx, systemMsg, implementationMsg } from "./say";
+import { nameZone, remoteNumToName } from "./servers";
+import { makeRID } from "./state";
+import { cardStr } from "./to_string";
+import { toast } from "./toasts";
+import { updateCard } from "./update";
+import { updateAdvancementRequirement } from "./agendas";
 import {
   allInstalled,
   getRemotes,
@@ -103,12 +78,8 @@ import {
   allInstalledRunnerType,
   installableServers,
   getRemoteNames,
-} from "./board.js";
-import {
-  continue_ability,
-  req,
-  wait_for,
-} from "../macros.js";
+} from "./board";
+import { continue_ability, req, wait_for } from "../macros";
 import {
   dissocIn,
   enumerateStr,
@@ -116,9 +87,9 @@ import {
   sameCard,
   toKeyword,
   quantify,
-} from "../utils.js";
-import { CORP_SIDE, RUNNER_SIDE } from "./state.js";
-import { getCard } from "./finding.js";
+} from "../utils";
+import { CORP_SIDE, RUNNER_SIDE } from "./state";
+import { getCard } from "./finding";
 
 // ---------------------------------------------------------------------------
 // Helper: find-first equivalent
@@ -140,7 +111,11 @@ function costValue(cost: CostData): number {
 // Helper: ->c equivalent (create cost data)
 // ---------------------------------------------------------------------------
 
-export function toC(type: string, amount?: number, opts?: Record<string, unknown>): CostData {
+export function toC(
+  type: string,
+  amount?: number,
+  opts?: Record<string, unknown>,
+): CostData {
   return {
     type,
     amount: amount ?? 1,
@@ -212,7 +187,8 @@ function corpCanInstallReason(
   if (
     identity &&
     identity.title &&
-    identity.title.substring(0, Math.min(13, identity.title.length)) === "Earth Station" &&
+    identity.title.substring(0, Math.min(13, identity.title.length)) ===
+      "Earth Station" &&
     !identityDisabled &&
     !identityDisabledReg &&
     getRemotes(state).length > 0 &&
@@ -246,13 +222,21 @@ function corpCanInstall(
 
   switch (reason) {
     case "lock-install":
-      return reasonToast(`Unable to install ${title}, installing is currently locked`);
+      return reasonToast(
+        `Unable to install ${title}, installing is currently locked`,
+      );
     case "ice":
-      return reasonToast(`Unable to install ${title}: can only install 1 piece of ice per turn`);
+      return reasonToast(
+        `Unable to install ${title}: can only install 1 piece of ice per turn`,
+      );
     case "earth-station":
-      return reasonToast(`Unable to install ${title} in new remote: Earth Station limit`);
+      return reasonToast(
+        `Unable to install ${title} in new remote: Earth Station limit`,
+      );
     case "a-teia":
-      return reasonToast(`Unable to install ${title} in new remote: A Teia limit`);
+      return reasonToast(
+        `Unable to install ${title} in new remote: A Teia limit`,
+      );
     case true:
       return true;
   }
@@ -288,7 +272,18 @@ function corpInstallTrashOldCard(
                 effectCompleted(s, CORP_SIDE, eid);
               },
             ],
-            [trash, state, CORP_SIDE, eid, prevCard, { keepServerAlive: true, suppressCheckpoint: true, duringInstallation: true }],
+            [
+              trash,
+              state,
+              CORP_SIDE,
+              eid,
+              prevCard,
+              {
+                keepServerAlive: true,
+                suppressCheckpoint: true,
+                duringInstallation: true,
+              },
+            ],
             { eid },
           );
         } else {
@@ -314,7 +309,15 @@ function corpInstallPlaceCounters(
 ): void {
   const counters = opts.counters;
   if (counters?.advanceCounter) {
-    addProp(state, CORP_SIDE, eid, targetCard, "advance-counter", counters.advanceCounter, { placed: true });
+    addProp(
+      state,
+      CORP_SIDE,
+      eid,
+      targetCard,
+      "advance-counter",
+      counters.advanceCounter,
+      { placed: true },
+    );
   } else {
     effectCompleted(state, CORP_SIDE, eid);
   }
@@ -387,34 +390,40 @@ function corpInstallMessage(
   if (!displayMessage) return;
 
   const msgKeys = opts.msgKeys ?? {};
-  const { displayOrigin, installSource, originIndex, known, setZone } = msgKeys as any;
-  const prependCostStr = (msgKeys as any).includeCostFromEid?.latestPaymentStr ?? "";
+  const { displayOrigin, installSource, originIndex, known, setZone } =
+    msgKeys as any;
+  const prependCostStr =
+    (msgKeys as any).includeCostFromEid?.latestPaymentStr ?? "";
 
-  const cardName = (["rezzed", "rezzed-no-cost", "face-up"].includes(installState) ||
+  const cardName =
+    ["rezzed", "rezzed-no-cost", "face-up"].includes(installState) ||
     known ||
     card.seen ||
-    isRezzed(card))
-    ? (card.title ?? "")
-    : (isICE(card) ? "ice" : "a card");
+    isRezzed(card)
+      ? (card.title ?? "")
+      : isICE(card)
+        ? "ice"
+        : "a card";
 
-  const corpCardName = (["rezzed", "rezzed-no-cost", "face-up"].includes(installState) ||
+  const corpCardName =
+    ["rezzed", "rezzed-no-cost", "face-up"].includes(installState) ||
     known ||
     card.seen ||
-    isRezzed(card))
-    ? (card.title ?? "")
-    : `facedown ${card.title ?? ""}`;
+    isRezzed(card)
+      ? (card.title ?? "")
+      : `facedown ${card.title ?? ""}`;
 
-  const serverName = server === "New remote"
-    ? `${remoteNumToName(state.rid - 1)} (new remote)`
-    : server;
+  const serverName =
+    server === "New remote"
+      ? `${remoteNumToName(state.rid - 1)} (new remote)`
+      : server;
 
   const origin = displayOrigin
     ? ` from${originIndex != null ? ` position ${originIndex + 1} of ` : ""}${setZone ?? nameZone(CORP_SIDE, card.zone ?? [])}`
     : "";
 
-  const preLhs = costStr && prependCostStr
-    ? `${prependCostStr}, and then `
-    : "";
+  const preLhs =
+    costStr && prependCostStr ? `${prependCostStr}, and then ` : "";
 
   const modifiedCostStr = !costStr
     ? prependCostStr
@@ -485,7 +494,11 @@ function revealIfUnrezzed(
       [
         [{ asyncResult: "result" }],
         function (s: GameState, _e: EID, _binds: any) {
-          systemMsg(s, CORP_SIDE, `reveals ${cardStr(s, rezzedCard, { visible: true })}`);
+          systemMsg(
+            s,
+            CORP_SIDE,
+            `reveals ${cardStr(s, rezzedCard, { visible: true })}`,
+          );
           wait_for(
             s,
             [
@@ -542,7 +555,8 @@ function corpInstallContinue(
 
   const args = { ...opts };
   if (args.msgKeys) {
-    (args.msgKeys as any).known = (args.msgKeys as any).known ||
+    (args.msgKeys as any).known =
+      (args.msgKeys as any).known ||
       (state.breach as any)?.knownCids?.[fromZone]?.includes(card.cid);
   }
 
@@ -555,12 +569,23 @@ function corpInstallContinue(
   } as unknown as Card;
 
   if (!opts.hostCard) {
-    corpInstallMessage(state, CORP_SIDE, card, server, installState, costStr, args);
+    corpInstallMessage(
+      state,
+      CORP_SIDE,
+      card,
+      server,
+      installState,
+      costStr,
+      args,
+    );
   }
   playSfx(state, CORP_SIDE, "install-corp");
 
   const movedCard = opts.hostCard
-    ? host(state, CORP_SIDE, opts.hostCard, { ...c, installed: true } as unknown as Card)
+    ? host(state, CORP_SIDE, opts.hostCard, {
+        ...c,
+        installed: true,
+      } as unknown as Card)
     : move(state, CORP_SIDE, c, slot, { front: opts.front, index: opts.index });
 
   if (isAgenda(c)) {
@@ -591,7 +616,12 @@ function corpInstallContinue(
  * Gets the slot (zone) for installing a card.
  * Mirrors: get-slot
  */
-export function getSlot(state: GameState, card: Card, server: string, opts?: { hostCard?: Card }): Zone {
+export function getSlot(
+  state: GameState,
+  card: Card,
+  server: string,
+  opts?: { hostCard?: Card },
+): Zone {
   if (opts?.hostCard) {
     return getZone(opts.hostCard);
   }
@@ -621,20 +651,30 @@ export function corpInstallCost(
 
   const slot = getSlot(state, card, server, { hostCard: opts.hostCard });
   const destZone: Card[] = []; // populated from state via slot path
-  const iceCost = isICE(card) &&
+  const iceCost =
+    isICE(card) &&
     !opts.ignoreInstallCost &&
     !opts.ignoreAllCost &&
     !opts.ignoreIceCost &&
     !ignoreInstallCost(state, CORP_SIDE, card)
-    ? destZone.length
-    : 0;
+      ? destZone.length
+      : 0;
 
-  const cost = installCost(state, CORP_SIDE, card, {
-    costBonus: (opts.costBonus ?? 0) + iceCost,
-  }, []);
+  const cost = installCost(
+    state,
+    CORP_SIDE,
+    card,
+    {
+      costBonus: (opts.costBonus ?? 0) + iceCost,
+    },
+    [],
+  );
 
   if (opts.ignoreAllCost) return [];
-  return [...(opts.baseCost ? [opts.baseCost] : []), toC("credit", cost ?? 0)].flat();
+  return [
+    ...(opts.baseCost ? [opts.baseCost] : []),
+    toC("credit", cost ?? 0),
+  ].flat();
 }
 
 /**
@@ -650,11 +690,16 @@ export function corpCanPayAndInstall(
   opts: Record<string, unknown>,
 ): boolean {
   const eidWithSource = { ...eid, sourceType: "corp-install" };
-  const slot = getSlot(state, card, server, { hostCard: opts.hostCard as Card });
+  const slot = getSlot(state, card, server, {
+    hostCard: opts.hostCard as Card,
+  });
   const costs = corpInstallCost(state, CORP_SIDE, card, server, opts);
 
-  return corpCanInstall(state, CORP_SIDE, card, slot, { noToast: opts.noToast as boolean }) &&
-    canPay(state, CORP_SIDE, eidWithSource, card, null, costs);
+  return (
+    corpCanInstall(state, CORP_SIDE, card, slot, {
+      noToast: opts.noToast as boolean,
+    }) && canPay(state, CORP_SIDE, eidWithSource, card, null, costs)
+  );
 }
 
 /**
@@ -670,26 +715,34 @@ function corpInstallPay(
   opts: Record<string, unknown>,
 ): void {
   const slot = getSlot(state, card, server, opts);
-  const costs = corpInstallCost(state, CORP_SIDE, card, server, { ...opts, cachedCosts: undefined });
-  const creditCost = costValue(findFirst((c: CostData) => c.type === "credit", costs) ?? toC("credit", 0));
+  const costs = corpInstallCost(state, CORP_SIDE, card, server, {
+    ...opts,
+    cachedCosts: undefined,
+  });
+  const creditCost = costValue(
+    findFirst((c: CostData) => c.type === "credit", costs) ?? toC("credit", 0),
+  );
   const discount = (opts.combinedCreditDiscount as number) ?? 0;
-  const applDisc = (creditCost > 0 && discount > 0)
-    ? Math.min(creditCost, discount)
-    : 0;
+  const applDisc =
+    creditCost > 0 && discount > 0 ? Math.min(creditCost, discount) : 0;
 
-  const args = discount
-    ? { ...opts, costBonus: applDisc - discount }
-    : opts;
+  const args = discount ? { ...opts, costBonus: applDisc - discount } : opts;
 
   const costsWithDiscount = [...costs, toC("credit", -applDisc)];
 
   const corpWantsToTrash = !!(
     (state.corp.properties as any)?.trashLikeCards &&
-    (slot.length > 0) &&
+    slot.length > 0 &&
     !(opts.resolvedOptionalTrash as boolean)
   );
 
-  if (!corpWantsToTrash && corpCanPayAndInstall(state, CORP_SIDE, eid, card, server, { ...args, cachedCosts: costsWithDiscount })) {
+  if (
+    !corpWantsToTrash &&
+    corpCanPayAndInstall(state, CORP_SIDE, eid, card, server, {
+      ...args,
+      cachedCosts: costsWithDiscount,
+    })
+  ) {
     wait_for(
       state,
       [
@@ -701,7 +754,16 @@ function corpInstallPay(
               queueEvent(s, "server-created", null);
               makeRID(s);
             }
-            corpInstallContinue(s, CORP_SIDE, eid, card, server, args, slot, paymentStr);
+            corpInstallContinue(
+              s,
+              CORP_SIDE,
+              eid,
+              card,
+              server,
+              args,
+              slot,
+              paymentStr,
+            );
           } else {
             effectCompleted(s, CORP_SIDE, eid);
           }
@@ -709,7 +771,13 @@ function corpInstallPay(
       ],
       [
         // pay function call
-        function (s: GameState, side: string, newEid: EID, c: Card, csts: CostData[]) {
+        function (
+          s: GameState,
+          side: string,
+          newEid: EID,
+          c: Card,
+          csts: CostData[],
+        ) {
           // pay handler
         },
         state,
@@ -724,10 +792,13 @@ function corpInstallPay(
   }
 
   // Can't pay - handle trash option for ICE
-  const creditCostVal = costValue(findFirst((c: CostData) => c.type === "credit", costs) ?? toC("credit", 0));
-  const shortfall = creditCostVal - totalAvailableCredits(state, CORP_SIDE, eid, card);
+  const creditCostVal = costValue(
+    findFirst((c: CostData) => c.type === "credit", costs) ?? toC("credit", 0),
+  );
+  const shortfall =
+    creditCostVal - totalAvailableCredits(state, CORP_SIDE, eid, card);
   const needToTrash = Math.max(0, shortfall);
-  const cardsInSlot = (slot.length > 0 ? 0 : 0);
+  const cardsInSlot = slot.length > 0 ? 0 : 0;
   const possible = isICE(card) && cardsInSlot >= needToTrash;
 
   if (possible && needToTrash > 0) {
@@ -763,7 +834,10 @@ function corpInstallPay(
         cancel: {
           async: true,
           effect: req(() => {
-            corpInstallPay(state, CORP_SIDE, eid, card, server, { ...opts, resolvedOptionalTrash: true });
+            corpInstallPay(state, CORP_SIDE, eid, card, server, {
+              ...opts,
+              resolvedOptionalTrash: true,
+            });
           }),
         },
       },
@@ -808,7 +882,10 @@ export function corpInstall(
     );
   } else if (server && typeof server === "object" && !args.hostCard) {
     // A card was selected as the server; recurse with host-card
-    corpInstall(state, CORP_SIDE, eid, card, server, { ...args, hostCard: server as Card });
+    corpInstall(state, CORP_SIDE, eid, card, server, {
+      ...args,
+      hostCard: server as Card,
+    });
   } else {
     // A server was selected
     dissocIn(state, ["corp", "install-list"]);
@@ -836,7 +913,10 @@ function cardHasAValidHost(
   const hostingReq = (cdef as any).hosting?.req;
   if (!hostingReq) return true;
 
-  const allHosts = [...allInstalled(state, CORP_SIDE), ...allInstalled(state, RUNNER_SIDE)];
+  const allHosts = [
+    ...allInstalled(state, CORP_SIDE),
+    ...allInstalled(state, RUNNER_SIDE),
+  ];
   return allHosts.some((h) => hostingReq(state, RUNNER_SIDE, eid, card, [h]));
 }
 
@@ -865,10 +945,12 @@ function runnerCanInstallReason(
   if (cardReq && !cardReq(state, RUNNER_SIDE, eid, card, null)) return "req";
 
   // if the card requires a host, there is a valid host
-  if (!cardHasAValidHost(state, RUNNER_SIDE, eid, card, facedown)) return "no-valid-host";
+  if (!cardHasAValidHost(state, RUNNER_SIDE, eid, card, facedown))
+    return "no-valid-host";
 
   // The card's zone is locked
-  if (card.zone && zoneLocked(state, RUNNER_SIDE, card.zone[0])) return "locked-zone";
+  if (card.zone && zoneLocked(state, RUNNER_SIDE, card.zone[0]))
+    return "locked-zone";
 
   return true;
 }
@@ -886,7 +968,13 @@ export function runnerCanInstall(
 ): boolean {
   const facedown = opts?.facedown ?? false;
   const noToast = opts?.noToast ?? false;
-  const reason = runnerCanInstallReason(state, RUNNER_SIDE, eid, card, facedown);
+  const reason = runnerCanInstallReason(
+    state,
+    RUNNER_SIDE,
+    eid,
+    card,
+    facedown,
+  );
   const title = card.title ?? "";
 
   const reasonToast = (msg: string): boolean => {
@@ -896,13 +984,19 @@ export function runnerCanInstall(
 
   switch (reason) {
     case "lock-install":
-      return reasonToast(`Unable to install ${title} since installing is currently locked`);
+      return reasonToast(
+        `Unable to install ${title} since installing is currently locked`,
+      );
     case "req":
-      return reasonToast(`Installation requirements are not fulfilled for ${title}`);
+      return reasonToast(
+        `Installation requirements are not fulfilled for ${title}`,
+      );
     case "no-valid-host":
       return reasonToast(`There is no valid host for ${title}`);
     case "locked-zone":
-      return reasonToast(`Unable to install ${title} because it is currently in a locked zone`);
+      return reasonToast(
+        `Unable to install ${title} because it is currently in a locked zone`,
+      );
     case true:
       return true;
   }
@@ -940,11 +1034,13 @@ export function runnerInstallMessage(
     // suppress zero cost message
   }
 
-  const prependCostStr = (msgKeys as any).includeCostFromEid?.latestPaymentStr ?? "";
+  const prependCostStr =
+    (msgKeys as any).includeCostFromEid?.latestPaymentStr ?? "";
 
-  const showOrigin = displayOrigin !== undefined
-    ? displayOrigin
-    : card.previousZone !== ["hand"];
+  const showOrigin =
+    displayOrigin !== undefined
+      ? displayOrigin
+      : card.previousZone !== ["hand"];
 
   const discountStr = opts.ignoreAllCost
     ? " (ignoring all costs)"
@@ -957,19 +1053,24 @@ export function runnerInstallMessage(
           : "";
 
   const cardName = opts.facedown
-    ? (known ? `${card.title ?? ""} as a facedown card` : "a card facedown")
+    ? known
+      ? `${card.title ?? ""} as a facedown card`
+      : "a card facedown"
     : (card.title ?? "");
 
-  const origin = showOrigin && card.previousZone !== ["onhost"]
-    ? ` from${originIndex != null ? ` position ${originIndex + 1} of ` : ""}${
-        card.previousZone === ["set-aside"]
-          ? "among the set-aside cards"
-          : nameZone(RUNNER_SIDE, card.previousZone ?? [])
-      }`
-    : "";
+  const origin =
+    showOrigin && card.previousZone !== ["onhost"]
+      ? ` from${originIndex != null ? ` position ${originIndex + 1} of ` : ""}${
+          card.previousZone === ["set-aside"]
+            ? "among the set-aside cards"
+            : nameZone(RUNNER_SIDE, card.previousZone ?? [])
+        }`
+      : "";
 
-  const preLhs = costStr && prependCostStr ? `${prependCostStr}, and then ` : "";
-  const fromHost = showOrigin && card.previousZone === ["onhost"] ? "hosted " : "";
+  const preLhs =
+    costStr && prependCostStr ? `${prependCostStr}, and then ` : "";
+  const fromHost =
+    showOrigin && card.previousZone === ["onhost"] ? "hosted " : "";
 
   const modifiedCostStr = !costStr
     ? prependCostStr

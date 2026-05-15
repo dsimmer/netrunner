@@ -8,22 +8,22 @@
 //   - payable:      predicate for whether the cost can be paid right now
 //   - handler:      effect that actually pays the cost; signals completion via the eid
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import type { EID } from "./eid.js";
-import type { Ability, NumberFn } from "./types.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import type { EID } from "./eid";
+import type { Ability, NumberFn } from "./types.ts";
 
 import {
   badPublicityAvailable,
   gainBadPublicity,
   loseBadPublicity,
-} from "./bad_publicity.js";
+} from "./bad_publicity";
 import {
   allActive,
   allActiveInstalled,
   allInstalled,
   allInstalledRunnerType,
-} from "./board.js";
+} from "./board";
 import {
   hasSubtype,
   getCounter,
@@ -40,19 +40,19 @@ import {
   isRezzed,
   isRunner,
   isActive,
-} from "./card.js";
-import { getCardDef } from "./types.js";
-import { damage } from "./damage.js";
+} from "./card";
+import { getCardDef } from "./types.ts";
+import { damage } from "./damage";
 import {
   completeWithResult,
   makeEID,
   makeEIDFrom,
   registerEIDCallback,
-} from "./eid.js";
-import { resolveAbility, queueEvent } from "./engine.js";
-import { anyEffects, isDisabledReg } from "./effects.js";
-import { isScored } from "./flags.js";
-import { deduct, lose } from "./gaining.js";
+} from "./eid";
+import { resolveAbility, queueEvent } from "./engine";
+import { anyEffects, isDisabledReg } from "./effects";
+import { isScored } from "./flags";
+import { deduct, lose } from "./gaining";
 import {
   discardFromHand,
   flipFacedown,
@@ -61,24 +61,31 @@ import {
   move,
   trash,
   trashCards,
-} from "./moving.js";
+} from "./moving";
 import {
   pickCreditProvidingCards,
   pickCreditReducers,
   pickVirusCountersToSpend,
-} from "./pick_counters.js";
-import { addCounter, addProp } from "./props.js";
-import { reveal, revealAndQueueEvent } from "./revealing.js";
-import { derez } from "./rezzing.js";
-import { shuffleDeck } from "./shuffling.js";
-import { gainTags, loseTags } from "./tags.js";
-import { cardStr } from "./to_string.js";
-import { numberOfVirusCounters } from "./virus.js";
-import { getCard } from "./finding.js";
-import { continue_ability } from "../macros.js";
-import { enumerateCards, enumerateStr, quantify, sameCard } from "../utils.js";
+} from "./pick_counters";
+import { addCounter, addProp } from "./props";
+import { reveal, revealAndQueueEvent } from "./revealing";
+import { derez } from "./rezzing";
+import { shuffleDeck } from "./shuffling";
+import { gainTags, loseTags } from "./tags";
+import { cardStr } from "./to_string";
+import { numberOfVirusCounters } from "./virus";
+import { getCard } from "./finding";
+import { continue_ability } from "../macros";
+import { enumerateCards, enumerateStr, quantify, sameCard } from "../utils";
 
-import { handlerDispatch, labelDispatch, payableDispatch, value, valueDispatch, waitFor } from './costs_1';
+import {
+  handlerDispatch,
+  labelDispatch,
+  payableDispatch,
+  value,
+  valueDispatch,
+  waitFor,
+} from "./costs_1";
 
 // ===========================================================================
 // Reveal-and-randomly-trash-from-hand
@@ -92,37 +99,42 @@ labelDispatch.set(
 payableDispatch.set("reveal-and-randomly-trash-from-hand", (c, state, side) => {
   return (((state as any)[side]?.hand ?? []) as Card[]).length - value(c) >= 0;
 });
-handlerDispatch.set("reveal-and-randomly-trash-from-hand", (c, state, side, eid) => {
-  const hand = ((state as any)[side]?.hand ?? []) as Card[];
-  const shuffled = [...hand].sort(() => Math.random() - 0.5);
-  const toTrash = shuffled.slice(0, value(c)).map((cd) => ({ ...cd, seen: true }));
-  const handName = side === "corp" ? "HQ" : "the grip";
-  waitFor(
-    state,
-    eid,
-    (innerEid) => reveal(state, side, innerEid, toTrash),
-    () => {
-      waitFor(
-        state,
-        eid,
-        (innerEid) =>
-          trashCards(state, side, innerEid, toTrash, {
-            unpreventable: true,
-            cause: "ability-cost",
-          }),
-        (asyncResult) => {
-          const trashed = (asyncResult as Card[]) ?? [];
-          completeWithResult(state, side, eid, {
-            "paid/msg": `reveals and trashes ${quantify(trashed.length, "card")} (${enumerateCards(toTrash, "sorted")}) from ${handName}`,
-            "paid/type": "reveal-and-randomly-trash-from-hand",
-            "paid/value": trashed.length,
-            "paid/targets": trashed,
-          });
-        },
-      );
-    },
-  );
-});
+handlerDispatch.set(
+  "reveal-and-randomly-trash-from-hand",
+  (c, state, side, eid) => {
+    const hand = ((state as any)[side]?.hand ?? []) as Card[];
+    const shuffled = [...hand].sort(() => Math.random() - 0.5);
+    const toTrash = shuffled
+      .slice(0, value(c))
+      .map((cd) => ({ ...cd, seen: true }));
+    const handName = side === "corp" ? "HQ" : "the grip";
+    waitFor(
+      state,
+      eid,
+      (innerEid) => reveal(state, side, innerEid, toTrash),
+      () => {
+        waitFor(
+          state,
+          eid,
+          (innerEid) =>
+            trashCards(state, side, innerEid, toTrash, {
+              unpreventable: true,
+              cause: "ability-cost",
+            }),
+          (asyncResult) => {
+            const trashed = (asyncResult as Card[]) ?? [];
+            completeWithResult(state, side, eid, {
+              "paid/msg": `reveals and trashes ${quantify(trashed.length, "card")} (${enumerateCards(toTrash, "sorted")}) from ${handName}`,
+              "paid/type": "reveal-and-randomly-trash-from-hand",
+              "paid/value": trashed.length,
+              "paid/targets": trashed,
+            });
+          },
+        );
+      },
+    );
+  },
+);
 
 // ===========================================================================
 // Trash-entire-hand
@@ -169,9 +181,16 @@ function registerTrashTypeFromHand(
   detailFn: (targets: Card[]) => string,
 ): void {
   valueDispatch.set(type, (c) => c.amount);
-  labelDispatch.set(type, (c) => `trash ${quantify(value(c), description)} in the grip`);
+  labelDispatch.set(
+    type,
+    (c) => `trash ${quantify(value(c), description)} in the grip`,
+  );
   payableDispatch.set(type, (c, state) => {
-    return (((state as any).runner?.hand ?? []) as Card[]).filter(pred).length - value(c) >= 0;
+    return (
+      (((state as any).runner?.hand ?? []) as Card[]).filter(pred).length -
+        value(c) >=
+      0
+    );
   });
   handlerDispatch.set(type, (c, state, side, eid) => {
     continue_ability(
@@ -185,7 +204,13 @@ function registerTrashTypeFromHand(
           max: value(c),
           card: (x: Card) => pred(x) && inHand(x),
         } as any,
-        effect: ((s: GameState, sd: string, ei: EID, _ca: Card | null, targets: Card[]) => {
+        effect: ((
+          s: GameState,
+          sd: string,
+          ei: EID,
+          _ca: Card | null,
+          targets: Card[],
+        ) => {
           waitFor(
             s,
             ei,
@@ -217,7 +242,8 @@ registerTrashTypeFromHand(
   "trash-hardware-from-hand",
   "piece",
   (c) => isHardware(c),
-  (targets) => ` of hardware (${enumerateCards(targets, "sorted")}) from [their] grip`,
+  (targets) =>
+    ` of hardware (${enumerateCards(targets, "sorted")}) from [their] grip`,
 );
 labelDispatch.set(
   "trash-hardware-from-hand",
@@ -302,7 +328,13 @@ handlerDispatch.set("shuffle-installed-to-stack", (c, state, side, eid) => {
           isInstalled(x) && (side === "corp" ? isCorp(x) : isRunner(x)),
       } as any,
       async: true,
-      effect: ((s: GameState, sd: string, ei: EID, _ca: Card | null, targets: Card[]) => {
+      effect: ((
+        s: GameState,
+        sd: string,
+        ei: EID,
+        _ca: Card | null,
+        targets: Card[],
+      ) => {
         const moved = targets
           .map((t) => move(s, sd, t, "deck", { shuffled: true }))
           .filter((x): x is Card => !!x);
@@ -333,36 +365,45 @@ labelDispatch.set(
 payableDispatch.set("add-installed-to-bottom-of-deck", (c, state, side) => {
   return allInstalled(state, side).length - value(c) >= 0;
 });
-handlerDispatch.set("add-installed-to-bottom-of-deck", (c, state, side, eid) => {
-  const deckName = side === "corp" ? "R&D" : "the stack";
-  continue_ability(
-    state,
-    side,
-    {
-      prompt: `Choose ${quantify(value(c), "installed card")} to move to the bottom of ${deckName}`,
-      choices: {
-        max: value(c),
-        all: true,
-        card: (x: Card) =>
-          isInstalled(x) && (side === "corp" ? isCorp(x) : isRunner(x)),
+handlerDispatch.set(
+  "add-installed-to-bottom-of-deck",
+  (c, state, side, eid) => {
+    const deckName = side === "corp" ? "R&D" : "the stack";
+    continue_ability(
+      state,
+      side,
+      {
+        prompt: `Choose ${quantify(value(c), "installed card")} to move to the bottom of ${deckName}`,
+        choices: {
+          max: value(c),
+          all: true,
+          card: (x: Card) =>
+            isInstalled(x) && (side === "corp" ? isCorp(x) : isRunner(x)),
+        } as any,
+        async: true,
+        effect: ((
+          s: GameState,
+          sd: string,
+          ei: EID,
+          _ca: Card | null,
+          targets: Card[],
+        ) => {
+          const moved = targets
+            .map((t) => move(s, sd, t, "deck"))
+            .filter((x): x is Card => !!x);
+          completeWithResult(s, sd, ei, {
+            "paid/msg": `adds ${quantify(moved.length, "installed card")} to the bottom of ${deckName} (${enumerateStr(targets.map((t) => cardStr(s, t)))})`,
+            "paid/type": "add-installed-to-bottom-of-deck",
+            "paid/value": moved.length,
+            "paid/targets": moved,
+          });
+        }) as any,
       } as any,
-      async: true,
-      effect: ((s: GameState, sd: string, ei: EID, _ca: Card | null, targets: Card[]) => {
-        const moved = targets
-          .map((t) => move(s, sd, t, "deck"))
-          .filter((x): x is Card => !!x);
-        completeWithResult(s, sd, ei, {
-          "paid/msg": `adds ${quantify(moved.length, "installed card")} to the bottom of ${deckName} (${enumerateStr(targets.map((t) => cardStr(s, t)))})`,
-          "paid/type": "add-installed-to-bottom-of-deck",
-          "paid/value": moved.length,
-          "paid/targets": moved,
-        });
-      }) as any,
-    } as any,
-    null,
-    [],
-  );
-});
+      null,
+      [],
+    );
+  },
+);
 
 // ===========================================================================
 // Turn-hosted-matryoshka-facedown
@@ -373,25 +414,31 @@ labelDispatch.set(
   "turn-hosted-matryoshka-facedown",
   (c) => `turn ${quantify(value(c), "hosted cop", "y")} of Matryoshka facedown`,
 );
-payableDispatch.set("turn-hosted-matryoshka-facedown", (c, state, _side, _eid, card) => {
-  const hosted = ((getCard(state, card) as any)?.hosted ?? []) as Card[];
-  return (
-    value(c) <=
-    hosted.filter((x) => !isFacedown(x) && x.title === "Matryoshka").length
-  );
-});
-handlerDispatch.set("turn-hosted-matryoshka-facedown", (c, state, side, eid, card) => {
-  const pred = (x: Card) => !isFacedown(x) && x.title === "Matryoshka";
-  const hosted = ((getCard(state, card) as any)?.hosted ?? []) as Card[];
-  const selected = hosted.filter(pred).slice(0, value(c));
-  for (const cc of selected) flipFacedown(state, side, cc);
-  completeWithResult(state, side, eid, {
-    "paid/msg": `turns ${quantify(value(c), "hosted cop", "y")} of Matryoshka facedown`,
-    "paid/type": "turn-hosted-matryoshka-facedown",
-    "paid/value": value(c),
-    "paid/targets": selected,
-  });
-});
+payableDispatch.set(
+  "turn-hosted-matryoshka-facedown",
+  (c, state, _side, _eid, card) => {
+    const hosted = ((getCard(state, card) as any)?.hosted ?? []) as Card[];
+    return (
+      value(c) <=
+      hosted.filter((x) => !isFacedown(x) && x.title === "Matryoshka").length
+    );
+  },
+);
+handlerDispatch.set(
+  "turn-hosted-matryoshka-facedown",
+  (c, state, side, eid, card) => {
+    const pred = (x: Card) => !isFacedown(x) && x.title === "Matryoshka";
+    const hosted = ((getCard(state, card) as any)?.hosted ?? []) as Card[];
+    const selected = hosted.filter(pred).slice(0, value(c));
+    for (const cc of selected) flipFacedown(state, side, cc);
+    completeWithResult(state, side, eid, {
+      "paid/msg": `turns ${quantify(value(c), "hosted cop", "y")} of Matryoshka facedown`,
+      "paid/type": "turn-hosted-matryoshka-facedown",
+      "paid/value": value(c),
+      "paid/targets": selected,
+    });
+  },
+);
 
 // ===========================================================================
 // Add-random-from-hand-to-bottom-of-deck
@@ -402,21 +449,27 @@ labelDispatch.set(
   "add-random-from-hand-to-bottom-of-deck",
   (c) => `add ${quantify(value(c), "random card")} to the bottom of your deck`,
 );
-payableDispatch.set("add-random-from-hand-to-bottom-of-deck", (c, state, side) => {
-  return value(c) <= (((state as any)[side]?.hand ?? []) as Card[]).length;
-});
-handlerDispatch.set("add-random-from-hand-to-bottom-of-deck", (c, state, side, eid) => {
-  const deck = side === "corp" ? "R&D" : "the stack";
-  const hand = ((state as any)[side]?.hand ?? []) as Card[];
-  const chosen = [...hand].sort(() => Math.random() - 0.5).slice(0, value(c));
-  for (const cc of chosen) move(state, side, cc, "deck");
-  completeWithResult(state, side, eid, {
-    "paid/msg": `adds ${quantify(value(c), "random card")} to the bottom of ${deck}`,
-    "paid/type": "add-random-from-hand-to-bottom-of-deck",
-    "paid/value": value(c),
-    "paid/targets": chosen,
-  });
-});
+payableDispatch.set(
+  "add-random-from-hand-to-bottom-of-deck",
+  (c, state, side) => {
+    return value(c) <= (((state as any)[side]?.hand ?? []) as Card[]).length;
+  },
+);
+handlerDispatch.set(
+  "add-random-from-hand-to-bottom-of-deck",
+  (c, state, side, eid) => {
+    const deck = side === "corp" ? "R&D" : "the stack";
+    const hand = ((state as any)[side]?.hand ?? []) as Card[];
+    const chosen = [...hand].sort(() => Math.random() - 0.5).slice(0, value(c));
+    for (const cc of chosen) move(state, side, cc, "deck");
+    completeWithResult(state, side, eid, {
+      "paid/msg": `adds ${quantify(value(c), "random card")} to the bottom of ${deck}`,
+      "paid/type": "add-random-from-hand-to-bottom-of-deck",
+      "paid/value": value(c),
+      "paid/targets": chosen,
+    });
+  },
+);
 
 // ===========================================================================
 // Hosted-to-hq
@@ -440,13 +493,25 @@ handlerDispatch.set("hosted-to-hq", (c, state, side, eid, card) => {
       choices: {
         max: value(c),
         all: true,
-        req: ((_s: GameState, _sd: string, _e: EID, _ca: Card | null, targets: any[]) => {
+        req: ((
+          _s: GameState,
+          _sd: string,
+          _e: EID,
+          _ca: Card | null,
+          targets: any[],
+        ) => {
           const t = targets[0] as Card;
           return isCorp(t) && sameCard((t as any).host, card as any);
         }) as any,
       } as any,
       async: true,
-      effect: ((s: GameState, sd: string, ei: EID, _ca: Card | null, targets: Card[]) => {
+      effect: ((
+        s: GameState,
+        sd: string,
+        ei: EID,
+        _ca: Card | null,
+        targets: Card[],
+      ) => {
         const moved = targets
           .map((t) => move(s, "corp", t, "hand"))
           .filter((x): x is Card => !!x);
@@ -483,10 +548,18 @@ handlerDispatch.set("any-agenda-counter", (c, state, side, eid) => {
       prompt: "Choose an agenda with a counter",
       choices: {
         card: (x: Card) =>
-          isAgenda(x) && isScored(state, side, x) && getCounter(x, "agenda") > 0,
+          isAgenda(x) &&
+          isScored(state, side, x) &&
+          getCounter(x, "agenda") > 0,
       } as any,
       async: true,
-      effect: ((s: GameState, sd: string, ei: EID, _ca: Card | null, targets: Card[]) => {
+      effect: ((
+        s: GameState,
+        sd: string,
+        ei: EID,
+        _ca: Card | null,
+        targets: Card[],
+      ) => {
         const tgt = targets[0];
         waitFor(
           s,
@@ -662,7 +735,13 @@ handlerDispatch.set("x-power", (_c, state, side, eid, card) => {
         number: ((_s: GameState, _sd: string, _e: EID, ca: Card | null) =>
           getCounter(ca, "power")) as any,
       } as any,
-      effect: ((s: GameState, sd: string, ei: EID, ca: Card | null, targets: any[]) => {
+      effect: ((
+        s: GameState,
+        sd: string,
+        ei: EID,
+        ca: Card | null,
+        targets: any[],
+      ) => {
         const cost = targets[0] as number;
         waitFor(
           s,

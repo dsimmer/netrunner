@@ -2,19 +2,19 @@
 // Mirrors: src/clj/game/core/shuffling.clj
 
 import { randomBytes } from "crypto";
-import type { GameState, EID } from "./state.js";
-import type { Card, Zone } from "./card.js";
-import type { Ability } from "./types.js";
-import { CORP_SIDE, RUNNER_SIDE } from "./state.js";
-import { corp, inDiscard, getTitle, getZone } from "./card.js";
-import { triggerEvent } from "./engine.js";
-import { zoneLocked } from "./flags.js";
-import { move as moveCard, moveZone } from "./moving.js";
-import { systemMsg, playSfx } from "./say.js";
-import { nameZone } from "./servers.js";
-import { req, msg, continue_ability } from "../macros.js";
-import { enumerateStr, enumerateCards, quantify } from "../utils.js";
-import { getCard } from "./finding.js";
+import type { GameState, EID } from "./state";
+import type { Card, Zone } from "./card";
+import type { Ability } from "./types.ts";
+import { CORP_SIDE, RUNNER_SIDE } from "./state";
+import { corp, inDiscard, getTitle, getZone } from "./card";
+import { triggerEvent } from "./engine";
+import { zoneLocked } from "./flags";
+import { move as moveCard, moveZone } from "./moving";
+import { systemMsg, playSfx } from "./say";
+import { nameZone } from "./servers";
+import { req, msg, continue_ability } from "../macros";
+import { enumerateStr, enumerateCards, quantify } from "../utils";
+import { getCard } from "./finding";
 
 // ---------------------------------------------------------------------------
 // Keyword normalization (strip leading ':' from Clojure-style keywords)
@@ -52,7 +52,7 @@ function shuffleColl<T>(arr: T[]): T[] {
     // Generate a random index 0..i using crypto bytes
     const range = i + 1;
     let cumulative = 0;
-    let maxNotCovered = (0x1_00_00_00_00_00_00_00n) - BigInt(range);
+    let maxNotCovered = 0x1_00_00_00_00_00_00_00n - BigInt(range);
     const bytes = randomBytes(8);
     let r = BigInt("0x" + bytes.toString("hex"));
     while (r < maxNotCovered) {
@@ -178,10 +178,14 @@ export function shuffleCardsIntoDeck(
   // Filter out cards in locked discard
   const filtered = resolvedCards.filter((c) => {
     const z = getZone(c);
-    return !(z.length === 1 && z[0] === "discard" && zoneLocked(state, actualShuffleSide, "discard"));
+    return !(
+      z.length === 1 &&
+      z[0] === "discard" &&
+      zoneLocked(state, actualShuffleSide, "discard")
+    );
   });
 
-  const cardTitle = card ? getTitle(card) ?? "a card" : "a card";
+  const cardTitle = card ? (getTitle(card) ?? "a card") : "a card";
   const lhs = `${sideStr(normalizedFromSide)} uses ${cardTitle}${
     normalizedFromSide !== actualShuffleSide
       ? ` to force the ${capitalize(actualShuffleSide)}`
@@ -203,9 +207,7 @@ export function shuffleCardsIntoDeck(
     for (const [key, group] of cardsByZone) {
       const [csid, _] = key.split("|");
       const z = getZone(group[0]);
-      zoneStrs.push(
-        `${enumerateCards(group, true)} from ${nameZone(csid, z)}`,
-      );
+      zoneStrs.push(`${enumerateCards(group, true)} from ${nameZone(csid, z)}`);
     }
     const strs = enumerateStr(zoneStrs);
 
@@ -267,7 +269,7 @@ export function shuffleIntoDeck(
   if (typeof stateOrZone === "string") {
     return (s: GameState, sd: string) => {
       const allZones = [stateOrZone, sideOrZone, ...restZones].filter(
-        (z): z is string | Zone => typeof z === "string" || Array.isArray(z)
+        (z): z is string | Zone => typeof z === "string" || Array.isArray(z),
       ) as string[];
       return shuffleIntoDeck(s, sd, ...allZones);
     };
@@ -275,9 +277,9 @@ export function shuffleIntoDeck(
 
   const state = stateOrZone as GameState;
   const side = kw(sideOrZone as string);
-  const zones = restZones.filter(
-    (z): z is string => typeof z === "string"
-  ).map((z) => kw(z));
+  const zones = restZones
+    .filter((z): z is string => typeof z === "string")
+    .map((z) => kw(z));
 
   for (const z of zones) {
     moveZone(state, side, z, "deck");
@@ -294,10 +296,8 @@ export function shuffleIntoDeck(
  * Mirrors shuffle-my-deck! in shuffling.clj.
  */
 export const shuffleMyDeck: Ability = {
-  msg: msg(
-    "shuffle ",
-    (state: GameState, side: string) =>
-      side === RUNNER_SIDE ? "the stack" : "R&D"
+  msg: msg("shuffle ", (state: GameState, side: string) =>
+    side === RUNNER_SIDE ? "the stack" : "R&D",
   ),
   effect: req((state: GameState, side: string) => {
     shuffle(state, side, "deck");
@@ -314,10 +314,8 @@ export const shuffleMyDeck: Ability = {
  * Mirrors fail-to-find! in shuffling.clj.
  */
 export const failToFind: Ability = {
-  msg: msg(
-    "shuffle ",
-    (state: GameState, side: string) =>
-      side === RUNNER_SIDE ? "the stack" : "R&D"
+  msg: msg("shuffle ", (state: GameState, side: string) =>
+    side === RUNNER_SIDE ? "the stack" : "R&D",
   ),
   effect: req((state: GameState, side: string) => {
     if (side === RUNNER_SIDE) {
@@ -351,17 +349,20 @@ export function shuffleIntoRdEffect(
     {
       showDiscard: true,
       choices: {
-        max: Math.min(
-          ((state as any).corp?.discard?.length ?? 0),
-          n
-        ),
+        max: Math.min((state as any).corp?.discard?.length ?? 0, n),
         card: (c: Card) => corp(c) && inDiscard(c),
         all,
       },
       msg: {
         public: msg(
           "shuffle ",
-          (_s: GameState, _sd: string, _eid: EID, _card: Card, targets: Card[]) => {
+          (
+            _s: GameState,
+            _sd: string,
+            _eid: EID,
+            _card: Card,
+            targets: Card[],
+          ) => {
             const seen = targets.filter((c: Card) => c.seen);
             const unseen = targets.filter((c: Card) => !c.seen);
             const m = unseen.length;
@@ -372,11 +373,17 @@ export function shuffleIntoRdEffect(
                 : "")
             );
           },
-          " into R&D"
+          " into R&D",
         ),
         corp: msg(
           "shuffle ",
-          (_s: GameState, _sd: string, _eid: EID, _card: Card, targets: Card[]) => {
+          (
+            _s: GameState,
+            _sd: string,
+            _eid: EID,
+            _card: Card,
+            targets: Card[],
+          ) => {
             const seen = targets.filter((c: Card) => c.seen);
             const unseen = targets.filter((c: Card) => !c.seen);
             const m = unseen.length;
@@ -387,16 +394,24 @@ export function shuffleIntoRdEffect(
                 : "")
             );
           },
-          " into R&D"
+          " into R&D",
         ),
       },
       waitingPrompt: true,
-      effect: req((_s: GameState, _sd: string, _eid: EID, _card: Card, targets: Card[]) => {
-        for (const c of targets) {
-          moveCard(_s, _sd, c, "deck");
-        }
-        shuffle(_s, _sd, "deck");
-      }),
+      effect: req(
+        (
+          _s: GameState,
+          _sd: string,
+          _eid: EID,
+          _card: Card,
+          targets: Card[],
+        ) => {
+          for (const c of targets) {
+            moveCard(_s, _sd, c, "deck");
+          }
+          shuffle(_s, _sd, "deck");
+        },
+      ),
       cancel: shuffleMyDeck,
     } as Ability,
     card,

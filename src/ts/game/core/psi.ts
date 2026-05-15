@@ -1,13 +1,13 @@
 // PSI game.
 // Mirrors: src/clj/game/core/psi.clj
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import type { EID } from "./eid.js";
-import type { Ability, PsiAbility } from "./types.js";
-import { corp } from "./card.js";
-import { totalAvailableCredits } from "./costs.js";
-import { makeEIDFrom, effectCompleted, registerEIDCallback } from "./eid.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import type { EID } from "./eid";
+import type { Ability, PsiAbility } from "./types.ts";
+import { corp } from "./card";
+import { totalAvailableCredits } from "./costs";
+import { makeEIDFrom, effectCompleted, registerEIDCallback } from "./eid";
 import {
   canTrigger,
   pay,
@@ -15,13 +15,13 @@ import {
   registerOnce,
   resolveAbility,
   triggerEventSimult,
-} from "./engine.js";
-import { anyFlagFn } from "./flags.js";
-import { clearWaitPrompt, showPromptWithDice, showWaitPrompt } from "./prompts.js";
-import { systemMsg } from "./say.js";
-import { continue_ability, effect } from "../macros.js";
-import { strToInt } from "../../jinteki/utils.js";
-import { toC } from "./payment.js";
+} from "./engine";
+import { anyFlagFn } from "./flags";
+import { clearWaitPrompt, showPromptWithDice, showWaitPrompt } from "./prompts";
+import { systemMsg } from "./say";
+import { continue_ability, effect } from "../macros";
+import { strToInt } from "../../jinteki/utils";
+import { toC } from "./payment";
 
 /**
  * Convert a bet number to a stats key.
@@ -101,44 +101,61 @@ function resolvePsi(
     const resolveEid = makeEIDFrom(state, eid);
 
     // Register the full resolution chain as a callback on resolveEid
-    registerEIDCallback(state, resolveEid, (s: GameState, _side: string, _resultEid: EID) => {
-      // At this point both payments are done
+    registerEIDCallback(
+      state,
+      resolveEid,
+      (s: GameState, _side: string, _resultEid: EID) => {
+        // At this point both payments are done
 
-      systemMsg(s, side, "psi-resolved");
-      clearWaitPrompt(s, opponent);
+        systemMsg(s, side, "psi-resolved");
+        clearWaitPrompt(s, opponent);
 
-      const corpCredits = s.psi?.bet.corp ?? 0;
-      const runnerCredits = s.psi?.bet.runner ?? 0;
+        const corpCredits = s.psi?.bet.corp ?? 0;
+        const runnerCredits = s.psi?.bet.runner ?? 0;
 
-      triggerEventSimult(
-        s,
-        side,
-        makeEIDFrom(s, eid),
-        "reveal-spent-credits",
-        {
-          firstAbility: {
-            async: true,
-            effect: effect(function (st: GameState, _s: string, _e: EID, _c: Card, _t: unknown[]) {
-              const cardSide = corp(card) ? "corp" : "runner";
-              // Clojure: (if (= bet opponent-bet) (:equal psi) (:not-equal psi))
-              const ability = bet === opponentBet
-                ? (psi as any).equal ?? (psi as any).notEqual
-                : (psi as any).notEqual ?? (psi as any).unequal;
+        triggerEventSimult(
+          s,
+          side,
+          makeEIDFrom(s, eid),
+          "reveal-spent-credits",
+          {
+            firstAbility: {
+              async: true,
+              effect: effect(function (
+                st: GameState,
+                _s: string,
+                _e: EID,
+                _c: Card,
+                _t: unknown[],
+              ) {
+                const cardSide = corp(card) ? "corp" : "runner";
+                // Clojure: (if (= bet opponent-bet) (:equal psi) (:not-equal psi))
+                const ability =
+                  bet === opponentBet
+                    ? ((psi as any).equal ?? (psi as any).notEqual)
+                    : ((psi as any).notEqual ?? (psi as any).unequal);
 
-              if (ability) {
-                updatePsiWinStats(st, cardSide);
-                continue_ability(st, cardSide, { ...ability, async: true }, card, targets);
-              } else {
-                const loserSide = cardSide === "corp" ? "runner" : "corp";
-                updatePsiWinStats(st, loserSide);
-                effectCompleted(st, side, eid);
-              }
-            }),
+                if (ability) {
+                  updatePsiWinStats(st, cardSide);
+                  continue_ability(
+                    st,
+                    cardSide,
+                    { ...ability, async: true },
+                    card,
+                    targets,
+                  );
+                } else {
+                  const loserSide = cardSide === "corp" ? "runner" : "corp";
+                  updatePsiWinStats(st, loserSide);
+                  effectCompleted(st, side, eid);
+                }
+              }),
+            },
           },
-        },
-        { corpCredits, runnerCredits },
-      );
-    });
+          { corpCredits, runnerCredits },
+        );
+      },
+    );
 
     // Pay opponent first, then pay side, then fire resolveEid callback
     const sidePayEid = makeEIDFrom(state, eid);
@@ -267,7 +284,13 @@ function checkPsi(
       {
         ...restAbility,
         async: true,
-        effect: effect(function (s: GameState, _side: string, e: EID, c: Card, t: unknown[]) {
+        effect: effect(function (
+          s: GameState,
+          _side: string,
+          e: EID,
+          c: Card,
+          t: unknown[],
+        ) {
           psiGame(s, side, c, psi!, t);
         }),
       },

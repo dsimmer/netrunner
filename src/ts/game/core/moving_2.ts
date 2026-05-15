@@ -1,49 +1,95 @@
 // Card moving: move, trash, swap, forfeit, mill, flip.
 // Mirrors: src/clj/game/core/moving.clj
 
-import type { GameState } from "./state.js";
-import type { Card, Zone } from "./card.js";
-import type { EID } from "./eid.js";
-import type { Ability, ReqFn } from "./types.js";
+import type { GameState } from "./state";
+import type { Card, Zone } from "./card";
+import type { EID } from "./eid";
+import type { Ability, ReqFn } from "./types.ts";
 
 import {
-  isAgenda, isAsset, isCorp, isRunner, isICE, isProgram, isResource,
-  isInstalled, isRezzed, isFacedown, hasSubtype, getZone, getTitle, inHand,
-  TYPE_AGENDA, TYPE_COUNTER,
-} from "./card.js";
-import { getCardDef } from "./types.js";
-import { updateAllAgendaPoints } from "./agendas.js";
-import { allActiveInstalled } from "./board.js";
+  isAgenda,
+  isAsset,
+  isCorp,
+  isRunner,
+  isICE,
+  isProgram,
+  isResource,
+  isInstalled,
+  isRezzed,
+  isFacedown,
+  hasSubtype,
+  getZone,
+  getTitle,
+  inHand,
+  TYPE_AGENDA,
+  TYPE_COUNTER,
+} from "./card";
+import { getCardDef } from "./types.ts";
+import { updateAllAgendaPoints } from "./agendas";
+import { allActiveInstalled } from "./board";
 import {
-  triggerEvent, triggerEventSync, registerEvents, registerDefaultEvents,
-  unregisterEvents, registerStaticAbilities, unregisterStaticAbilities,
-  registerPendingEvent, queueEvent, dissocReq,
-} from "./engine.js";
-import { isDisabledReg } from "./effects.js";
+  triggerEvent,
+  triggerEventSync,
+  registerEvents,
+  registerDefaultEvents,
+  unregisterEvents,
+  registerStaticAbilities,
+  unregisterStaticAbilities,
+  registerPendingEvent,
+  queueEvent,
+  dissocReq,
+} from "./engine";
+import { isDisabledReg } from "./effects";
 import {
-  effectCompleted, completeWithResult, makeEID, makeEIDFrom, makeResult,
-} from "./eid.js";
-import { fakeCheckpoint } from "./checkpoint.js";
-import { getCard, getScoringOwner } from "./finding.js";
+  effectCompleted,
+  completeWithResult,
+  makeEID,
+  makeEIDFrom,
+  makeResult,
+} from "./eid";
+import { fakeCheckpoint } from "./checkpoint";
+import { getCard, getScoringOwner } from "./finding";
 import {
-  canTrash, cardFlag, untrashableWhileResources, untrashableWhileRezzed,
+  canTrash,
+  cardFlag,
+  untrashableWhileResources,
+  untrashableWhileRezzed,
   zoneLocked,
-} from "./flags.js";
-import { remove as removeFromHost } from "./hosting.js";
-import { getCurrentIce, setCurrentIce, updateBreakerStrength } from "./ice.js";
-import { cardInit, deactivate, resetCard } from "./initializing.js";
-import { initMuCost } from "./memory.js";
-import { resolveTrashPrevention } from "./prevention.js";
-import { showPrompt, showWaitPrompt, clearWaitPrompt } from "./prompts.js";
-import { systemMsg } from "./say.js";
-import { update as updateCard } from "./update.js";
-import { clearWin as checkWinByAgenda } from "./winning.js";
-import { wait_for } from "../macros.js";
+} from "./flags";
+import { remove as removeFromHost } from "./hosting";
+import { getCurrentIce, setCurrentIce, updateBreakerStrength } from "./ice";
+import { cardInit, deactivate, resetCard } from "./initializing";
+import { initMuCost } from "./memory";
+import { resolveTrashPrevention } from "./prevention";
+import { showPrompt, showWaitPrompt, clearWaitPrompt } from "./prompts";
+import { systemMsg } from "./say";
+import { update as updateCard } from "./update";
+import { clearWin as checkWinByAgenda } from "./winning";
+import { wait_for } from "../macros";
 import {
-  dissocIn, makeCID, makeTimestamp, removeOnce, sameCard, sameSide, toKeyword,
-} from "../utils.js";
+  dissocIn,
+  makeCID,
+  makeTimestamp,
+  removeOnce,
+  sameCard,
+  sameSide,
+  toKeyword,
+} from "../utils";
 
-import { cardIndex, convertToAgenda, inPlayArea, move, peek, registerMoveStar, sameServer, shouldTrigger, trimCauseCard, typeToRigZone, updateCurrentIceToTrash, updateInstalledCardIndices } from './moving_1';
+import {
+  cardIndex,
+  convertToAgenda,
+  inPlayArea,
+  move,
+  peek,
+  registerMoveStar,
+  sameServer,
+  shouldTrigger,
+  trimCauseCard,
+  typeToRigZone,
+  updateCurrentIceToTrash,
+  updateInstalledCardIndices,
+} from "./moving_1";
 
 function getCardKeepSeen(state: GameState, c: Card): Card | null {
   const found = getCard(state, c);
@@ -59,23 +105,41 @@ interface TrashEffectArgs {
 }
 
 export function getTrashEffect(
-  state: GameState, side: string, eid: EID, card: Card,
+  state: GameState,
+  side: string,
+  eid: EID,
+  card: Card,
   args: TrashEffectArgs,
 ): Ability | null {
   const cdef = getCardDef(card);
   const trashEffect = (cdef as any)["on-trash"] as Ability | undefined;
   if (!card || card.disabled) return null;
 
-  const okRunnerInstalled = isRunner(card) && isInstalled(card) && !isFacedown(card);
+  const okRunnerInstalled =
+    isRunner(card) && isInstalled(card) && !isFacedown(card);
   const okRezzedNotHost = isRezzed(card) && !args.hostTrashed;
-  const okWhenInactive = !!(trashEffect as any)?.["when-inactive"] && !args.hostTrashed;
+  const okWhenInactive =
+    !!(trashEffect as any)?.["when-inactive"] && !args.hostTrashed;
   const okPlayArea = inPlayArea(card);
 
-  if (!(okRunnerInstalled || okRezzedNotHost || okWhenInactive || okPlayArea)) return null;
+  if (!(okRunnerInstalled || okRezzedNotHost || okWhenInactive || okPlayArea))
+    return null;
 
-  const triggers = shouldTrigger(state, side, eid, card,
-    [{ card, cause: args.cause, "cause-card": trimCauseCard(args.causeCard), accessed: args.accessed }],
-    trashEffect);
+  const triggers = shouldTrigger(
+    state,
+    side,
+    eid,
+    card,
+    [
+      {
+        card,
+        cause: args.cause,
+        "cause-card": trimCauseCard(args.causeCard),
+        accessed: args.accessed,
+      },
+    ],
+    trashEffect,
+  );
   if (!triggers) return null;
 
   const out: Ability = {
@@ -90,11 +154,16 @@ export function getTrashEffect(
 // ---------------------------------------------------------------------------
 
 export function setDurationOnTrashEvents(
-  state: GameState, card: Card, trashEvent: string,
+  state: GameState,
+  card: Card,
+  trashEvent: string,
 ): void {
   state.events = state.events.map((cur) => {
-    if (sameCard(card, cur.card) && cur.event === trashEvent &&
-        !isDisabledReg(state, card)) {
+    if (
+      sameCard(card, cur.card) &&
+      cur.event === trashEvent &&
+      !isDisabledReg(state, card)
+    ) {
       return { ...cur, duration: trashEvent };
     }
     return cur;
@@ -124,7 +193,9 @@ interface TrashCardsArgs extends TrashEffectArgs {
 }
 
 export function trashCards(
-  state: GameState, side: string, eid: EID,
+  state: GameState,
+  side: string,
+  eid: EID,
   cards: (Card | null | undefined)[],
   args: TrashCardsArgs = {},
 ): void {
@@ -139,10 +210,16 @@ export function trashCards(
     [
       { asyncResult: "result" },
       function (s: GameState, _e: EID, binds: any) {
-        const trashlist: Array<{ card: Card; destination?: string; "shuffle-rd"?: boolean }> =
-          binds.asyncResult?.remaining ?? [];
+        const trashlist: Array<{
+          card: Card;
+          destination?: string;
+          "shuffle-rd"?: boolean;
+        }> = binds.asyncResult?.remaining ?? [];
 
-        updateCurrentIceToTrash(s, trashlist.map((t) => t.card));
+        updateCurrentIceToTrash(
+          s,
+          trashlist.map((t) => t.card),
+        );
 
         wait_for(
           s,
@@ -151,8 +228,9 @@ export function trashCards(
             function (s2: GameState, _e2: EID) {
               const trashEvent = getTrashEvent(side, args.gameTrash);
               const moveCard = (card: Card, dest?: string) =>
-                move(s2, toKeyword(card.side ?? ""), card, dest ?? "discard",
-                  { keepServerAlive: args.keepServerAlive });
+                move(s2, toKeyword(card.side ?? ""), card, dest ?? "discard", {
+                  keepServerAlive: args.keepServerAlive,
+                });
 
               const shouldShuffleRD = trashlist.some((t) => t["shuffle-rd"]);
 
@@ -181,13 +259,15 @@ export function trashCards(
               if (shouldShuffleRD) {
                 if ((s2 as any).access && s2.run) {
                   ((s2 as any).run as any)["shuffled-during-access"] = {
-                    ...(((s2 as any).run as any)["shuffled-during-access"] ?? {}),
+                    ...(((s2 as any).run as any)["shuffled-during-access"] ??
+                      {}),
                     rd: true,
                   };
                 }
                 const stats = ((s2 as any).stats ??= {});
                 const corpStats = (stats.corp ??= {});
-                corpStats["shuffle-count"] = (corpStats["shuffle-count"] ?? 0) + 1;
+                corpStats["shuffle-count"] =
+                  (corpStats["shuffle-count"] ?? 0) + 1;
                 const deck = (s2.corp.deck ?? []).slice();
                 for (let i = deck.length - 1; i > 0; i--) {
                   const j = Math.floor(Math.random() * (i + 1));
@@ -198,15 +278,26 @@ export function trashCards(
               }
 
               const accessed = (s2 as any).access;
-              if (accessed && trashlist.some((t) => sameCard(accessed, t.card)) && side === "runner") {
-                ((s2.runner.register ??= {}) as any)["trashed-accessed-card"] = true;
+              if (
+                accessed &&
+                trashlist.some((t) => sameCard(accessed, t.card)) &&
+                side === "runner"
+              ) {
+                ((s2.runner.register ??= {}) as any)["trashed-accessed-card"] =
+                  true;
               }
-              if ((s2 as any).breach && accessed &&
-                  trashlist.some((t) => sameCard(accessed, t.card)) && side === "runner") {
+              if (
+                (s2 as any).breach &&
+                accessed &&
+                trashlist.some((t) => sameCard(accessed, t.card)) &&
+                side === "runner"
+              ) {
                 ((s2 as any).breach as any)["did-trash"] = true;
               }
               const trashList = ((s2 as any).trash ??= {});
-              const trashListCard = ((trashList["trash-list"] ??= {}) as any).card ??= {};
+              const trashListCard = ((
+                (trashList["trash-list"] ??= {}) as any
+              ).card ??= {});
               delete trashListCard[eid.id];
 
               if (side) {
@@ -222,11 +313,16 @@ export function trashCards(
 
               // Pseudo-shuffle archives: keep seen cards in play order, shuffle unseen.
               const discard = (s2.corp.discard ?? []).slice();
-              discard.sort((a, b) => ((a as any).seen ? -1 : 1) - ((b as any).seen ? -1 : 1));
+              discard.sort(
+                (a, b) =>
+                  ((a as any).seen ? -1 : 1) - ((b as any).seen ? -1 : 1),
+              );
               s2.corp.discard = discard;
 
-              const completionEid = makeResult(eid,
-                movedCards.map((m) => m.movedCard).filter(Boolean));
+              const completionEid = makeResult(
+                eid,
+                movedCards.map((m) => m.movedCard).filter(Boolean),
+              );
 
               for (const { movedCard, trashEffect } of movedCards) {
                 if (movedCard && trashEffect) {
@@ -252,8 +348,14 @@ export function trashCards(
               }
             },
           ],
-          [triggerEventSync, s, side, makeEID(state),
-           "pre-trash-interrupt", trashlist.map((t) => t.card)],
+          [
+            triggerEventSync,
+            s,
+            side,
+            makeEID(state),
+            "pre-trash-interrupt",
+            trashlist.map((t) => t.card),
+          ],
           { eid },
         );
       },
@@ -273,7 +375,10 @@ registerMoveStar("trash-cards", (state, side, eid, _action, cards, args) => {
 // ---------------------------------------------------------------------------
 
 export function trash(
-  state: GameState, side: string, eid: EID, card: Card,
+  state: GameState,
+  side: string,
+  eid: EID,
+  card: Card,
   args: TrashCardsArgs = {},
 ): void {
   trashCards(state, side, eid, [card], args);
@@ -289,7 +394,11 @@ registerMoveStar("trash", (state, side, eid, _action, card, args) => {
 // ---------------------------------------------------------------------------
 
 export function mill(
-  state: GameState, fromSide: string, eid: EID, toSide: string, n: number,
+  state: GameState,
+  fromSide: string,
+  eid: EID,
+  toSide: string,
+  n: number,
   args: TrashCardsArgs = {},
 ): void {
   const deck = (state as any)[toSide]?.deck ?? [];
@@ -298,7 +407,11 @@ export function mill(
 }
 
 export function discardFromHand(
-  state: GameState, fromSide: string, eid: EID, toSide: string, n: number,
+  state: GameState,
+  fromSide: string,
+  eid: EID,
+  toSide: string,
+  n: number,
   args: TrashCardsArgs = {},
 ): void {
   const hand = ((state as any)[toSide]?.hand ?? []).slice();
@@ -316,7 +429,10 @@ export function discardFromHand(
 // ---------------------------------------------------------------------------
 
 export function swapLegal(
-  state: GameState, _side: string, a: Card, b: Card,
+  state: GameState,
+  _side: string,
+  a: Card,
+  b: Card,
 ): boolean {
   const pred = (c: Card) => isCorp(c) && isInstalled(c);
   const xor = (af: boolean, bf: boolean) => (af && !bf) || (bf && !af);
@@ -325,8 +441,8 @@ export function swapLegal(
 
   // No two assets/agendas in the same server
   if (xor(isAsset(a) || isAgenda(a), isAsset(b) || isAgenda(b))) {
-    const asset = (isAsset(a) || isAgenda(a)) ? a : b;
-    const nonAsset = (isAsset(a) || isAgenda(a)) ? b : a;
+    const asset = isAsset(a) || isAgenda(a) ? a : b;
+    const nonAsset = isAsset(a) || isAgenda(a) ? b : a;
     if (sameServer(asset, nonAsset)) return true;
     const path = ["corp", ...(nonAsset.zone ?? [])];
     let cur: any = state;
@@ -356,7 +472,10 @@ export function swapLegal(
 }
 
 export function swapInstalled(
-  state: GameState, side: string, a: Card, b: Card,
+  state: GameState,
+  side: string,
+  a: Card,
+  b: Card,
 ): void {
   const pred = (c: Card) => isCorp(c) && isInstalled(c);
   if (!(pred(a) && pred(b) && swapLegal(state, side, a, b))) return;
@@ -386,13 +505,19 @@ export function swapInstalled(
       registerDefaultEvents(state, side, newCard);
       registerStaticAbilities(state, side, newCard);
     } else {
-      const dre = (getCardDef(newCard) as any)["derezzed-events"] as Ability[] | undefined;
+      const dre = (getCardDef(newCard) as any)["derezzed-events"] as
+        | Ability[]
+        | undefined;
       if (dre?.length) {
-        registerEvents(state, side, newCard,
-          dre.map((d) => ({ ...d, condition: "derezzed" } as any)));
+        registerEvents(
+          state,
+          side,
+          newCard,
+          dre.map((d) => ({ ...d, condition: "derezzed" }) as any),
+        );
       }
     }
-    for (const h of (newCard.hosted ?? [])) {
+    for (const h of newCard.hosted ?? []) {
       const newh: Card = {
         ...h,
         zone: ["onhost"],
@@ -415,7 +540,10 @@ export function swapInstalled(
 }
 
 export function swapICE(
-  state: GameState, side: string, a: Card, b: Card,
+  state: GameState,
+  side: string,
+  a: Card,
+  b: Card,
 ): void {
   const pred = (c: Card) => isCorp(c) && isInstalled(c) && isICE(c);
   if (!(pred(a) && pred(b))) return;
@@ -428,9 +556,11 @@ export function swapICE(
 // ---------------------------------------------------------------------------
 
 export function removeFromCurrentlyDrawing(
-  state: GameState, side: string, card: Card,
+  state: GameState,
+  side: string,
+  card: Card,
 ): void {
-  const reg = (((state as any)[side].register ??= {}) as Record<string, unknown>);
+  const reg = ((state as any)[side].register ??= {}) as Record<string, unknown>;
   const mrd: Card[][] = (reg["currently-drawing"] as Card[][]) ?? [];
   if (!mrd.length) return;
   const tail = peek(mrd) ?? [];
@@ -439,9 +569,11 @@ export function removeFromCurrentlyDrawing(
 }
 
 export function addToCurrentlyDrawing(
-  state: GameState, side: string, card: Card,
+  state: GameState,
+  side: string,
+  card: Card,
 ): void {
-  const reg = (((state as any)[side].register ??= {}) as Record<string, unknown>);
+  const reg = ((state as any)[side].register ??= {}) as Record<string, unknown>;
   const mrd: Card[][] = (reg["currently-drawing"] as Card[][]) ?? [];
   if (!mrd.length) {
     reg["currently-drawing"] = [[card]];
@@ -456,7 +588,10 @@ export function addToCurrentlyDrawing(
 // ---------------------------------------------------------------------------
 
 export function swapCards(
-  state: GameState, side: string, a: Card, b: Card,
+  state: GameState,
+  side: string,
+  a: Card,
+  b: Card,
 ): [Card | null, Card | null] | null {
   if (!sameSide(a.side ?? "", b.side ?? "")) return null;
   const aRefreshed = getCard(state, a) ?? a;
@@ -488,11 +623,16 @@ export function swapCards(
       const cdef = getCardDef(moved);
       const dre = (cdef as any)["derezzed-events"] as Ability[] | undefined;
       updateCard(state, side, (c: any) => c, {
-        ...moved, advanceable: (cdef as any).advanceable,
+        ...moved,
+        advanceable: (cdef as any).advanceable,
       });
       if (dre?.length) {
-        registerEvents(state, side, moved,
-          dre.map((d) => ({ ...d, condition: "derezzed" } as any)));
+        registerEvents(
+          state,
+          side,
+          moved,
+          dre.map((d) => ({ ...d, condition: "derezzed" }) as any),
+        );
       }
     }
   }
@@ -504,8 +644,10 @@ export function swapCards(
   const reg = (state as any)[side]?.register;
   const drawing: Card[][] | undefined = reg?.["currently-drawing"];
   if (drawing && peek(drawing)) {
-    if (inHand(aRefreshed)) removeFromCurrentlyDrawing(state, aSide, aRefreshed);
-    if (inHand(bRefreshed)) removeFromCurrentlyDrawing(state, bSide, bRefreshed);
+    if (inHand(aRefreshed))
+      removeFromCurrentlyDrawing(state, aSide, aRefreshed);
+    if (inHand(bRefreshed))
+      removeFromCurrentlyDrawing(state, bSide, bRefreshed);
     if (movedA && inHand(movedA)) addToCurrentlyDrawing(state, aSide, movedA);
     if (movedB && inHand(movedB)) addToCurrentlyDrawing(state, bSide, movedB);
   }
@@ -518,7 +660,10 @@ export function swapCards(
 // ---------------------------------------------------------------------------
 
 export function swapAgendas(
-  state: GameState, side: string, scored: Card, stolen: Card,
+  state: GameState,
+  side: string,
+  scored: Card,
+  stolen: Card,
 ): [Card | null, Card | null] {
   const newStolen = move(state, "runner", scored, "scored");
   const newScored = move(state, "corp", stolen, "scored");
@@ -546,7 +691,10 @@ export function swapAgendas(
 // ---------------------------------------------------------------------------
 
 export function asAgenda(
-  state: GameState, side: string, card: Card, n: number,
+  state: GameState,
+  side: string,
+  card: Card,
+  n: number,
 ): Card | null {
   let c = deactivate(state, side, card);
   c = convertToAgenda(c, n);
@@ -561,7 +709,10 @@ export function asAgenda(
 // ---------------------------------------------------------------------------
 
 export function forfeit(
-  state: GameState, side: string, eid: EID, card: Card,
+  state: GameState,
+  side: string,
+  eid: EID,
+  card: Card,
   opts: { msg?: boolean; suppressCheckpoint?: boolean } = { msg: true },
 ): void {
   const { msg = true, suppressCheckpoint } = opts;
@@ -571,15 +722,26 @@ export function forfeit(
       { asyncResult: "result" },
       function (s: GameState, _e: EID) {
         const refreshed = getCard(s, card) ?? card;
-        const forfeitEv = side === "corp" ? "corp-forfeit-agenda" : "runner-forfeit-agenda";
-        const movedCard = move(s, toKeyword(refreshed.side ?? ""), refreshed, "rfg");
+        const forfeitEv =
+          side === "corp" ? "corp-forfeit-agenda" : "runner-forfeit-agenda";
+        const movedCard = move(
+          s,
+          toKeyword(refreshed.side ?? ""),
+          refreshed,
+          "rfg",
+        );
         if (msg) systemMsg(s, side, `forfeits ${getTitle(refreshed)}`);
         updateAllAgendaPoints(s);
         checkWinByAgenda(s);
         queueEvent(s, forfeitEv, { card: refreshed } as any);
-        const onForfeit = (getCardDef(refreshed) as any)["on-forfeit"] as Ability | undefined;
+        const onForfeit = (getCardDef(refreshed) as any)["on-forfeit"] as
+          | Ability
+          | undefined;
         if (onForfeit && movedCard) {
-          registerPendingEvent(s, forfeitEv, movedCard, { ...onForfeit, location: "rfg" } as any);
+          registerPendingEvent(s, forfeitEv, movedCard, {
+            ...onForfeit,
+            location: "rfg",
+          } as any);
         }
         if (suppressCheckpoint) {
           completeWithResult(s, side, eid, movedCard);
@@ -589,27 +751,31 @@ export function forfeit(
         }
       },
     ],
-    [trashCards, state, side, makeEIDFrom(state, eid),
-     refreshHosted(state, card), {
-       gameTrash: true,
-       suppressCheckpoint: true,
-       unpreventable: true,
-     }],
+    [
+      trashCards,
+      state,
+      side,
+      makeEIDFrom(state, eid),
+      refreshHosted(state, card),
+      {
+        gameTrash: true,
+        suppressCheckpoint: true,
+        unpreventable: true,
+      },
+    ],
     { eid },
   );
 }
 
 function refreshHosted(state: GameState, card: Card): Card[] {
-  return (card.hosted ?? []);
+  return card.hosted ?? [];
 }
 
 // ---------------------------------------------------------------------------
 // flip-facedown / flip-faceup
 // ---------------------------------------------------------------------------
 
-export function flipFacedown(
-  state: GameState, side: string, card: Card,
-): void {
+export function flipFacedown(state: GameState, side: string, card: Card): void {
   if (card.host) {
     const c = deactivate(state, side, card);
     const c2 = { ...c, facedown: true } as Card;
@@ -619,9 +785,7 @@ export function flipFacedown(
   }
 }
 
-export function flipFaceup(
-  state: GameState, side: string, card: Card,
-): void {
+export function flipFaceup(state: GameState, side: string, card: Card): void {
   let c: Card | null;
   if (card.host) {
     const { facedown, ...rest } = card;

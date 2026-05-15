@@ -1,11 +1,11 @@
 // Card-to-string formatting.
 // Mirrors: src/clj/game/core/to-string.clj
 
-import type { GameState } from "./state.js";
-import type { Card, Zone } from "./card.js";
-import { getTitle, corp, ice, rezzed, installed, cardIndex } from "./card.js";
-import { getCard } from "./finding.js";
-import { isCentral } from "./servers.js";
+import type { GameState } from "./state";
+import type { Card, Zone } from "./card";
+import { getTitle, corp, ice, rezzed, installed, cardIndex } from "./card";
+import { getCard } from "./finding";
+import { isCentral } from "./servers";
 
 // ---------------------------------------------------------------------------
 // zone -> name helpers (mirrors zone->name in servers.clj)

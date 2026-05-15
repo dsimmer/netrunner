@@ -1,11 +1,11 @@
 // State/card update helpers.
 // Mirrors: src/clj/game/core/update.clj
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import { getCard } from "./finding.js";
-import { getScoringOwner } from "./finding.js";
-import { toKeyword } from "../utils.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import { getCard } from "./finding";
+import { getScoringOwner } from "./finding";
+import { toKeyword } from "../utils";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -28,7 +28,11 @@ function getIn(obj: unknown, path: (string | symbol)[]): unknown {
  * Navigate to the parent of the given path and set the final key to value.
  * Mirrors Clojure's assoc-in.
  */
-function setIn(obj: Record<string, unknown>, path: (string | symbol)[], value: unknown): void {
+function setIn(
+  obj: Record<string, unknown>,
+  path: (string | symbol)[],
+  value: unknown,
+): void {
   if (path.length < 2) return;
   let current: unknown = obj;
   for (let i = 0; i < path.length - 1; i++) {
@@ -80,7 +84,9 @@ function updateInZone(state: GameState, side: string, card: Card): void {
   const collection = getIn(state, path);
   if (!Array.isArray(collection)) return;
 
-  const idx = collection.findIndex((c: Card | null | undefined) => c?.cid === card.cid);
+  const idx = collection.findIndex(
+    (c: Card | null | undefined) => c?.cid === card.cid,
+  );
   if (idx >= 0) {
     collection[idx] = card;
   } else {

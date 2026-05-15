@@ -63,17 +63,18 @@ function formatDelay(): string {
  * Mirrors: (subscriber-time-metrics subs)
  * Returns [average, oldest] in minutes.
  */
-export function subscriberTimeMetrics(
-  subs: Date[],
-): [number, number] {
+export function subscriberTimeMetrics(subs: Date[]): [number, number] {
   const now = new Date();
   const subsByMinute = subs
-    .map((date) => Math.floor(((now.getTime() - date.getTime()) / 1000) / 60))
+    .map((date) => Math.floor((now.getTime() - date.getTime()) / 1000 / 60))
     .sort((a, b) => a - b);
-  const oldest = subsByMinute.length > 0 ? subsByMinute[subsByMinute.length - 1] : 0;
+  const oldest =
+    subsByMinute.length > 0 ? subsByMinute[subsByMinute.length - 1] : 0;
   const average =
     subsByMinute.length > 0
-      ? Math.floor(subsByMinute.reduce((sum, v) => sum + v, 0) / subsByMinute.length)
+      ? Math.floor(
+          subsByMinute.reduce((sum, v) => sum + v, 0) / subsByMinute.length,
+        )
       : 0;
   return [average, oldest];
 }
@@ -206,7 +207,8 @@ function wsChanBacklog(): string {
 
 // ---- GC stats (mirrors log-gc) ----
 
-const lastGcStats: Map<string, { collections: number; time: number }> = new Map();
+const lastGcStats: Map<string, { collections: number; time: number }> =
+  new Map();
 
 /**
  * Log garbage collection stats.
@@ -229,7 +231,7 @@ function logGc(): void {
  * Node.js doesn't expose FD counts directly; this is a no-op placeholder.
  */
 function logOpenFileDescriptors(): void {
-  console.info("Warning: Open FD count not supported in Node.js");
+  console.info("Warning: Open FD count not supported in Node");
 }
 
 // ---- Connected socket helpers (mirrors connected-sockets / connections_ access) ----
@@ -286,7 +288,8 @@ export function startStatsLogging(): void {
     const lUpdateUids = lobbyUpdateUids();
     const lobbyUpdateUidCount = lUpdateUids.length;
     const subsTimestamps: Date[] = activeLobbyUpdates.map(([, v]) => v as Date);
-    const [averageSubTime, oldestSubTime] = subscriberTimeMetrics(subsTimestamps);
+    const [averageSubTime, oldestSubTime] =
+      subscriberTimeMetrics(subsTimestamps);
     const latencies = formatDelay();
     const ajaxUidCount = countUids(connectedSockets);
     const ajaxConnCounts = connectionCounts(connectedSockets);
@@ -330,7 +333,9 @@ export function startStatsLogging(): void {
     console.info(wsChanBacklog());
     logGc();
     logOpenFileDescriptors();
-    console.info(`System Load (average): ${systemLoadAverage()} - heap: ${heapUsage()}\n`);
+    console.info(
+      `System Load (average): ${systemLoadAverage()} - heap: ${heapUsage()}\n`,
+    );
   };
 
   // Run immediately on start

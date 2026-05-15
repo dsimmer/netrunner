@@ -1,9 +1,9 @@
 // Card definition registry and lookup.
 // Mirrors: src/clj/game/core/card_defs.clj
 
-import type { Card } from "./card.js";
-import type { CardDef } from "./types.js";
-import { cardDefRegistry } from "./types.js";
+import type { Card } from "./card";
+import type { CardDef } from "./types.ts";
+import { cardDefRegistry } from "./types.ts";
 
 export type { CardDef };
 
@@ -19,5 +19,7 @@ export function cardDef(card: Card): CardDef {
   if (card.printedTitle) {
     return cardDefRegistry.get(card.printedTitle) ?? {};
   }
-  throw new Error(`Tried to select card-def for non-existent card: ${JSON.stringify(card)}`);
+  throw new Error(
+    `Tried to select card-def for non-existent card: ${JSON.stringify(card)}`,
+  );
 }

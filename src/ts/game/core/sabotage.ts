@@ -1,17 +1,17 @@
 // Sabotage ability.
 // Mirrors: src/clj/game/core/sabotage.clj
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import type { EID } from "./eid.js";
-import type { Ability, ReqFn } from "./types.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import type { EID } from "./eid";
+import type { Ability, ReqFn } from "./types.ts";
 
-import { corp, inHand } from "./card.js";
-import { effectCompleted } from "./eid.js";
-import { resolveAbility } from "./engine.js";
-import { trashCards } from "./moving.js";
-import { multiMsg } from "./say.js";
-import { enumerateStr, enumerateCards, pluralize, quantify } from "../utils.js";
+import { corp, inHand } from "./card";
+import { effectCompleted } from "./eid";
+import { resolveAbility } from "./engine";
+import { trashCards } from "./moving";
+import { multiMsg } from "./say";
+import { enumerateStr, enumerateCards, pluralize, quantify } from "../utils";
 
 // ---------------------------------------------------------------------------
 // choosing-prompt-req
@@ -71,7 +71,13 @@ function cardsStr(
  * `trash-selected-req`.
  */
 export function trashSelectedReq(n: number): ReqFn {
-  return (state: GameState, side: string, eid: EID, _card: Card | null, targets: unknown[]) => {
+  return (
+    state: GameState,
+    side: string,
+    eid: EID,
+    _card: Card | null,
+    targets: unknown[],
+  ) => {
     // catch cancel-effect that gives [null] as targets
     const targetCards: Card[] = (targets ?? [])
       .filter((t): t is Card => t != null)
@@ -101,7 +107,12 @@ export function trashSelectedReq(n: number): ReqFn {
     }
     if (selectedHq > 0 && selectedRd > 0) publicMsg += " and ";
     if (selectedRd > 0) {
-      publicMsg += cardsStr(knownRdCards, unknownRdCards, "the top of R&D", undefined);
+      publicMsg += cardsStr(
+        knownRdCards,
+        unknownRdCards,
+        "the top of R&D",
+        undefined,
+      );
     }
 
     let privateMsg = "trashes";
@@ -110,7 +121,12 @@ export function trashSelectedReq(n: number): ReqFn {
     }
     if (selectedHq > 0 && selectedRd > 0) privateMsg += " and ";
     if (selectedRd > 0) {
-      privateMsg += cardsStr(knownRdCards, unknownRdCards, "the top of R&D", true);
+      privateMsg += cardsStr(
+        knownRdCards,
+        unknownRdCards,
+        "the top of R&D",
+        true,
+      );
     }
 
     multiMsg(state, side, { corp: privateMsg, public: publicMsg });
@@ -154,7 +170,13 @@ export function sabotageAbility(n: number): Ability {
 
       if (n >= cardsRd + cardsHq) {
         // Trashes everything directly — no choice needed
-        resolveAbility(state, side, { effect: trashSelectedReq(n) }, card, state.corp.hand ?? []);
+        resolveAbility(
+          state,
+          side,
+          { effect: trashSelectedReq(n) },
+          card,
+          state.corp.hand ?? [],
+        );
       } else {
         // Continue to the choosing prompt
         const ability = choosingAb(forcedHq);
@@ -164,16 +186,29 @@ export function sabotageAbility(n: number): Ability {
   };
 
   return {
-    req: (state: GameState, _side: string, _eid: EID, _card: Card | null, _targets: unknown[]) => {
+    req: (
+      state: GameState,
+      _side: string,
+      _eid: EID,
+      _card: Card | null,
+      _targets: unknown[],
+    ) => {
       return n > 0;
     },
     msg: `sabotage ${n}`,
     async: true,
-    effect: (state: GameState, side: string, eid: EID, card: Card | null, _targets: unknown[]) => {
+    effect: (
+      state: GameState,
+      side: string,
+      eid: EID,
+      card: Card | null,
+      _targets: unknown[],
+    ) => {
       // Update stats
       const stats = (state.stats ??= {} as any);
       const runnerStats = (stats.runner ??= {} as any);
-      runnerStats["cards-sabotaged"] = (runnerStats["cards-sabotaged"] ?? 0) + n;
+      runnerStats["cards-sabotaged"] =
+        (runnerStats["cards-sabotaged"] ?? 0) + n;
 
       // Continue to the check-forcing ability
       resolveAbility(state, side, checkForcingAb, card, []);

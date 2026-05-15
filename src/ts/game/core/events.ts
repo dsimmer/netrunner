@@ -1,10 +1,10 @@
 // Functions for event parsing (turn-level and run-level).
 // Mirrors: src/clj/game/core/events.clj
 
-import { isInstalled } from "./card.js";
-import type { Card } from "./card.js";
-import type { GameState } from "./state.js";
-import { sideStr } from "../utils.js";
+import { isInstalled } from "./card";
+import type { Card } from "./card";
+import type { GameState } from "./state";
+import { sideStr } from "../utils";
 
 // ---------------------------------------------------------------------------
 // Internal types
@@ -30,7 +30,7 @@ export function turnEvents(
   const entries = (state.turnEvents as unknown as TurnEventEntry[]) ?? [];
   return entries
     .filter(([event]) => event === ev)
-    .flatMap(([_event, targets]) => (targets ?? []));
+    .flatMap(([_event, targets]) => targets ?? []);
 }
 
 /**
@@ -44,7 +44,9 @@ export function lastTurn(
   event: string,
 ): unknown {
   const player = side === "corp" ? state.corp : state.runner;
-  const register = (player as any).registerLastTurn as Record<string, unknown> | undefined;
+  const register = (player as any).registerLastTurn as
+    | Record<string, unknown>
+    | undefined;
   if (!register) return undefined;
   return register[event];
 }
@@ -64,7 +66,9 @@ export function notLastTurn(
   event: string,
 ): boolean {
   const player = side === "corp" ? state.corp : state.runner;
-  const register = (player as any).registerLastTurn as Record<string, unknown> | undefined;
+  const register = (player as any).registerLastTurn as
+    | Record<string, unknown>
+    | undefined;
   if (!register) return false;
   if (register[event]) return false;
   return true;
@@ -136,21 +140,16 @@ export function firstSuccessfulRunOnServer(
   state: GameState,
   server: unknown,
 ): boolean {
-  return firstEvent(
-    state,
-    "runner",
-    "successful-run",
-    (entry: unknown) => {
-      const targets = entry as unknown[];
-      const first = targets?.[0] as Record<string, unknown> | undefined;
-      const entryServer = first?.server;
-      // Handle both array and scalar server values
-      if (Array.isArray(entryServer) && Array.isArray(server)) {
-        return entryServer.length === 1 && entryServer[0] === server[0];
-      }
-      return entryServer === server;
-    },
-  );
+  return firstEvent(state, "runner", "successful-run", (entry: unknown) => {
+    const targets = entry as unknown[];
+    const first = targets?.[0] as Record<string, unknown> | undefined;
+    const entryServer = first?.server;
+    // Handle both array and scalar server values
+    if (Array.isArray(entryServer) && Array.isArray(server)) {
+      return entryServer.length === 1 && entryServer[0] === server[0];
+    }
+    return entryServer === server;
+  });
 }
 
 /**
@@ -230,7 +229,10 @@ export function firstInstalledTrash(state: GameState, side: string): boolean {
  *   (= 1 (count (filter #(= (:side (:card %)) (side-str side))
  *                       (get-installed-trashed state side))))
  */
-export function firstInstalledTrashOwn(state: GameState, side: string): boolean {
+export function firstInstalledTrashOwn(
+  state: GameState,
+  side: string,
+): boolean {
   const trashed = getInstalledTrashed(state, side);
   const sideString = sideStr(side);
   const owned = trashed.filter((c) => c.side === sideString);
@@ -259,7 +261,7 @@ export function runEvents(
   if (!events) return [];
   return events
     .filter(([event]) => event === ev)
-    .flatMap(([_event, targets]) => (targets ?? []));
+    .flatMap(([_event, targets]) => targets ?? []);
 }
 
 /**

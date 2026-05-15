@@ -1,9 +1,9 @@
 // Toast notification system.
 // Mirrors: src/clj/game/core/toasts.clj + src/go/game/core/toasts.go
 
-import type { GameState } from "./state.js";
-import { CORP_SIDE, RUNNER_SIDE } from "./state.js";
-import { makeEID } from "./eid.js";
+import type { GameState } from "./state";
+import { CORP_SIDE, RUNNER_SIDE } from "./state";
+import { makeEID } from "./eid";
 
 export interface ToastEntry {
   id: string;
@@ -42,7 +42,11 @@ export function toast(
  * Removes a toast with the given ID from the side's toast list.
  * Mirrors: ack-toast in toasts.clj
  */
-export function ackToast(state: GameState, side: string, toastId: string): void {
+export function ackToast(
+  state: GameState,
+  side: string,
+  toastId: string,
+): void {
   if (!toastId) return;
   const filter = (toasts: unknown[]): unknown[] =>
     toasts.filter((t) => {

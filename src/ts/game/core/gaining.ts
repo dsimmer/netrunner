@@ -1,22 +1,24 @@
 // Credit/click/resource gain and lose functions.
 // Mirrors: src/clj/game/core/gaining.clj + src/go/game/core/gaining.go
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import type { EID } from "./eid.js";
-import { CORP_SIDE, RUNNER_SIDE } from "./state.js";
-import { systemMsg } from "./say.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import type { EID } from "./eid";
+import { CORP_SIDE, RUNNER_SIDE } from "./state";
+import { systemMsg } from "./say";
 // Engine functions are imported lazily to avoid circular deps
-import { queueEvent } from "./engine.js";
-import { checkpoint } from "./checkpoint.js";
-import { effectCompleted } from "./eid.js";
+import { queueEvent } from "./engine";
+import { checkpoint } from "./checkpoint";
+import { effectCompleted } from "./eid";
 
 // ---------------------------------------------------------------------------
 // Types for gain/deduct amounts
 // ---------------------------------------------------------------------------
 
 /** Amount specifier: a plain number or a sub-attr map (e.g. { base: n }). */
-export type GainAmount = number | { base?: number; mod?: number; used?: number };
+export type GainAmount =
+  | number
+  | { base?: number; mod?: number; used?: number };
 
 // ---------------------------------------------------------------------------
 // gain / lose / deduct (flat mutations)
@@ -45,7 +47,8 @@ export function gain(
   }
 
   // Numeric amounts — default subattr for tag / bad-publicity is "base"
-  const subattr = (resource === "tag" || resource === "bad-publicity") ? "base" : "";
+  const subattr =
+    resource === "tag" || resource === "bad-publicity" ? "base" : "";
   if (subattr) {
     gainSubAttr(state, side, resource, subattr, amount as number);
     return;
@@ -55,19 +58,37 @@ export function gain(
   if (side === CORP_SIDE) {
     const c = state.corp;
     switch (resource) {
-      case "credit": c.credit += amount; break;
-      case "click": c.click += amount; break;
-      case "agenda-point": c.agendaPoint += amount; break;
-      case "click-per-turn": c.clickPerTurn += amount; break;
+      case "credit":
+        c.credit += amount;
+        break;
+      case "click":
+        c.click += amount;
+        break;
+      case "agenda-point":
+        c.agendaPoint += amount;
+        break;
+      case "click-per-turn":
+        c.clickPerTurn += amount;
+        break;
     }
   } else {
     const r = state.runner;
     switch (resource) {
-      case "credit": r.credit += amount; break;
-      case "click": r.click += amount; break;
-      case "link": r.link += amount; break;
-      case "agenda-point": r.agendaPoint += amount; break;
-      case "click-per-turn": r.clickPerTurn += amount; break;
+      case "credit":
+        r.credit += amount;
+        break;
+      case "click":
+        r.click += amount;
+        break;
+      case "link":
+        r.link += amount;
+        break;
+      case "agenda-point":
+        r.agendaPoint += amount;
+        break;
+      case "click-per-turn":
+        r.clickPerTurn += amount;
+        break;
       case "brain-damage":
         r.brainDamage += amount;
         r.handSize.total -= amount;
@@ -87,23 +108,28 @@ function gainSubAttr(
     const c = state.corp;
     switch (resource) {
       case "bad-publicity":
-        (c.badPublicity as Record<string, number>)[subattr] = ((c.badPublicity as Record<string, number>)[subattr] ?? 0) + val;
+        (c.badPublicity as Record<string, number>)[subattr] =
+          ((c.badPublicity as Record<string, number>)[subattr] ?? 0) + val;
         break;
       case "hand-size":
-        (c.handSize as Record<string, number>)[subattr] = ((c.handSize as Record<string, number>)[subattr] ?? 0) + val;
+        (c.handSize as Record<string, number>)[subattr] =
+          ((c.handSize as Record<string, number>)[subattr] ?? 0) + val;
         break;
     }
   } else {
     const r = state.runner;
     switch (resource) {
       case "tag":
-        (r.tag as Record<string, number>)[subattr] = ((r.tag as Record<string, number>)[subattr] ?? 0) + val;
+        (r.tag as Record<string, number>)[subattr] =
+          ((r.tag as Record<string, number>)[subattr] ?? 0) + val;
         break;
       case "memory":
-        (r.memory as Record<string, number>)[subattr] = ((r.memory as Record<string, number>)[subattr] ?? 0) + val;
+        (r.memory as Record<string, number>)[subattr] =
+          ((r.memory as Record<string, number>)[subattr] ?? 0) + val;
         break;
       case "hand-size":
-        (r.handSize as Record<string, number>)[subattr] = ((r.handSize as Record<string, number>)[subattr] ?? 0) + val;
+        (r.handSize as Record<string, number>)[subattr] =
+          ((r.handSize as Record<string, number>)[subattr] ?? 0) + val;
         break;
     }
   }
@@ -122,9 +148,15 @@ export function lose(
   if (side === CORP_SIDE) {
     const c = state.corp;
     switch (resource) {
-      case "credit": c.credit = Math.max(0, c.credit - amount); break;
-      case "click": c.click = Math.max(0, c.click - amount); break;
-      case "bad-publicity": c.badPublicity.base = Math.max(0, c.badPublicity.base - amount); break;
+      case "credit":
+        c.credit = Math.max(0, c.credit - amount);
+        break;
+      case "click":
+        c.click = Math.max(0, c.click - amount);
+        break;
+      case "bad-publicity":
+        c.badPublicity.base = Math.max(0, c.badPublicity.base - amount);
+        break;
       case "hand-size":
         c.handSize.total -= amount;
         c.handSize.base -= amount;
@@ -133,9 +165,15 @@ export function lose(
   } else {
     const r = state.runner;
     switch (resource) {
-      case "credit": r.credit = Math.max(0, r.credit - amount); break;
-      case "click": r.click = Math.max(0, r.click - amount); break;
-      case "link": r.link = Math.max(0, r.link - amount); break;
+      case "credit":
+        r.credit = Math.max(0, r.credit - amount);
+        break;
+      case "click":
+        r.click = Math.max(0, r.click - amount);
+        break;
+      case "link":
+        r.link = Math.max(0, r.link - amount);
+        break;
       case "hand-size":
         r.handSize.total -= amount;
         r.handSize.base -= amount;
@@ -168,7 +206,8 @@ export function deduct(
   }
 
   // Numeric: default subattr for tag / bad-publicity is "base"
-  const subattr = (resource === "tag" || resource === "bad-publicity") ? "base" : "";
+  const subattr =
+    resource === "tag" || resource === "bad-publicity" ? "base" : "";
   if (subattr) {
     deductSubAttr(state, side, resource, subattr, amount as number);
     return;
@@ -178,8 +217,12 @@ export function deduct(
   if (side === CORP_SIDE) {
     const c = state.corp;
     switch (resource) {
-      case "credit": c.credit = Math.max(0, c.credit - amount); break;
-      case "click": c.click = Math.max(0, c.click - amount); break;
+      case "credit":
+        c.credit = Math.max(0, c.credit - amount);
+        break;
+      case "click":
+        c.click = Math.max(0, c.click - amount);
+        break;
     }
   } else {
     const r = state.runner;
@@ -190,8 +233,12 @@ export function deduct(
           r.runCredit = Math.max(0, r.runCredit - amount);
         }
         break;
-      case "click": r.click = Math.max(0, r.click - amount); break;
-      case "link": r.link = Math.max(0, r.link - amount); break;
+      case "click":
+        r.click = Math.max(0, r.click - amount);
+        break;
+      case "link":
+        r.link = Math.max(0, r.link - amount);
+        break;
     }
   }
 }
@@ -204,7 +251,8 @@ function deductSubAttr(
   val: number,
 ): void {
   const isSigned = subattr === "mod" || subattr === "used";
-  const fn = (current: number) => isSigned ? current - val : Math.max(0, current - val);
+  const fn = (current: number) =>
+    isSigned ? current - val : Math.max(0, current - val);
 
   if (side === CORP_SIDE) {
     const c = state.corp;
@@ -278,12 +326,20 @@ export function loseCredits(
 }
 
 /** Gives clicks to the given side. */
-export function gainClicks(state: GameState, side: string, amount: number): void {
+export function gainClicks(
+  state: GameState,
+  side: string,
+  amount: number,
+): void {
   gain(state, side, "click", amount);
 }
 
 /** Removes clicks (clamped at 0). */
-export function loseClicks(state: GameState, side: string, amount: number): void {
+export function loseClicks(
+  state: GameState,
+  side: string,
+  amount: number,
+): void {
   lose(state, side, "click", amount);
 }
 

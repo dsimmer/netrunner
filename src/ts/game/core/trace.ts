@@ -1,14 +1,14 @@
 // Trace resolution logic.
 // Mirrors: src/clj/game/core/trace.clj
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import type { EID } from "./eid.js";
-import type { Ability } from "./types.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import type { EID } from "./eid";
+import type { Ability } from "./types.ts";
 
-import { totalAvailableCredits } from "./costs.js";
-import { anyEffects, sumEffects, getEffects } from "./effects.js";
-import { makeEID, effectCompleted, completeWithResult } from "./eid.js";
+import { totalAvailableCredits } from "./costs";
+import { anyEffects, sumEffects, getEffects } from "./effects";
+import { makeEID, effectCompleted, completeWithResult } from "./eid";
 import {
   canTrigger,
   pay,
@@ -16,19 +16,19 @@ import {
   resolveAbility,
   triggerEventSimult,
   triggerEventSync,
-} from "./engine.js";
-import { getLink } from "./link.js";
-import { clearWaitPrompt, showTracePrompt, showWaitPrompt } from "./prompts.js";
-import { systemMsg, systemSay } from "./say.js";
-import { continue_ability, req, wait_for } from "../macros.js";
-import { toC } from "./payment.js";
+} from "./engine";
+import { getLink } from "./link";
+import { clearWaitPrompt, showTracePrompt, showWaitPrompt } from "./prompts";
+import { systemMsg, systemSay } from "./say";
+import { continue_ability, req, wait_for } from "../macros";
+import { toC } from "./payment";
 
 // ---------------------------------------------------------------------------
 // Trace state helper type (mirrors the map shape used in Clojure trace.clj)
 // ---------------------------------------------------------------------------
 
 interface TraceData {
-  player: string;      // "corp" | "runner" – who initiates
+  player: string; // "corp" | "runner" – who initiates
   other: string;
   base: number;
   bonus: number;
@@ -52,8 +52,18 @@ interface TraceData {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-function determineInitiator(state: GameState, trace: Record<string, unknown>): string {
-  const runnerFirst = anyEffects(state, "", "trace-runner-spends-first", (v) => v === true, null, []);
+function determineInitiator(
+  state: GameState,
+  trace: Record<string, unknown>,
+): string {
+  const runnerFirst = anyEffects(
+    state,
+    "",
+    "trace-runner-spends-first",
+    (v) => v === true,
+    null,
+    [],
+  );
   if (runnerFirst) return "runner";
   const player = (trace.player as string) ?? null;
   if (player) return player;
@@ -97,12 +107,8 @@ function resolveTrace(
     corpStrength,
     runnerStrength,
     successful: corpStrength > runnerStrength,
-    corpSpent: corpStart(trace)
-      ? strength - (base ?? 0) - (bonus ?? 0)
-      : boost,
-    runnerSpent: corpStart(trace)
-      ? boost
-      : strength - (link ?? 0),
+    corpSpent: corpStart(trace) ? strength - (base ?? 0) - (bonus ?? 0) : boost,
+    runnerSpent: corpStart(trace) ? boost : strength - (link ?? 0),
   };
 
   // Pay boost credits
@@ -113,7 +119,11 @@ function resolveTrace(
         const paymentStr = asyncResult?.msg ?? "";
         const typeStr = corpStart(trace) ? "link" : "trace";
         const newStrength = corpStart(trace) ? runnerStrength : corpStrength;
-        systemMsg(state, other, `${paymentStr} to increase ${typeStr} strength to ${newStrength}`);
+        systemMsg(
+          state,
+          other,
+          `${paymentStr} to increase ${typeStr} strength to ${newStrength}`,
+        );
       },
     ],
     [pay, state, other, makeEID(state, eid), card, [toC("credit", boost)]],
@@ -128,7 +138,11 @@ function resolveTrace(
     eid: makeEID(state),
   } as Ability;
 
-  systemSay(state, player, `The trace was ${successful ? "" : "un"}successful.`);
+  systemSay(
+    state,
+    player,
+    `The trace was ${successful ? "" : "un"}successful.`,
+  );
 
   // Trigger simultaneous event
   wait_for(
@@ -141,17 +155,35 @@ function resolveTrace(
           [
             () => {
               if (trace.kicker && corpStrength >= (trace.kickerMin ?? 0)) {
-                continue_ability(state, "corp", trace.kicker, card, [corpStrength, runnerStrength]);
+                continue_ability(state, "corp", trace.kicker, card, [
+                  corpStrength,
+                  runnerStrength,
+                ]);
               } else {
                 effectCompleted(state, side, eid);
               }
             },
           ],
-          [resolveAbility, state, "corp", (whichAbility as any).eid, whichAbility, card, [corpStrength, runnerStrength]],
+          [
+            resolveAbility,
+            state,
+            "corp",
+            (whichAbility as any).eid,
+            whichAbility,
+            card,
+            [corpStrength, runnerStrength],
+          ],
         );
       },
     ],
-    [triggerEventSimult, state, "corp", successful ? "successful-trace" : "unsuccessful-trace", null, triggerTrace],
+    [
+      triggerEventSimult,
+      state,
+      "corp",
+      successful ? "successful-trace" : "unsuccessful-trace",
+      null,
+      triggerTrace,
+    ],
   );
 }
 
@@ -170,9 +202,7 @@ function beatTraceAmount(
 ): number | null {
   const runnerCredits = runnerCreditsFn(eid);
   const corpCredits = corpCreditsFn(eid);
-  const required = initiator === "corp"
-    ? strength - link
-    : strength - base;
+  const required = initiator === "corp" ? strength - link : strength - base;
 
   if (required <= (initiator === "corp" ? runnerCredits : corpCredits)) {
     return Math.max(required, 0);
@@ -204,7 +234,16 @@ function traceReply(
   const updatedTrace: TraceData = {
     ...traceWithoutUnbeatable,
     strength,
-    beatTrace: beatTraceAmount(player, corpCredits, runnerCredits, link, base, strength, eid) ?? undefined,
+    beatTrace:
+      beatTraceAmount(
+        player,
+        corpCredits,
+        runnerCredits,
+        link,
+        base,
+        strength,
+        eid,
+      ) ?? undefined,
   };
 
   wait_for(
@@ -212,17 +251,30 @@ function traceReply(
     [
       (asyncResult: any) => {
         const paymentStr = asyncResult?.msg ?? "";
-        systemMsg(state, player, `${paymentStr} to increase ${otherType} strength to ${strength}`);
+        systemMsg(
+          state,
+          player,
+          `${paymentStr} to increase ${otherType} strength to ${strength}`,
+        );
       },
     ],
     [pay, state, player, makeEID(state, eid), card, [toC("credit", boost)]],
   );
 
   clearWaitPrompt(state, other);
-  showWaitPrompt(state, player, `${corpStart(trace) ? "Runner" : "Corp"} to boost ${otherType} strength`);
-  showTracePrompt(state, other, makeEID(state, eid), card,
+  showWaitPrompt(
+    state,
+    player,
+    `${corpStart(trace) ? "Runner" : "Corp"} to boost ${otherType} strength`,
+  );
+  showTracePrompt(
+    state,
+    other,
+    makeEID(state, eid),
+    card,
     `Boost ${otherType} strength?`,
-    (boost2: number) => resolveTrace(state, side, eid, card, updatedTrace, boost2),
+    (boost2: number) =>
+      resolveTrace(state, side, eid, card, updatedTrace, boost2),
     {
       corpCredits,
       runnerCredits,
@@ -255,11 +307,23 @@ function traceStart(
   const title = card?.title ?? "trace";
 
   const baseBonus = (base ?? 0) + (bonus ?? 0);
-  systemMsg(state, player, `${title} uses ${title} to initiate a trace with strength ${baseBonus}${bonus > 0 ? ` (${base} + ${bonus})` : ""}${labelName ? ` (${labelName})` : ""}`);
+  systemMsg(
+    state,
+    player,
+    `${title} uses ${title} to initiate a trace with strength ${baseBonus}${bonus > 0 ? ` (${base} + ${bonus})` : ""}${labelName ? ` (${labelName})` : ""}`,
+  );
 
-  showWaitPrompt(state, other, `${corpStart(trace) ? "Corp" : "Runner"} to boost ${thisType} strength`);
+  showWaitPrompt(
+    state,
+    other,
+    `${corpStart(trace) ? "Corp" : "Runner"} to boost ${thisType} strength`,
+  );
 
-  showTracePrompt(state, player, makeEID(state, eid), card,
+  showTracePrompt(
+    state,
+    player,
+    makeEID(state, eid),
+    card,
     `Boost ${thisType} strength?`,
     (boost: number) => traceReply(state, side, eid, card, trace, boost),
     {
@@ -313,9 +377,10 @@ function findUnbeatableAmount(
 ): number | null {
   const runnerCredits = runnerCreditsFn(eid);
   const corpCredits = corpCreditsFn(eid);
-  const required = initiator === "corp"
-    ? runnerCredits + link + 1 - base
-    : base + corpCredits - link;
+  const required =
+    initiator === "corp"
+      ? runnerCredits + link + 1 - base
+      : base + corpCredits - link;
 
   if (required <= (initiator === "corp" ? corpCredits : runnerCredits)) {
     return Math.max(required, 0);
@@ -336,29 +401,55 @@ export function initTrace(
   side: string,
   eid: EID,
   card: Card | null,
-  trace: { base: number | ((state: GameState, side: string, eid: EID, card: Card | null, targets: unknown[]) => number) } & Record<string, unknown>,
+  trace: {
+    base:
+      | number
+      | ((
+          state: GameState,
+          side: string,
+          eid: EID,
+          card: Card | null,
+          targets: unknown[],
+        ) => number);
+  } & Record<string, unknown>,
 ): void {
   resetTraceModifications(state);
 
   triggerEventSync(state, "corp", "initialize-trace", card, eid);
 
   const forceBaseVal = (state as any).trace?.forceBase;
-  const forceLink = getEffects(state, "corp", "trace-force-link", card, [eid as unknown as Card])[0];
-  const baseVal = forceBaseVal ??
-    (typeof trace.base === "function" ? (trace.base as Function)(state, "corp", makeEID(state), card, null) : trace.base);
+  const forceLink = getEffects(state, "corp", "trace-force-link", card, [
+    eid as unknown as Card,
+  ])[0];
+  const baseVal =
+    forceBaseVal ??
+    (typeof trace.base === "function"
+      ? (trace.base as Function)(state, "corp", makeEID(state), card, null)
+      : trace.base);
   const link = (forceLink as number) ?? getLink(state);
-  const bonus = sumEffects(state, "corp", "trace-base-strength", card, [eid as unknown as Card]);
+  const bonus = sumEffects(state, "corp", "trace-base-strength", card, [
+    eid as unknown as Card,
+  ]);
 
   const initiator = determineInitiator(state, trace);
   const traceEid = { ...eid, sourceType: "trace" } as EID;
 
-  const corpCredits = (eid: EID) => totalAvailableCredits(state, "corp", eid, card);
-  const runnerCredits = (eid: EID) => totalAvailableCredits(state, "runner", eid, card);
+  const corpCredits = (eid: EID) =>
+    totalAvailableCredits(state, "corp", eid, card);
+  const runnerCredits = (eid: EID) =>
+    totalAvailableCredits(state, "runner", eid, card);
 
   const traceData: TraceData = {
     player: initiator,
     other: initiator === "corp" ? "runner" : "corp",
-    unbeatable: findUnbeatableAmount(initiator, corpCredits, runnerCredits, link, baseVal, traceEid),
+    unbeatable: findUnbeatableAmount(
+      initiator,
+      corpCredits,
+      runnerCredits,
+      link,
+      baseVal,
+      traceEid,
+    ),
     base: baseVal as number,
     bonus,
     link,

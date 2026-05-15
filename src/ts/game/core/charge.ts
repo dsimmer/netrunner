@@ -1,12 +1,12 @@
 // Charge ability: place power counters on cards that have at least one power counter.
 // Mirrors: src/clj/game/core/charge.clj
 
-import type { GameState, EID, Card, Ability } from "./types.js";
-import { allInstalled } from "./board.js";
-import { getCard } from "./finding.js";
-import { effectCompleted } from "./eid.js";
-import { req, msg } from "../macros.js";
-import { queueEvent } from "./engine.js";
+import type { GameState, EID, Card, Ability } from "./types.ts";
+import { allInstalled } from "./board";
+import { getCard } from "./finding";
+import { effectCompleted } from "./eid";
+import { req, msg } from "../macros";
+import { queueEvent } from "./engine";
 
 /**
  * Check if a card can be charged (has at least one power counter).
@@ -18,26 +18,47 @@ export function canCharge(state: GameState, side: string, card: Card): boolean;
  * Mirrors: can-charge (multi-arity) in charge.clj
  */
 export function canCharge(state: GameState, side: string): boolean;
-export function canCharge(state: GameState, side: string, card?: Card): boolean {
+export function canCharge(
+  state: GameState,
+  side: string,
+  card?: Card,
+): boolean {
   if (card) {
     const c = getCard(state, card);
     return (c?.counter?.power || 0) > 0;
   }
   const cards = allInstalled(state, side);
-  return cards.some(c => canCharge(state, side, c));
+  return cards.some((c) => canCharge(state, side, c));
 }
 
 /**
  * Charge a card: place power counters on it (only if it already has at least one).
  * Mirrors: charge-card in charge.clj
  */
-export function chargeCard(state: GameState, side: string, eid: EID, target: Card): void;
+export function chargeCard(
+  state: GameState,
+  side: string,
+  eid: EID,
+  target: Card,
+): void;
 /**
  * Charge a card with a specific count of power counters.
  * Mirrors: charge-card (multi-arity with count) in charge.clj
  */
-export function chargeCard(state: GameState, side: string, eid: EID, target: Card, count: number): void;
-export function chargeCard(state: GameState, side: string, eid: EID, target: Card, count?: number): void {
+export function chargeCard(
+  state: GameState,
+  side: string,
+  eid: EID,
+  target: Card,
+  count: number,
+): void;
+export function chargeCard(
+  state: GameState,
+  side: string,
+  eid: EID,
+  target: Card,
+  count?: number,
+): void {
   const c = count || 1;
   if (canCharge(state, side, target)) {
     const card = getCard(state, target);
@@ -60,7 +81,11 @@ export function chargeCard(state: GameState, side: string, eid: EID, target: Car
  * Creates a charge prompt to charge an installed card.
  * Mirrors: charge-ability in charge.clj
  */
-export function chargeAbility(state: GameState, side: string, n?: number): Ability | null {
+export function chargeAbility(
+  state: GameState,
+  side: string,
+  n?: number,
+): Ability | null {
   const num = n || 1;
   if (!canCharge(state, side)) {
     return null;
@@ -74,13 +99,33 @@ export function chargeAbility(state: GameState, side: string, n?: number): Abili
     async: true,
     msg: msg(
       "charge ",
-      (state: GameState, _side: string, _eid: EID, card: Card, _targets: Card[]) => card?.title || "",
-      (_state: GameState, _side: string, _eid: EID, _card: Card, _targets: Card[]) => {
+      (
+        state: GameState,
+        _side: string,
+        _eid: EID,
+        card: Card,
+        _targets: Card[],
+      ) => card?.title || "",
+      (
+        _state: GameState,
+        _side: string,
+        _eid: EID,
+        _card: Card,
+        _targets: Card[],
+      ) => {
         return num > 1 ? `${num} times` : "";
-      }
+      },
     ),
-    effect: req((state: GameState, side: string, eid: EID, card: Card, targets: Card[]) => {
-      chargeCard(state, side, eid, card, num);
-    }),
+    effect: req(
+      (
+        state: GameState,
+        side: string,
+        eid: EID,
+        card: Card,
+        targets: Card[],
+      ) => {
+        chargeCard(state, side, eid, card, num);
+      },
+    ),
   };
 }

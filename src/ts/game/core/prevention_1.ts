@@ -4,31 +4,31 @@
 // This module implements the full prevention infrastructure used by damage, tags,
 // trash, expose, end-run, jack-out, encounter and other interrupt-style mechanics.
 
-import type { GameState, Effect } from "./state.js";
-import type { Card } from "./card.js";
-import type { EID } from "./eid.js";
-import type { Ability } from "../../jinteki/utils.js";
-import { allActive, allActiveInstalled } from "./board.js";
-import { getCard } from "./finding.js";
-import { installed, resource, rezzed, sameCard } from "./card.js";
-import { cardDef } from "./card_defs.js";
-import { chooseOneHelper } from "./choose_one.js";
-import type { ChoiceOption } from "./choose_one.js";
-import { cardAbilityCost } from "./cost_fns.js";
-import { completeWithResult, effectCompleted } from "./eid.js";
-import { anyEffects, getEffectMaps } from "./effects.js";
-import { resolveAbility, triggerEventSimult, triggerEventSync } from "./engine.js";
+import type { GameState, Effect } from "./state";
+import type { Card } from "./card";
+import type { EID } from "./eid";
+import type { Ability } from "../../jinteki/utils";
+import { allActive, allActiveInstalled } from "./board";
+import { getCard } from "./finding";
+import { installed, resource, rezzed, sameCard } from "./card";
+import { cardDef } from "./card_defs";
+import { chooseOneHelper } from "./choose_one";
+import type { ChoiceOption } from "./choose_one";
+import { cardAbilityCost } from "./cost_fns";
+import { completeWithResult, effectCompleted } from "./eid";
+import { anyEffects, getEffectMaps } from "./effects";
+import { resolveAbility, triggerEventSimult, triggerEventSync } from "./engine";
 import {
   canTrash,
   untrashableWhileResources,
   untrashableWhileRezzed,
-} from "./flags.js";
-import { canPay, toC } from "./payment.js";
-import { enforceMsg, nLastLogs } from "./say.js";
-import { cardStr } from "./to_string.js";
-import { dissocIn, enumerateStr, quantify } from "../utils.js";
-import { otherSide } from "../../jinteki/utils.js";
-import { req, msg, wait_for } from "../macros.js";
+} from "./flags";
+import { canPay, toC } from "./payment";
+import { enforceMsg, nLastLogs } from "./say";
+import { cardStr } from "./to_string";
+import { dissocIn, enumerateStr, quantify } from "../utils";
+import { otherSide } from "../../jinteki/utils";
+import { req, msg, wait_for } from "../macros";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -76,15 +76,25 @@ interface FloatingPreventionEntry {
 // Helpers — push / pop prevention state
 // ---------------------------------------------------------------------------
 
-export function pushPrevention(state: GameState, key: string, map: PreventionContext): void {
+export function pushPrevention(
+  state: GameState,
+  key: string,
+  map: PreventionContext,
+): void {
   const existing = (state as any).prevent;
   if (existing) {
-    (state as any).preventStack = [existing, ...(state as any).preventStack ?? []];
+    (state as any).preventStack = [
+      existing,
+      ...((state as any).preventStack ?? []),
+    ];
   }
   (state as any).prevent = { ...((state as any).prevent ?? {}), [key]: map };
 }
 
-export function fetchAndClear(state: GameState, key: string): PreventionContext | undefined {
+export function fetchAndClear(
+  state: GameState,
+  key: string,
+): PreventionContext | undefined {
   const res = (state as any).prevent?.[key];
   const stack = (state as any).preventStack;
   if (stack && stack.length > 0) {
@@ -108,10 +118,10 @@ function relevantPreventionAbilities(
   card: Card,
 ): PreventionEntry[] {
   const cdef = cardDef(card);
-  const abs: PreventionEntry[] = (cdef as any).prevention
-    ?.filter((p: any) => p.prevents === key)
-    .map((p: any) => ({ ...p, card }))
-    ?? [];
+  const abs: PreventionEntry[] =
+    (cdef as any).prevention
+      ?.filter((p: any) => p.prevents === key)
+      .map((p: any) => ({ ...p, card })) ?? [];
 
   const playable = abs.filter((p: PreventionEntry) => {
     // cannot-play? (prevent-paid-ability effect)
@@ -123,7 +133,7 @@ function relevantPreventionAbilities(
             "prevent-paid-ability",
             (v: unknown) => v === true,
             card,
-            [(p.ability as any), 0],
+            [p.ability as any, 0],
           )
         : false;
 
@@ -173,9 +183,7 @@ function floatingPreventionAbilities(
     value: getEffectValueInternal(state, side, eid, [], ev) as PreventionEntry,
   }));
 
-  const filtered = cardVals.filter(
-    (cv) => cv.value?.prevents === key,
-  );
+  const filtered = cardVals.filter((cv) => cv.value?.prevents === key);
 
   const playable = filtered
     .filter((cv) => {
@@ -246,8 +254,7 @@ export function preventNumeric(
     ctx.prevented = "all";
     ctx.remaining = 0;
   } else {
-    ctx.prevented =
-      typeof ctx.prevented === "number" ? ctx.prevented + n : n;
+    ctx.prevented = typeof ctx.prevented === "number" ? ctx.prevented + n : n;
     if (typeof ctx.remaining === "number") {
       ctx.remaining = Math.max(0, ctx.remaining - n);
     }
@@ -272,23 +279,21 @@ function triggerPrevention(
   const cid = (card as any).cid;
   const abi: Ability = {
     async: true,
-    effect: req(
-      function (
-        this: void,
-        s: GameState,
-        sid: string,
-        e: EID,
-        c: Card,
-        t: unknown[],
-      ) {
-        (s as any).prevent[key].priorityPasses = 0;
-        const uses = (s as any).prevent[key].uses ?? {};
-        uses[cid] = (uses[cid] ?? 0) + 1;
-        (s as any).prevent[key].uses = uses;
-        const context = (s as any).prevent[key];
-        resolveAbility(s, sid, e, prevention.ability, card, [context]);
-      },
-    ),
+    effect: req(function (
+      this: void,
+      s: GameState,
+      sid: string,
+      e: EID,
+      c: Card,
+      t: unknown[],
+    ) {
+      (s as any).prevent[key].priorityPasses = 0;
+      const uses = (s as any).prevent[key].uses ?? {};
+      uses[cid] = (uses[cid] ?? 0) + 1;
+      (s as any).prevent[key].uses = uses;
+      const context = (s as any).prevent[key];
+      resolveAbility(s, sid, e, prevention.ability, card, [context]);
+    }),
   };
 
   const sourceEid = { ...eid, source: card, sourceType: "ability" };
@@ -348,9 +353,18 @@ export function resolveKeyedPreventionForSide(
   const remainder = (state as any).prevent?.[key]?.remaining;
   const passed = (state as any).prevent?.[key]?.passed;
 
-  const promptStr = typeof args.prompt === "function" ? args.prompt(state, remainder) : args.prompt;
-  const waitingStr = typeof args.waiting === "function" ? args.waiting(state, remainder) : args.waiting;
-  const optionStr = typeof args.option === "function" ? args.option(state, remainder) : args.option;
+  const promptStr =
+    typeof args.prompt === "function"
+      ? args.prompt(state, remainder)
+      : args.prompt;
+  const waitingStr =
+    typeof args.waiting === "function"
+      ? args.waiting(state, remainder)
+      : args.waiting;
+  const optionStr =
+    typeof args.option === "function"
+      ? args.option(state, remainder)
+      : args.option;
 
   const isSequential = args.dataType === "sequential";
   const emptyRemainder = isSequential
@@ -358,14 +372,13 @@ export function resolveKeyedPreventionForSide(
     : !(typeof remainder === "number" && remainder > 0);
 
   const damageSpecial =
-    key === "pre-damage" || key === "damage"
-      ? false
-      : emptyRemainder;
+    key === "pre-damage" || key === "damage" ? false : emptyRemainder;
 
   if (
     (isSequential
       ? !remainder || (Array.isArray(remainder) && remainder.length === 0)
-      : key !== "pre-damage" && !(typeof remainder === "number" && remainder > 0)) ||
+      : key !== "pre-damage" &&
+        !(typeof remainder === "number" && remainder > 0)) ||
     passed
   ) {
     delete (state as any).prevent?.[key]?.passed;
@@ -388,10 +401,7 @@ export function resolveKeyedPreventionForSide(
         { asyncResult: true },
         () => resolveKeyedPreventionForSide(state, side, eid, key, args),
       ],
-      [
-        () =>
-          triggerPrevention(state, side, eid, key, preventions[0]),
-      ],
+      [() => triggerPrevention(state, side, eid, key, preventions[0])],
     );
     return;
   }
@@ -534,8 +544,16 @@ function preventTrashInstalledByType(
               installed(card) &&
               (cost[0]?.type !== "trash-can" || !sameCard(c, card)),
           );
-        const payable = canPay(s, sid, e, c, null, cost.length > 0 ? cost : null);
-        const valid = !context?.unpreventable && (!validContext || validContext(context));
+        const payable = canPay(
+          s,
+          sid,
+          e,
+          c,
+          null,
+          cost.length > 0 ? cost : null,
+        );
+        const valid =
+          !context?.unpreventable && (!validContext || validContext(context));
         return relevant.length > 0 && payable && valid;
       }),
       async: true,
@@ -568,23 +586,19 @@ function preventTrashInstalledByType(
         } else {
           // choose one
           // This would normally go through a choice prompt
-          (s as any).prevent.trash.remaining = remaining.filter(
-            (r: any) => {
-              const rc = typeof r === "object" && "card" in r ? r.card : r;
-              return !sameCard(rc, (t as Card[])[0]);
-            },
-          );
+          (s as any).prevent.trash.remaining = remaining.filter((r: any) => {
+            const rc = typeof r === "object" && "card" in r ? r.card : r;
+            return !sameCard(rc, (t as Card[])[0]);
+          });
         }
 
         // Filter remaining to only valid cards
         const ctx2 = (s as any).prevent?.trash;
         if (ctx2?.remaining) {
-          ctx2.remaining = ctx2.remaining.filter(
-            (r: any) => {
-              const rc = typeof r === "object" && "card" in r ? r.card : r;
-              return getCard(s, rc);
-            },
-          );
+          ctx2.remaining = ctx2.remaining.filter((r: any) => {
+            const rc = typeof r === "object" && "card" in r ? r.card : r;
+            return getCard(s, rc);
+          });
         }
         effectCompleted(s, sid, e);
       }),
@@ -592,21 +606,16 @@ function preventTrashInstalledByType(
   } as any;
 }
 
-function resolveTrashForSide(
-  state: GameState,
-  side: string,
-  eid: EID,
-): void {
-  const remaining = ((state as any).prevent?.trash?.remaining as Array<{ card: Card }>) ?? [];
+function resolveTrashForSide(state: GameState, side: string, eid: EID): void {
+  const remaining =
+    ((state as any).prevent?.trash?.remaining as Array<{ card: Card }>) ?? [];
 
   const promptStr = (() => {
     if (side === "runner") {
       if (remaining.length === 1) {
         return `Prevent ${remaining[0].card.title} from being trashed?`;
       } else if (remaining.length <= 5) {
-        const titles = remaining
-          .map((r) => r.card.title)
-          .sort();
+        const titles = remaining.map((r) => r.card.title).sort();
         return `Prevent any of ${enumerateStr(titles, "or")} from being trashed?`;
       } else {
         return `Prevent any of ${remaining.length} cards from being trashed?`;
@@ -648,7 +657,10 @@ export function resolveTrashPrevention(
   const untrashableList: Array<{ card: Card; reason: string }> = [];
   for (const card of targets) {
     if (!gameTrash && untrashableWhileRezzed(state, side, card)) {
-      untrashableList.push({ card, reason: "cannot be trashed while installed" });
+      untrashableList.push({
+        card,
+        reason: "cannot be trashed while installed",
+      });
     } else if (side === "runner" && !canTrash(state, side, card)) {
       untrashableList.push({ card, reason: "cannot be trashed" });
     } else if (
@@ -663,7 +675,9 @@ export function resolveTrashPrevention(
     }
   }
 
-  const untrashableCids = new Set(untrashableList.map((u) => (u.card as any).cid));
+  const untrashableCids = new Set(
+    untrashableList.map((u) => (u.card as any).cid),
+  );
   const trashable = targets.filter((c) => !untrashableCids.has((c as any).cid));
 
   const untrashableEntries = untrashableList.map((u) => ({
@@ -725,12 +739,16 @@ function damageKey(state: GameState): string | null {
 
 export function damageType(state: GameState): string | undefined {
   const dk = damageKey(state);
-  return dk ? ((state as any).prevent[dk] as PreventionContext)?.type : undefined;
+  return dk
+    ? ((state as any).prevent[dk] as PreventionContext)?.type
+    : undefined;
 }
 
 export function damagePending(state: GameState): number | undefined {
   const dk = damageKey(state);
-  return dk ? ((state as any).prevent[dk] as PreventionContext)?.remaining as number : undefined;
+  return dk
+    ? (((state as any).prevent[dk] as PreventionContext)?.remaining as number)
+    : undefined;
 }
 
 /**
@@ -746,7 +764,8 @@ export function damageBoost(
   const pending = damagePending(state);
   if (pending && pending > 0) {
     const dk = damageKey(state)!;
-    const current = ((state as any).prevent[dk] as PreventionContext).remaining as number;
+    const current = ((state as any).prevent[dk] as PreventionContext)
+      .remaining as number;
     ((state as any).prevent[dk] as PreventionContext).remaining = current + n;
   }
   effectCompleted(state, side, eid);
@@ -787,9 +806,7 @@ export function preventDamage(
     } else {
       ctx.remaining = Math.max(0, (ctx.remaining as number) - n);
       ctx.prevented =
-        typeof ctx.prevented === "number"
-          ? (ctx.prevented as number) + n
-          : n;
+        typeof ctx.prevented === "number" ? (ctx.prevented as number) + n : n;
     }
   }
   effectCompleted(state, side, eid);
@@ -804,7 +821,11 @@ export function preventUpToNDamage(
   types?: string[],
 ): Ability {
   return {
-    prompt: msg("Choose how much ", (state: GameState) => damageName(state), " damage prevent"),
+    prompt: msg(
+      "Choose how much ",
+      (state: GameState) => damageName(state),
+      " damage prevent",
+    ),
     req: req(function (
       this: void,
       s: GameState,
@@ -831,7 +852,9 @@ export function preventUpToNDamage(
         t: unknown[],
       ) {
         const dk = damageKey(s);
-        const remaining = dk ? ((s as any).prevent[dk] as PreventionContext).remaining : 0;
+        const remaining = dk
+          ? ((s as any).prevent[dk] as PreventionContext).remaining
+          : 0;
         if (n === "all") return remaining as number;
         return Math.min(remaining as number, n as number);
       }),
@@ -844,13 +867,21 @@ export function preventUpToNDamage(
         t: unknown[],
       ) {
         const dk = damageKey(s);
-        const remaining = dk ? ((s as any).prevent[dk] as PreventionContext).remaining : 0;
+        const remaining = dk
+          ? ((s as any).prevent[dk] as PreventionContext).remaining
+          : 0;
         if (n === "all") return remaining as number;
         return Math.min(remaining as number, n as number);
       }),
     },
     async: true,
-    msg: msg("prevent ", "target", " ", (s: GameState) => damageName(s), " damage"),
+    msg: msg(
+      "prevent ",
+      "target",
+      " ",
+      (s: GameState) => damageName(s),
+      " damage",
+    ),
     effect: req(function (
       this: void,
       s: GameState,

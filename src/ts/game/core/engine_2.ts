@@ -3,73 +3,129 @@
 // Mirrors: src/clj/game/core/engine.clj
 
 import { randomUUID } from "crypto";
-import type { GameState, Prompt } from "./state.js";
-import type { Card, Zone } from "./card.js";
-import type { EID } from "./eid.js";
+import type { GameState, Prompt } from "./state";
+import type { Card, Zone } from "./card";
+import type { EID } from "./eid";
 import type {
-  Ability, ReqFn, MsgFn, AbilityFn, NumberFn, Cost, ChoicesSpec,
-} from "./types.js";
-import type { Effect, RegisteredEvent } from "./state.js";
-import { CORP_SIDE, RUNNER_SIDE, getPlayer } from "./state.js";
+  Ability,
+  ReqFn,
+  MsgFn,
+  AbilityFn,
+  NumberFn,
+  Cost,
+  ChoicesSpec,
+} from "./types.ts";
+import type { Effect, RegisteredEvent } from "./state";
+import { CORP_SIDE, RUNNER_SIDE, getPlayer } from "./state";
 import {
-  getTitle, getType, getSide, isCorp, isRunner, isInstalled,
-  isRezzed, isFacedown, isFaceup, isAgenda, isICE, isUpgrade,
-  isAsset, isCounter, isEvent, isOperation, isHardware, isProgram,
-  isResource, isIdentity, isBasicAction, inHand, inDiscard, inRFG,
-  getZone, inZone, printedTitle,
-} from "./card.js";
-import { getCardDef } from "./types.js";
+  getTitle,
+  getType,
+  getSide,
+  isCorp,
+  isRunner,
+  isInstalled,
+  isRezzed,
+  isFacedown,
+  isFaceup,
+  isAgenda,
+  isICE,
+  isUpgrade,
+  isAsset,
+  isCounter,
+  isEvent,
+  isOperation,
+  isHardware,
+  isProgram,
+  isResource,
+  isIdentity,
+  isBasicAction,
+  inHand,
+  inDiscard,
+  inRFG,
+  getZone,
+  inZone,
+  printedTitle,
+} from "./card";
+import { getCardDef } from "./types.ts";
 import {
-  getEffectMaps, unregisterLingeringEffects, isDisabled,
-  isDisabledReg, updateDisabledCards,
-} from "./effects.js";
+  getEffectMaps,
+  unregisterLingeringEffects,
+  isDisabled,
+  isDisabledReg,
+  updateDisabledCards,
+} from "./effects";
 import {
-  makeEID, makeEIDFrom, effectCompleted, completeWithResult,
-} from "./eid.js";
-import { getCard, findCID, getAllCards } from "./finding.js";
+  makeEID,
+  makeEIDFrom,
+  effectCompleted,
+  completeWithResult,
+} from "./eid";
+import { getCard, findCID, getAllCards } from "./finding";
+import { canPay, buildSpendMsg } from "./payment";
+import { handler as payHandler } from "./costs";
+import { addToPromptQueue } from "./prompt_state";
 import {
-  canPay, buildSpendMsg,
-} from "./payment.js";
+  showPrompt,
+  showSelect,
+  showWaitPrompt,
+  clearWaitPrompt,
+} from "./prompts";
+import { systemMsg, multiMsg, systemSay, nLastLogs } from "./say";
+import { update } from "./update";
+import { checkWinByAgenda } from "./winning";
+import { updateMU } from "./memory";
+import { cardStr } from "./to_string";
+import { otherSide } from "../../jinteki/utils";
 import {
-  handler as payHandler,
-} from "./costs.js";
-import { addToPromptQueue } from "./prompt_state.js";
+  sameCard,
+  sideStr,
+  toKeyword,
+  removeOnce,
+  distinctBy,
+  enumerateStr,
+  inColl,
+} from "../utils";
 import {
-  showPrompt, showSelect, showWaitPrompt, clearWaitPrompt,
-} from "./prompts.js";
-import { systemMsg, multiMsg, systemSay, nLastLogs } from "./say.js";
-import { update } from "./update.js";
-import { checkWinByAgenda } from "./winning.js";
-import { updateMU } from "./memory.js";
-import { cardStr } from "./to_string.js";
-import { otherSide } from "../../jinteki/utils.js";
-import {
-  sameCard, sideStr, toKeyword, removeOnce, distinctBy,
-  enumerateStr, inColl,
-} from "../utils.js";
-import {
-  allActiveInstalled, allInstalled, allInstalledRunner,
-  allInstalledRunnerType, clearEmptyRemotes,
-} from "./board.js";
-import { continue_ability, req, wait_for } from "../macros.js";
-import { move as moveAction } from "./moving.js";
-import { checkpoint } from "./checkpoint.js";
-import type { CostData } from "./payment.js";
-import { toC } from "./payment.js";
+  allActiveInstalled,
+  allInstalled,
+  allInstalledRunner,
+  allInstalledRunnerType,
+  clearEmptyRemotes,
+} from "./board";
+import { continue_ability, req, wait_for } from "../macros";
+import { move as moveAction } from "./moving";
+import { checkpoint } from "./checkpoint";
+import type { CostData } from "./payment";
+import { toC } from "./payment";
 
-import { canTrigger, dissocReq, inSetAside, isActive, isFaceupCard, resolveAbility } from './engine_1';
+import {
+  canTrigger,
+  dissocReq,
+  inSetAside,
+  isActive,
+  isFaceupCard,
+  resolveAbility,
+} from "./engine_1";
 
 /** Get sorted card titles from server (card registry). */
 export function serverCardTitles(
   state: GameState,
-  predicate: (s: GameState, sid: string, e: EID, c: Card | null, t: unknown[]) => boolean,
+  predicate: (
+    s: GameState,
+    sid: string,
+    e: EID,
+    c: Card | null,
+    t: unknown[],
+  ) => boolean,
 ): string[] {
   const allCardsList = getAllCards(state);
-  return [...new Set(
-    allCardsList
-      .filter((c) => predicate(state, "", makeEID(state), null, [c]))
-      .map((c) => getTitle(c))
-  )].sort();
+  return [
+    ...new Set(
+      allCardsList
+        .filter((c) => predicate(state, "", makeEID(state), null, [c]))
+        .map((c) => getTitle(c)),
+    ),
+  ].sort();
 }
 
 // ---------------------------------------------------------------------------
@@ -101,9 +157,7 @@ export function promptFn(
     };
   }
 
-  const promptArgs = cancelFn
-    ? { ...args, cancel: cancelFn }
-    : args;
+  const promptArgs = cancelFn ? { ...args, cancel: cancelFn } : args;
 
   showPrompt(state, side, eid, card, message, choices, f, promptArgs as any);
 }
@@ -192,7 +246,9 @@ export function unregisterSuppressByUUID(
   uuid: string,
 ): void {
   const existing = (state as any).suppress ?? [];
-  state.suppress = existing.filter((entry: SuppressEntry) => entry.uuid !== uuid);
+  state.suppress = existing.filter(
+    (entry: SuppressEntry) => entry.uuid !== uuid,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -207,13 +263,26 @@ function defaultLocations(card: Card | null): Set<string> {
   if (!card) return new Set();
   const type = toKeyword(card.type ?? "");
   switch (type) {
-    case "agenda": return new Set(["scored"]);
-    case "asset": case "ice": case "upgrade": return new Set(["servers"]);
-    case "counter": return new Set(["hosted"]);
-    case "event": case "operation": return new Set(["current", "play-area"]);
-    case "hardware": case "program": case "resource": return new Set(["rig"]);
-    case "identity": case "fake-identity": return new Set(["identity"]);
-    default: return new Set();
+    case "agenda":
+      return new Set(["scored"]);
+    case "asset":
+    case "ice":
+    case "upgrade":
+      return new Set(["servers"]);
+    case "counter":
+      return new Set(["hosted"]);
+    case "event":
+    case "operation":
+      return new Set(["current", "play-area"]);
+    case "hardware":
+    case "program":
+    case "resource":
+      return new Set(["rig"]);
+    case "identity":
+    case "fake-identity":
+      return new Set(["identity"]);
+    default:
+      return new Set();
   }
 }
 
@@ -242,7 +311,10 @@ function buildCondition(ability: Ability): string {
 /**
  * Build an event handler entry. Mirrors `build-event-ability`.
  */
-export function buildEventAbility(ability: Ability, card: Card): RegisteredEvent {
+export function buildEventAbility(
+  ability: Ability,
+  card: Card,
+): RegisteredEvent {
   return {
     event: ability.event ?? "",
     location: buildLocation(card, ability),
@@ -250,7 +322,12 @@ export function buildEventAbility(ability: Ability, card: Card): RegisteredEvent
     condition: buildCondition(ability),
     unregisterOnceResolved: (ability as any).unregisterOnceResolved ?? false,
     oncePerInstance: (ability as any).oncePerInstance ?? false,
-    ability: { ...ability, event: undefined, duration: undefined, condition: undefined },
+    ability: {
+      ...ability,
+      event: undefined,
+      duration: undefined,
+      condition: undefined,
+    },
     card,
     uuid: randomUUID(),
     side: getSide(card) ?? "",
@@ -285,7 +362,9 @@ export function registerDefaultEvents(
 ): void {
   registerSuppress(state, side, card);
   const cdef = getCardDef(card);
-  const allEvents = [(cdef as any).events, (cdef as any).derezzedEvents].flat().filter((e: any) => !e?.location);
+  const allEvents = [(cdef as any).events, (cdef as any).derezzedEvents]
+    .flat()
+    .filter((e: any) => !e?.location);
   registerEvents(state, side, card, allEvents as Ability[]);
 }
 
@@ -328,10 +407,13 @@ export function unregisterEvents(
 
   const eventNames = new Set(events.map((e: any) => e?.event ?? ""));
 
-  state.events = state.events.filter((entry) =>
-    !(sameCard(card, entry.card)
-      && eventNames.has(entry.event)
-      && entry.duration === "default-duration"),
+  state.events = state.events.filter(
+    (entry) =>
+      !(
+        sameCard(card, entry.card) &&
+        eventNames.has(entry.event) &&
+        entry.duration === "default-duration"
+      ),
   );
 
   unregisterSuppress(state, side, card);
@@ -398,7 +480,7 @@ export const automaticPriority: Record<string, number> = {
   "lose-clicks": 1,
   "gain-clicks": 2,
   "drain-credits": 4,
-  "bypass": 4,
+  bypass: 4,
   "lose-credits": 4,
   "pre-gain-credits": 5,
   "gain-credits": 6,
@@ -407,16 +489,19 @@ export const automaticPriority: Record<string, number> = {
   "post-draw-cards": 9,
   "pre-breach": 9,
   true: 10,
-  "trace": 11,
+  trace: 11,
   "corp-lose-tag": 11,
-  "last": 999,
+  last: 999,
 };
 
 export function getAbilitySide(ability: RegisteredEvent): string {
   return (ability.ability as any)?.side ?? "";
 }
 
-export function isActivePlayer(state: GameState, ability: RegisteredEvent): boolean {
+export function isActivePlayer(
+  state: GameState,
+  ability: RegisteredEvent,
+): boolean {
   return state.activePlayer === getSide(ability.card);
 }
 
@@ -436,14 +521,22 @@ function validCondition(
     switch (condition) {
       case "accessed":
         return sameCard(card, (state as any).access);
-      case "active": return isActive(card);
-      case "derezzed": return isInstalled(card) && !isRezzed(card);
-      case "installed": return isInstalled(card);
-      case "facedown": return isInstalled(card) && isFacedown(card);
-      case "faceup": return isFaceupCard(card);
-      case "hosted": return !!card.host;
-      case "floating": return true;
-      case "inactive": return !isActive(card);
+      case "active":
+        return isActive(card);
+      case "derezzed":
+        return isInstalled(card) && !isRezzed(card);
+      case "installed":
+        return isInstalled(card);
+      case "facedown":
+        return isInstalled(card) && isFacedown(card);
+      case "faceup":
+        return isFaceupCard(card);
+      case "hosted":
+        return !!card.host;
+      case "floating":
+        return true;
+      case "inactive":
+        return !isActive(card);
       case "in-location": {
         if (!location) return false;
         if (location.has("discard")) return inDiscard(card);
@@ -456,8 +549,10 @@ function validCondition(
         if (location.has("hand")) return inHand(card);
         return false;
       }
-      case "test-condition": return true;
-      default: return true;
+      case "test-condition":
+        return true;
+      default:
+        return true;
     }
   })();
 
@@ -471,7 +566,10 @@ function validCondition(
  * Get the (possibly refreshed) card for an event handler.
  * Mirrors `card-for-ability`.
  */
-export function cardForAbility(state: GameState, ability: RegisteredEvent): Card | null {
+export function cardForAbility(
+  state: GameState,
+  ability: RegisteredEvent,
+): Card | null {
   const duration = ability.duration;
   if (duration === "default-duration" || duration === "pending") {
     const found = getCard(state, ability.card);
@@ -505,8 +603,11 @@ export function triggerSuppress(
     const card = cardForAbility(state, entry as any);
     if (ability.req) {
       try {
-        if (ability.req(state, side, makeEID(state), card, targets as Card[])) return true;
-      } catch (_e) { /* ignore */ }
+        if (ability.req(state, side, makeEID(state), card, targets as Card[]))
+          return true;
+      } catch (_e) {
+        /* ignore */
+      }
     }
   }
   return false;
@@ -525,7 +626,9 @@ export function gatherEvents(
   cardAbilities?: any[] | null,
 ): RegisteredEvent[] {
   const matching = state.events.filter((e) => e.event === event);
-  const all = cardAbilities ? [...matching, ...cardAbilities.filter(Boolean)] : matching;
+  const all = cardAbilities
+    ? [...matching, ...cardAbilities.filter(Boolean)]
+    : matching;
 
   const valid: RegisteredEvent[] = [];
   for (const ability of all) {
@@ -550,10 +653,20 @@ export function gatherEvents(
  * Log an event to turn/run events.
  * Mirrors `log-event`.
  */
-export function logEvent(state: GameState, event: string, targets: unknown[]): void {
-  (state as any).turnEvents = [(event, targets), ...((state as any).turnEvents ?? [])];
+export function logEvent(
+  state: GameState,
+  event: string,
+  targets: unknown[],
+): void {
+  (state as any).turnEvents = [
+    (event, targets),
+    ...((state as any).turnEvents ?? []),
+  ];
   if (state.run) {
-    (state.run as any).events = [(event, targets), ...((state.run as any).events ?? [])];
+    (state.run as any).events = [
+      (event, targets),
+      ...((state.run as any).events ?? []),
+    ];
   }
 }
 
@@ -584,11 +697,7 @@ export function triggerEvent(
     eid.source = card;
     eid.sourceType = "ability";
 
-    resolveAbility(
-      state, side, eid,
-      dissocReq(toResolve),
-      card, [context],
-    );
+    resolveAbility(state, side, eid, dissocReq(toResolve), card, [context]);
   }
 }
 
@@ -633,10 +742,7 @@ export function triggerEventSyncNext(
         triggerEventSyncNext(s, side, eid, rest, event, targets);
       },
     ],
-    [
-      resolveAbility,
-      state, side, newEid, dissocReq(toResolve), card, targets,
-    ],
+    [resolveAbility, state, side, newEid, dissocReq(toResolve), card, targets],
     { eid },
   );
 }

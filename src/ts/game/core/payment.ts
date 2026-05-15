@@ -1,16 +1,16 @@
 // Payment / cost creation, merging, and helpers.
 // Mirrors: src/clj/game/core/payment.clj
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import type { EID } from "./eid.js";
-import type { Ability } from "./types.js";
-import { isICE } from "./card.js";
-import { makeEID } from "./eid.js";
-import { anyEffects } from "./effects.js";
-import { toast } from "./toasts.js";
-import { capitalize } from "../../jinteki/utils.js";
-import { label, payable, value } from "./costs.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import type { EID } from "./eid";
+import type { Ability } from "./types.ts";
+import { isICE } from "./card";
+import { makeEID } from "./eid";
+import { anyEffects } from "./effects";
+import { toast } from "./toasts";
+import { capitalize } from "../../jinteki/utils";
+import { label, payable, value } from "./costs";
 
 // ---------------------------------------------------------------------------
 // Cost data type
@@ -53,13 +53,25 @@ export function toC(type: string, n: number = 1, args?: ToCArgs): CostData {
 }
 
 /** Backwards-compatible thin wrappers around toC. */
-export function createCreditCost(amount: number, additional: boolean, source: Card | null): CostData {
+export function createCreditCost(
+  amount: number,
+  additional: boolean,
+  source: Card | null,
+): CostData {
   return toC("credit", amount, { additional, source });
 }
-export function createClickCost(amount: number, additional: boolean, source: Card | null): CostData {
+export function createClickCost(
+  amount: number,
+  additional: boolean,
+  source: Card | null,
+): CostData {
   return toC("click", amount, { additional, source });
 }
-export function createTagCost(amount: number, additional: boolean, source: Card | null): CostData {
+export function createTagCost(
+  amount: number,
+  additional: boolean,
+  source: Card | null,
+): CostData {
   return toC("tag", amount, { additional, source });
 }
 
@@ -75,8 +87,9 @@ function mergeCostImpl(acc: CostData | null, cur: CostData): CostData {
   if (accStealth === "all-stealth" || curStealth === "all-stealth") {
     stealth = "all-stealth";
   } else if (accStealth || curStealth) {
-    stealth = (typeof accStealth === "number" ? accStealth : 0) +
-              (typeof curStealth === "number" ? curStealth : 0);
+    stealth =
+      (typeof accStealth === "number" ? accStealth : 0) +
+      (typeof curStealth === "number" ? curStealth : 0);
   }
 
   const mergedArgs = { ...acc?.args, ...cur.args };
@@ -136,7 +149,12 @@ function displayCostRank(c: CostData): number {
  * Mirrors: merge-costs in payment.clj
  */
 export function mergeCosts(
-  costs: Array<CostData | CostData[] | null | undefined> | CostData | CostData[] | null | undefined,
+  costs:
+    | Array<CostData | CostData[] | null | undefined>
+    | CostData
+    | CostData[]
+    | null
+    | undefined,
   removeZeroCreditCost?: boolean,
 ): CostData[] {
   // Flatten one level and drop nulls (mirrors (filterv some? (flatten [costs])))
@@ -167,7 +185,8 @@ export function mergeCosts(
     .map((group) => group.reduce(mergeCostImpl, null as CostData | null))
     .filter((c): c is CostData => c != null)
     .filter((c) => {
-      if (removeZeroCreditCost && c.type === "credit" && (c.amount ?? 0) === 0) return false;
+      if (removeZeroCreditCost && c.type === "credit" && (c.amount ?? 0) === 0)
+        return false;
       return true;
     });
 
@@ -178,7 +197,11 @@ export function mergeCosts(
 // can-pay?
 // ---------------------------------------------------------------------------
 
-function anyEffectStopsPay(state: GameState, side: string, cost: CostData): boolean {
+function anyEffectStopsPay(
+  state: GameState,
+  side: string,
+  cost: CostData,
+): boolean {
   const kw = `cannot-pay-${cost.type}`;
   return anyEffects(state, side, kw, (v) => v === true, null, []);
 }
@@ -202,10 +225,15 @@ export function canPay(
   ...args: Array<CostData | CostData[] | null | undefined>
 ): CostData[] | null {
   const removeZeroCreditCost = isCorpInstallSource(eid) && !isICE(card);
-  const costs = mergeCosts(args.filter((c) => c != null), removeZeroCreditCost);
+  const costs = mergeCosts(
+    args.filter((c) => c != null),
+    removeZeroCreditCost,
+  );
 
   const ok = costs.every(
-    (c) => !anyEffectStopsPay(state, side, c) && payable(c as any, state, side, eid, card),
+    (c) =>
+      !anyEffectStopsPay(state, side, c) &&
+      payable(c as any, state, side, eid, card),
   );
 
   if (ok) return costs;
@@ -244,7 +272,9 @@ export function xCostValue(eid: EID | null): number {
 // ---------------------------------------------------------------------------
 
 /** Gets the complete cost-label for the specified costs. */
-export function buildCostLabel(costs: Array<CostData | CostData[] | null | undefined>): string | null {
+export function buildCostLabel(
+  costs: Array<CostData | CostData[] | null | undefined>,
+): string | null {
   const parts = mergeCosts(costs)
     .slice()
     .sort((a, b) => displayCostRank(a) - displayCostRank(b))
@@ -264,13 +294,17 @@ interface AbilityWithCost extends Ability {
  * Returns a copy of the ability with a :cost-label assoc'd in.
  * Mirrors: add-cost-label-to-ability in payment.clj
  */
-export function addCostLabelToAbility(ability: AbilityWithCost, costArg?: CostData | CostData[] | null): AbilityWithCost {
-  const baseCost = costArg !== undefined ? costArg : ability.cost ?? null;
+export function addCostLabelToAbility(
+  ability: AbilityWithCost,
+  costArg?: CostData | CostData[] | null,
+): AbilityWithCost {
+  const baseCost = costArg !== undefined ? costArg : (ability.cost ?? null);
   const fakeCost = ability["fake-cost"];
   const costs = fakeCost ? mergeCosts([baseCost, fakeCost]) : baseCost;
   return {
     ...ability,
-    "cost-label": buildCostLabel(Array.isArray(costs) ? costs : [costs]) ?? undefined,
+    "cost-label":
+      buildCostLabel(Array.isArray(costs) ? costs : [costs]) ?? undefined,
   } as AbilityWithCost;
 }
 
@@ -283,13 +317,16 @@ export function costToString(cost: CostData | CostData[]): string | null {
   if (value(cost as any) < 0) return null;
   const costType = cost.type;
   const costString = label(cost as any);
-  if (costType === "click" || costType === "lose-click") return `spend ${costString}`;
+  if (costType === "click" || costType === "lose-click")
+    return `spend ${costString}`;
   if (costType === "credit") return `pay ${costString}`;
   return costString;
 }
 
 /** Joins multiple costs into one human-readable phrase. */
-export function buildCostString(costs: Array<CostData | CostData[] | null | undefined>): string | null {
+export function buildCostString(
+  costs: Array<CostData | CostData[] | null | undefined>,
+): string | null {
   const parts = mergeCosts(costs)
     .map((c) => costToString(c))
     .filter((s): s is string => !!s);
@@ -302,7 +339,11 @@ export function buildCostString(costs: Array<CostData | CostData[] | null | unde
  * Constructs the spend message for the given cost-string and verb(s).
  * Mirrors: build-spend-msg in payment.clj
  */
-export function buildSpendMsg(costStr: string | null | undefined, verb: string, verb2?: string): string {
+export function buildSpendMsg(
+  costStr: string | null | undefined,
+  verb: string,
+  verb2?: string,
+): string {
   if (!costStr || !costStr.trim()) {
     return `${verb2 ?? `${verb}s`} `;
   }

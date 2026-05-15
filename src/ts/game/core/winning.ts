@@ -1,11 +1,11 @@
 // Win condition clearing.
 // Mirrors: src/clj/game/core/winning.clj
 
-import type { GameState } from "./state.js";
-import { CORP_SIDE, RUNNER_SIDE } from "./state.js";
-import { systemMsg, systemSay } from "./say.js";
-import { otherSide } from "../../jinteki/utils.js";
-import { anyEffects, sumEffects } from "./effects.js";
+import type { GameState } from "./state";
+import { CORP_SIDE, RUNNER_SIDE } from "./state";
+import { systemMsg, systemSay } from "./say";
+import { otherSide } from "../../jinteki/utils";
+import { anyEffects, sumEffects } from "./effects";
 
 /**
  * Records a win reason for statistics.
@@ -131,9 +131,15 @@ export function clearWin(state: GameState, side: string): void {
  * Returns the number of agenda points required to win for the given side.
  * Mirrors: (agenda-points-required-to-win state side)
  */
-export function agendaPointsRequiredToWin(state: GameState, side: string): number {
+export function agendaPointsRequiredToWin(
+  state: GameState,
+  side: string,
+): number {
   const sideData = state[side as "corp" | "runner"];
-  return (sideData?.agendaPointReq ?? 0) + sumEffects(state, side, "agenda-point-req", null, []);
+  return (
+    (sideData?.agendaPointReq ?? 0) +
+    sumEffects(state, side, "agenda-point-req", null, [])
+  );
 }
 
 /**
@@ -151,9 +157,23 @@ export function sideWin(state: GameState, side: string): boolean {
  */
 export function checkWinByAgenda(state: GameState): void {
   const corpWin = sideWin(state, CORP_SIDE);
-  const blockedCorp = anyEffects(state, CORP_SIDE, "cannot-win-on-points", () => true, null, []);
+  const blockedCorp = anyEffects(
+    state,
+    CORP_SIDE,
+    "cannot-win-on-points",
+    () => true,
+    null,
+    [],
+  );
   const runnerWin = sideWin(state, RUNNER_SIDE);
-  const blockedRunner = anyEffects(state, RUNNER_SIDE, "cannot-win-on-points", () => true, null, []);
+  const blockedRunner = anyEffects(
+    state,
+    RUNNER_SIDE,
+    "cannot-win-on-points",
+    () => true,
+    null,
+    [],
+  );
 
   if (corpWin && !blockedCorp && runnerWin && !blockedRunner) {
     tie(state, "Tie");

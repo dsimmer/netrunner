@@ -1,47 +1,52 @@
 // Turn management: start-turn, end-turn, phase-1.2, post-discard phases.
 // Mirrors: src/clj/game/core/turns.clj
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import type { EID } from "./eid.js";
-import { CORP_SIDE, RUNNER_SIDE } from "./state.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import type { EID } from "./eid";
+import { CORP_SIDE, RUNNER_SIDE } from "./state";
+import { isFacedown, hasSubtype, inHand } from "./card";
+import { getCard } from "./finding";
 import {
-  isFacedown, hasSubtype, inHand,
-} from "./card.js";
-import { getCard } from "./finding.js";
-import {
-  makeEID, makeEIDFrom, effectCompleted,
+  makeEID,
+  makeEIDFrom,
+  effectCompleted,
   registerEIDCallback,
-} from "./eid.js";
+} from "./eid";
 import {
-  triggerEvent, triggerEventSimult, queueEvent,
-  unregisterFloatingEvents, updateFloatingEventDurations,
-} from "./engine.js";
-import { cardFlagFn, clearTurnRegister } from "./flags.js";
-import { gain, lose } from "./gaining.js";
-import { handSizeEffective } from "./hand_size.js";
-import { updateAllIce, updateBreakerStrength } from "./ice.js";
-import { systemMsg } from "./say.js";
-import { toast } from "./toasts.js";
-import { update } from "./update.js";
-import { flatline } from "./winning.js";
-import { draw } from "./drawing.js";
-import { move } from "./moving.js";
-import { otherSide } from "../../jinteki/utils.js";
-import { quantify, enumerateStr } from "../utils.js";
+  triggerEvent,
+  triggerEventSimult,
+  queueEvent,
+  unregisterFloatingEvents,
+  updateFloatingEventDurations,
+} from "./engine";
+import { cardFlagFn, clearTurnRegister } from "./flags";
+import { gain, lose } from "./gaining";
+import { handSizeEffective } from "./hand_size";
+import { updateAllIce, updateBreakerStrength } from "./ice";
+import { systemMsg } from "./say";
+import { toast } from "./toasts";
+import { update } from "./update";
+import { flatline } from "./winning";
+import { draw } from "./drawing";
+import { move } from "./moving";
+import { otherSide } from "../../jinteki/utils";
+import { quantify, enumerateStr } from "../utils";
 import {
-  allActive, allActiveInstalled, allInstalled, allInstalledAndScored,
-} from "./board.js";
+  allActive,
+  allActiveInstalled,
+  allInstalled,
+  allInstalledAndScored,
+} from "./board";
+import { updateAllAdvancementRequirements } from "./agendas";
 import {
-  updateAllAdvancementRequirements,
-} from "./agendas.js";
-import {
-  updateLingeringEffectDurations, unregisterLingeringEffects,
+  updateLingeringEffectDurations,
+  unregisterLingeringEffects,
   getEffects,
-} from "./effects.js";
-import { cleanSetAside } from "./set_aside.js";
-import { continue_ability, req } from "../macros.js";
-import { checkpoint } from "./checkpoint.js";
+} from "./effects";
+import { cleanSetAside } from "./set_aside";
+import { continue_ability, req } from "../macros";
+import { checkpoint } from "./checkpoint";
 
 // ---------------------------------------------------------------------------
 // resolve-durations
@@ -111,7 +116,11 @@ function chainOps(
 // Mirrors: turn-message in turns.clj
 // ---------------------------------------------------------------------------
 
-function turnMessage(state: GameState, side: string, startOfTurn: boolean): void {
+function turnMessage(
+  state: GameState,
+  side: string,
+  startOfTurn: boolean,
+): void {
   const pre = startOfTurn ? "started" : "is ending";
   const hand = side === RUNNER_SIDE ? "[their] Grip" : "HQ";
   const player = side === CORP_SIDE ? state.corp : state.runner;
@@ -141,16 +150,23 @@ export function endPhase12(
   const effectiveEid = eid ?? makeEID(state);
   const phaseKey = side === CORP_SIDE ? "corp-phase-12" : "runner-phase-12";
 
-  if (!((state as any)[phaseKey])) return;
+  if (!(state as any)[phaseKey]) return;
 
   turnMessage(state, side, true);
 
-  const turnBeginsEvent = side === CORP_SIDE ? "corp-turn-begins" : "runner-turn-begins";
-  const postTurnBeginsEvent = side === CORP_SIDE ? "post-corp-turn-begins" : "post-runner-turn-begins";
+  const turnBeginsEvent =
+    side === CORP_SIDE ? "corp-turn-begins" : "runner-turn-begins";
+  const postTurnBeginsEvent =
+    side === CORP_SIDE ? "post-corp-turn-begins" : "post-runner-turn-begins";
   const durationCheck = side === CORP_SIDE ? "start-of-turn" : "start-of-turn";
-  const durationUntil = side === CORP_SIDE ? "until-corp-turn-begins" : "until-runner-turn-begins";
-  const lingerFrom = side === CORP_SIDE ? "until-next-corp-turn-begins" : "until-next-runner-turn-begins";
-  const lingerTo = side === CORP_SIDE ? "until-corp-turn-begins" : "until-runner-turn-begins";
+  const durationUntil =
+    side === CORP_SIDE ? "until-corp-turn-begins" : "until-runner-turn-begins";
+  const lingerFrom =
+    side === CORP_SIDE
+      ? "until-next-corp-turn-begins"
+      : "until-next-runner-turn-begins";
+  const lingerTo =
+    side === CORP_SIDE ? "until-corp-turn-begins" : "until-runner-turn-begins";
 
   chainOps(state, effectiveEid, [
     (innerEid) => {
@@ -169,7 +185,13 @@ export function endPhase12(
         draw(state, side, innerEid, 1, {});
         // After draw completes, trigger the mandatory draw event
         registerEIDCallback(state, innerEid, (s, s2, completed) => {
-          triggerEventSimult(s, s2, makeEIDFrom(s, completed as EID), "corp-mandatory-draw", {});
+          triggerEventSimult(
+            s,
+            s2,
+            makeEIDFrom(s, completed as EID),
+            "corp-mandatory-draw",
+            {},
+          );
           effectCompleted(s, s2, completed as EID);
         });
       } else {
@@ -209,7 +231,7 @@ export function phase12PassPriority(
       (state as any)["corp-phase-12"] = {};
     }
     ((state as any)["corp-phase-12"] as Record<string, boolean>)[side] = true;
-    const cp12 = ((state as any)["corp-phase-12"] as Record<string, boolean>);
+    const cp12 = (state as any)["corp-phase-12"] as Record<string, boolean>;
     if (cp12[CORP_SIDE] && cp12[RUNNER_SIDE]) {
       endPhase12(state, CORP_SIDE, effectiveEid, undefined);
     } else {
@@ -222,7 +244,7 @@ export function phase12PassPriority(
       (state as any)["runner-phase-12"] = {};
     }
     ((state as any)["runner-phase-12"] as Record<string, boolean>)[side] = true;
-    const rp12 = ((state as any)["runner-phase-12"] as Record<string, boolean>);
+    const rp12 = (state as any)["runner-phase-12"] as Record<string, boolean>;
     if (rp12[CORP_SIDE] && rp12[RUNNER_SIDE]) {
       endPhase12(state, RUNNER_SIDE, effectiveEid, undefined);
     } else {
@@ -273,7 +295,9 @@ export function startTurn(
   // Clear :new flag on installed/scored and discard cards
   const installedAndScored = allInstalledAndScored(state, side);
   const discard = (player as any).discard ?? [];
-  const cardsWithNew = [...installedAndScored, ...discard].filter((c: Card) => c.new);
+  const cardsWithNew = [...installedAndScored, ...discard].filter(
+    (c: Card) => c.new,
+  );
   for (const c of cardsWithNew) {
     const card = getCard(state, c);
     if (card) {
@@ -295,7 +319,9 @@ export function startTurn(
   const phaseEvent = side === CORP_SIDE ? "corp-phase-12" : "runner-phase-12";
 
   const activeCards = allActive(state, side);
-  const installedCards = allInstalled(state, side).filter((c) => !isFacedown(c));
+  const installedCards = allInstalled(state, side).filter(
+    (c) => !isFacedown(c),
+  );
   const allCards = [...new Set([...activeCards, ...installedCards])];
 
   const startCards = allCards.filter((c) =>
@@ -317,22 +343,30 @@ export function startTurn(
   triggerEvent(state, side, phaseEvent);
 
   const oppSide = otherSide(side);
-  if (oppSide && (state as any)[oppSide]?.properties?.["force-phase-12-opponent"]) {
+  if (
+    oppSide &&
+    (state as any)[oppSide]?.properties?.["force-phase-12-opponent"]
+  ) {
     toast(
-      state, side,
+      state,
+      side,
       side === CORP_SIDE
         ? "players may use abilities between the start of your turn and your mandatory draw"
         : "players may use abilities before you can take your first click",
       "info",
     );
     ((state as any)[phaseKey] as any).requiresConsent = true;
-  } else if ((player as any).properties?.["force-phase-12-self"] || startCards.length > 0) {
+  } else if (
+    (player as any).properties?.["force-phase-12-self"] ||
+    startCards.length > 0
+  ) {
     toast(
-      state, side,
+      state,
+      side,
       `You may use ${enumerateStr(startCards.map((c: Card) => c.title ?? ""))}` +
-      (side === CORP_SIDE
-        ? " between the start of your turn and your mandatory draw."
-        : " before taking your first click."),
+        (side === CORP_SIDE
+          ? " between the start of your turn and your mandatory draw."
+          : " before taking your first click."),
       "info",
     );
   } else {
@@ -373,7 +407,8 @@ function handleEndOfTurnDiscard(
   if (curHandSize > maxHandSize) {
     const discardCount = curHandSize - Math.max(maxHandSize, 0);
     continue_ability(
-      state, side,
+      state,
+      side,
       {
         prompt: `Discard down to ${quantify(Math.max(maxHandSize, 0), "card")}`,
         choices: {
@@ -383,26 +418,41 @@ function handleEndOfTurnDiscard(
         },
         "waiting-prompt": true,
         async: true,
-        effect: req((s: GameState, _sd: string, _e: EID, _c: Card, targets: unknown[]) => {
-          const targetCards = targets as Card[];
-          const cardTitles = targetCards.map((c: Card) => c.title ?? "").filter(Boolean);
-          systemMsg(
-            s, side,
-            side === RUNNER_SIDE
-              ? `discards ${enumerateStr(cardTitles)} from [their] Grip at end of turn`
-              : `discards ${quantify(targetCards.length, "card")} from HQ at end of turn`,
-          );
-          const discarded: Card[] = [];
-          for (const c of targetCards) {
-            const moved = move(s, side, c, "discard");
-            if (moved) discarded.push(moved);
-          }
-          const ev = side === RUNNER_SIDE ? "runner-discard-to-hand-size" : "corp-discard-to-hand-size";
-          queueEvent(s, ev, { cards: discarded });
-          checkpoint(s, null, eid, { durations: [ev] });
-        }),
+        effect: req(
+          (
+            s: GameState,
+            _sd: string,
+            _e: EID,
+            _c: Card,
+            targets: unknown[],
+          ) => {
+            const targetCards = targets as Card[];
+            const cardTitles = targetCards
+              .map((c: Card) => c.title ?? "")
+              .filter(Boolean);
+            systemMsg(
+              s,
+              side,
+              side === RUNNER_SIDE
+                ? `discards ${enumerateStr(cardTitles)} from [their] Grip at end of turn`
+                : `discards ${quantify(targetCards.length, "card")} from HQ at end of turn`,
+            );
+            const discarded: Card[] = [];
+            for (const c of targetCards) {
+              const moved = move(s, side, c, "discard");
+              if (moved) discarded.push(moved);
+            }
+            const ev =
+              side === RUNNER_SIDE
+                ? "runner-discard-to-hand-size"
+                : "corp-discard-to-hand-size";
+            queueEvent(s, ev, { cards: discarded });
+            checkpoint(s, null, eid, { durations: [ev] });
+          },
+        ),
       } as any,
-      null as unknown as Card, [],
+      null as unknown as Card,
+      [],
     );
     return;
   }
@@ -422,20 +472,28 @@ export function endTurnContinue(
   _extra?: unknown,
 ): void {
   const effectiveEid = eid ?? makeEID(state);
-  const postDiscardKey = side === CORP_SIDE ? "corp-post-discard" : "runner-post-discard";
+  const postDiscardKey =
+    side === CORP_SIDE ? "corp-post-discard" : "runner-post-discard";
 
-  if (!((state as any)[postDiscardKey])) return;
+  if (!(state as any)[postDiscardKey]) return;
 
   delete (state as any)["corp-post-discard"];
   delete (state as any)["runner-post-discard"];
 
   turnMessage(state, side, false);
 
-  const turnEndsEvent = side === RUNNER_SIDE ? "runner-turn-ends" : "corp-turn-ends";
-  const postTurnEndsEvent = side === RUNNER_SIDE ? "post-runner-turn-ends" : "post-corp-turn-ends";
-  const lingerFromEnds = side === CORP_SIDE ? "until-next-corp-turn-ends" : "until-next-runner-turn-ends";
-  const lingerToEnds = side === CORP_SIDE ? "until-corp-turn-ends" : "until-runner-turn-ends";
-  const durationUntilEnds = side === RUNNER_SIDE ? "until-runner-turn-ends" : "until-corp-turn-ends";
+  const turnEndsEvent =
+    side === RUNNER_SIDE ? "runner-turn-ends" : "corp-turn-ends";
+  const postTurnEndsEvent =
+    side === RUNNER_SIDE ? "post-runner-turn-ends" : "post-corp-turn-ends";
+  const lingerFromEnds =
+    side === CORP_SIDE
+      ? "until-next-corp-turn-ends"
+      : "until-next-runner-turn-ends";
+  const lingerToEnds =
+    side === CORP_SIDE ? "until-corp-turn-ends" : "until-runner-turn-ends";
+  const durationUntilEnds =
+    side === RUNNER_SIDE ? "until-runner-turn-ends" : "until-corp-turn-ends";
 
   chainOps(state, effectiveEid, [
     (innerEid) => {
@@ -452,8 +510,13 @@ export function endTurnContinue(
     },
     (innerEid) => {
       resolveDurations(
-        state, side,
-        "end-of-turn", "end-of-next-run", "end-of-run", "end-of-encounter", durationUntilEnds,
+        state,
+        side,
+        "end-of-turn",
+        "end-of-next-run",
+        "end-of-run",
+        "end-of-encounter",
+        durationUntilEnds,
       );
       effectCompleted(state, side, innerEid);
     },
@@ -477,7 +540,11 @@ export function endTurnContinue(
         }
         // Remove all :turn strength from icebreakers.
         if (hasSubtype(card, "Icebreaker")) {
-          updateBreakerStrength(state, RUNNER_SIDE, getCard(state, card) ?? card);
+          updateBreakerStrength(
+            state,
+            RUNNER_SIDE,
+            getCard(state, card) ?? card,
+          );
         }
       }
       // Clear :this-turn flags on corp installed cards
@@ -518,7 +585,11 @@ export function endTurnContinue(
       if (extraTurns && extraTurns > 0) {
         startTurn(state, side, undefined);
         (player as any).extraTurns = extraTurns - 1;
-        systemMsg(state, side, `will have ${quantify(extraTurns - 1, "extra turn")} remaining.`);
+        systemMsg(
+          state,
+          side,
+          `will have ${quantify(extraTurns - 1, "extra turn")} remaining.`,
+        );
       }
       effectCompleted(state, side, effectiveEid);
     },
@@ -543,8 +614,9 @@ export function postDiscardPassPriority(
     if (typeof bucket !== "object" || bucket === null) {
       (state as any)["corp-post-discard"] = {};
     }
-    ((state as any)["corp-post-discard"] as Record<string, boolean>)[side] = true;
-    const cpd = ((state as any)["corp-post-discard"] as Record<string, boolean>);
+    ((state as any)["corp-post-discard"] as Record<string, boolean>)[side] =
+      true;
+    const cpd = (state as any)["corp-post-discard"] as Record<string, boolean>;
     if (cpd[CORP_SIDE] && cpd[RUNNER_SIDE]) {
       endTurnContinue(state, CORP_SIDE, effectiveEid, undefined);
     } else {
@@ -556,8 +628,12 @@ export function postDiscardPassPriority(
     if (typeof bucket !== "object" || bucket === null) {
       (state as any)["runner-post-discard"] = {};
     }
-    ((state as any)["runner-post-discard"] as Record<string, boolean>)[side] = true;
-    const rpd = ((state as any)["runner-post-discard"] as Record<string, boolean>);
+    ((state as any)["runner-post-discard"] as Record<string, boolean>)[side] =
+      true;
+    const rpd = (state as any)["runner-post-discard"] as Record<
+      string,
+      boolean
+    >;
     if (rpd[CORP_SIDE] && rpd[RUNNER_SIDE]) {
       endTurnContinue(state, RUNNER_SIDE, effectiveEid, undefined);
     } else {
@@ -579,8 +655,12 @@ export function endTurn(
   _extra?: unknown,
 ): void {
   const effectiveEid = eid ?? makeEID(state);
-  const actionPhaseEnds = side === RUNNER_SIDE ? "runner-action-phase-ends" : "corp-action-phase-ends";
-  const postDiscardKey = side === CORP_SIDE ? "corp-post-discard" : "runner-post-discard";
+  const actionPhaseEnds =
+    side === RUNNER_SIDE
+      ? "runner-action-phase-ends"
+      : "corp-action-phase-ends";
+  const postDiscardKey =
+    side === CORP_SIDE ? "corp-post-discard" : "runner-post-discard";
 
   chainOps(state, effectiveEid, [
     (innerEid) => {
@@ -597,16 +677,25 @@ export function endTurn(
       (state as any)[postDiscardKey] = { active: true };
 
       const oppSide = otherSide(side);
-      if (oppSide && (state as any)[oppSide]?.properties?.["force-post-discard-opponent"]) {
+      if (
+        oppSide &&
+        (state as any)[oppSide]?.properties?.["force-post-discard-opponent"]
+      ) {
         toast(
-          state, side,
+          state,
+          side,
           "players may use abilities between the discard phase and the turn ends phase",
           "info",
         );
         ((state as any)[postDiscardKey] as any).requiresConsent = true;
-      } else if ((side === CORP_SIDE ? state.corp : state.runner).properties?.["force-post-discard-self"]) {
+      } else if (
+        (side === CORP_SIDE ? state.corp : state.runner).properties?.[
+          "force-post-discard-self"
+        ]
+      ) {
         toast(
-          state, side,
+          state,
+          side,
           "players may use abilities between the discard phase and the turn ends phase",
           "info",
         );

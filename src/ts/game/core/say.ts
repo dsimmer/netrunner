@@ -1,11 +1,11 @@
 // Game log / chat message functions.
 // Mirrors: src/clj/game/core/say.clj + src/go/game/core/say.go
 
-import type { GameState, LogEntry } from "./state.js";
-import type { Card } from "./card.js";
-import { getTitle } from "./card.js";
-import { CORP_SIDE, RUNNER_SIDE } from "./state.js";
-import { toast } from "./toasts.js";
+import type { GameState, LogEntry } from "./state";
+import type { Card } from "./card";
+import { getTitle } from "./card";
+import { CORP_SIDE, RUNNER_SIDE } from "./state";
+import { toast } from "./toasts";
 
 export interface SystemMsgOptions {
   hr?: boolean;
@@ -41,7 +41,9 @@ export function makeMessage(opts: {
     typeof opts.text === "string"
       ? opts.text.trim()
       : Array.isArray(opts.text)
-        ? opts.text.map((t) => (typeof t === "string" ? t.trim() : String(t))).join(" ")
+        ? opts.text
+            .map((t) => (typeof t === "string" ? t.trim() : String(t)))
+            .join(" ")
         : "";
   return {
     user: processedUser,
@@ -117,7 +119,11 @@ function insertPronouns(state: GameState, side: string, text: string): string {
   const corpPronoun = selectPronoun(state.corp.user);
   const runnerPronoun = selectPronoun(state.runner.user);
   const userPronoun =
-    side === CORP_SIDE ? corpPronoun : side === RUNNER_SIDE ? runnerPronoun : "their";
+    side === CORP_SIDE
+      ? corpPronoun
+      : side === RUNNER_SIDE
+        ? runnerPronoun
+        : "their";
 
   return text
     .replace(/(\[pronoun\])|(\[their\])/g, userPronoun)
@@ -157,7 +163,8 @@ export function say(
   opts: { user?: Record<string, unknown> | null; text: string },
   logSide?: string | string[],
 ): void {
-  const author = opts.user ?? (side === CORP_SIDE ? state.corp.user : state.runner.user);
+  const author =
+    opts.user ?? (side === CORP_SIDE ? state.corp.user : state.runner.user);
   const message = makeMessage({
     user: author,
     text: insertPronouns(state, side, opts.text),
@@ -283,24 +290,22 @@ export function implementationMsg(state: GameState, card: Card | null): void {
  * Indicates that a player is taking an action and notifies both players.
  * Mirrors: indicate-action in say.clj
  */
-export function indicateAction(state: GameState, side: string, _card: Card): void {
+export function indicateAction(
+  state: GameState,
+  side: string,
+  _card: Card,
+): void {
   const sideName = side === CORP_SIDE ? "Corp" : "Runner";
   systemSay(state, side, `[!] Please pause, ${sideName} is acting.`);
-  toast(
-    state,
-    side,
-    "You have indicated action to your opponent",
-    "info",
-    { "time-out": 2000, "close-button": false },
-  );
+  toast(state, side, "You have indicated action to your opponent", "info", {
+    "time-out": 2000,
+    "close-button": false,
+  });
   const otherSide = side === CORP_SIDE ? RUNNER_SIDE : CORP_SIDE;
-  toast(
-    state,
-    otherSide,
-    "Pause please, opponent is acting",
-    "info",
-    { "time-out": 5000, "close-button": true },
-  );
+  toast(state, otherSide, "Pause please, opponent is acting", "info", {
+    "time-out": 5000,
+    "close-button": true,
+  });
 }
 
 /**
@@ -324,7 +329,11 @@ export function playSfx(state: GameState, _side: string, sfx: string): void {
  * Returns the last n log messages not sent by a user (i.e. game logs only).
  * Mirrors: n-last-logs in say.clj
  */
-export function nLastLogs(state: GameState, n: number, side: string = "public"): string {
+export function nLastLogs(
+  state: GameState,
+  n: number,
+  side: string = "public",
+): string {
   if (!state) return "unable to fetch log from state";
   const logArr =
     side === "public"

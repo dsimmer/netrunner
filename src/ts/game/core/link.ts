@@ -1,12 +1,12 @@
 // Runner link strength calculations.
 // Mirrors: src/clj/game/core/link.clj + src/go/game/core/link.go
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import type { EID } from "./eid.js";
-import type { ReqFn, ValueFn, StaticAbility } from "./types.js";
-import { RUNNER_SIDE } from "./state.js";
-import { sumEffects } from "./effects.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import type { EID } from "./eid";
+import type { ReqFn, ValueFn, StaticAbility } from "./types.ts";
+import { RUNNER_SIDE } from "./state";
+import { sumEffects } from "./effects";
 
 /**
  * Returns the runner's current link strength.

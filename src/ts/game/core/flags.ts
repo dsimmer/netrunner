@@ -1,24 +1,18 @@
 // Flag system: card flags, run/turn/persistent flag stacks, and game-action gating.
 // Mirrors: src/clj/game/core/flags.clj
 
-import type { GameState, FlagEntry } from "./state.js";
-import type { Card } from "./card.js";
-import type { ReqFn } from "./types.js";
-import { CORP_SIDE } from "./state.js";
-import {
-  isAgenda,
-  isInstalled,
-  isRezzed,
-  inScored,
-  getCounter,
-} from "./card.js";
-import { allActive, allInstalled } from "./board.js";
-import { cardDef } from "./card_defs.js";
-import { anyEffects } from "./effects.js";
-import { makeEID } from "./eid.js";
-import { cardStr } from "./to_string.js";
-import { toast } from "./toasts.js";
-import { enumerateStr, sameCard, sameSide } from "../utils.js";
+import type { GameState, FlagEntry } from "./state";
+import type { Card } from "./card";
+import type { ReqFn } from "./types.ts";
+import { CORP_SIDE } from "./state";
+import { isAgenda, isInstalled, isRezzed, inScored, getCounter } from "./card";
+import { allActive, allInstalled } from "./board";
+import { cardDef } from "./card_defs";
+import { anyEffects } from "./effects";
+import { makeEID } from "./eid";
+import { cardStr } from "./to_string";
+import { toast } from "./toasts";
+import { enumerateStr, sameCard, sameSide } from "../utils";
 
 // ---------------------------------------------------------------------------
 // Flag stack types
@@ -28,7 +22,10 @@ export type FlagType = "currentRun" | "currentTurn" | "persistent";
 
 const ALL_FLAG_TYPES: FlagType[] = ["currentRun", "currentTurn", "persistent"];
 
-function getFlagBucket(state: GameState, flagType: FlagType): Record<string, FlagEntry[]> {
+function getFlagBucket(
+  state: GameState,
+  flagType: FlagType,
+): Record<string, FlagEntry[]> {
   return state.flagStack[flagType];
 }
 
@@ -41,7 +38,11 @@ function getFlagBucket(state: GameState, flagType: FlagType): Record<string, Fla
  * If `value` is supplied, returns true only when the entry equals it.
  * Mirrors: card-flag? in flags.clj
  */
-export function cardFlag(card: Card, flagKey: string, value?: unknown): boolean {
+export function cardFlag(
+  card: Card,
+  flagKey: string,
+  value?: unknown,
+): boolean {
   const cdef = cardDef(card);
   const entry = (cdef as any).flags?.[flagKey];
   if (value !== undefined) return entry === value;
@@ -157,7 +158,11 @@ export function getPreventingCards(
  * Returns true if the flag-type has any condition registered for the flag.
  * Mirrors: has-flag? in flags.clj
  */
-export function hasFlag(state: GameState, flagType: FlagType, flag: string): boolean {
+export function hasFlag(
+  state: GameState,
+  flagType: FlagType,
+  flag: string,
+): boolean {
   const list = getFlagBucket(state, flagType)[flag];
   return !!list && list.length > 0;
 }
@@ -182,7 +187,11 @@ function clearFlagForCard(
  * Removes every flag entry whose card matches the given card across all flag types.
  * Mirrors: clear-all-flags-for-card! in flags.clj
  */
-export function clearAllFlagsForCard(state: GameState, _side: string, card: Card): Card {
+export function clearAllFlagsForCard(
+  state: GameState,
+  _side: string,
+  card: Card,
+): Card {
   for (const ft of ALL_FLAG_TYPES) {
     const bucket = getFlagBucket(state, ft);
     for (const flag of Object.keys(bucket)) {
@@ -206,7 +215,12 @@ export function registerRunFlag(
   registerFlag(state, card, "currentRun", flag, condition);
 }
 
-export function runFlag(state: GameState, side: string, card: Card, flag: string): boolean {
+export function runFlag(
+  state: GameState,
+  side: string,
+  card: Card,
+  flag: string,
+): boolean {
   return checkFlag(state, side, card, "currentRun", flag);
 }
 
@@ -214,7 +228,12 @@ export function clearRunRegister(state: GameState): void {
   clearAllFlags(state, "currentRun");
 }
 
-export function clearRunFlag(state: GameState, _side: string, card: Card, flag: string): void {
+export function clearRunFlag(
+  state: GameState,
+  _side: string,
+  card: Card,
+  flag: string,
+): void {
   clearFlagForCard(state, card, "currentRun", flag);
 }
 
@@ -232,7 +251,12 @@ export function registerTurnFlag(
   registerFlag(state, card, "currentTurn", flag, condition);
 }
 
-export function turnFlag(state: GameState, side: string, card: Card, flag: string): boolean {
+export function turnFlag(
+  state: GameState,
+  side: string,
+  card: Card,
+  flag: string,
+): boolean {
   return checkFlag(state, side, card, "currentTurn", flag);
 }
 
@@ -240,7 +264,12 @@ export function clearTurnRegister(state: GameState): void {
   clearAllFlags(state, "currentTurn");
 }
 
-export function clearTurnFlag(state: GameState, _side: string, card: Card, flag: string): void {
+export function clearTurnFlag(
+  state: GameState,
+  _side: string,
+  card: Card,
+  flag: string,
+): void {
   clearFlagForCard(state, card, "currentTurn", flag);
 }
 
@@ -258,7 +287,12 @@ export function registerPersistentFlag(
   registerFlag(state, card, "persistent", flag, condition);
 }
 
-export function persistentFlag(state: GameState, side: string, card: Card, flag: string): boolean {
+export function persistentFlag(
+  state: GameState,
+  side: string,
+  card: Card,
+  flag: string,
+): boolean {
   return checkFlag(state, side, card, "persistent", flag);
 }
 
@@ -275,7 +309,9 @@ export function clearPersistentFlag(
 // Specific game-action register/locks
 // ---------------------------------------------------------------------------
 
-function ensureRegister(side: { register?: Record<string, unknown> }): Record<string, unknown> {
+function ensureRegister(side: {
+  register?: Record<string, unknown>;
+}): Record<string, unknown> {
   if (!side.register) side.register = {};
   return side.register;
 }
@@ -319,7 +355,11 @@ export function releaseZone(
   locked[tzone] = (locked[tzone] ?? []).filter((c) => c !== cid);
 }
 
-export function zoneLocked(state: GameState, side: string, zone: string): boolean {
+export function zoneLocked(
+  state: GameState,
+  side: string,
+  zone: string,
+): boolean {
   const locked = ((state as any)[side] as LockedHolder)?.locked?.[zone];
   return !!locked && locked.length > 0;
 }
@@ -328,19 +368,39 @@ export function zoneLocked(state: GameState, side: string, zone: string): boolea
 // Trash flags
 // ---------------------------------------------------------------------------
 
-export function untrashableWhileRezzed(state: GameState, side: string, card: Card): boolean {
-  return anyEffects(state, side, "cannot-be-trashed", (v) => v === true, card, []);
+export function untrashableWhileRezzed(
+  state: GameState,
+  side: string,
+  card: Card,
+): boolean {
+  return anyEffects(
+    state,
+    side,
+    "cannot-be-trashed",
+    (v) => v === true,
+    card,
+    [],
+  );
 }
 
 export function untrashableWhileResources(card: Card): boolean {
-  return cardFlag(card, "untrashable-while-resources", true) && isInstalled(card);
+  return (
+    cardFlag(card, "untrashable-while-resources", true) && isInstalled(card)
+  );
 }
 
 // ---------------------------------------------------------------------------
 // can-rez?
 // ---------------------------------------------------------------------------
 
-type RezReason = true | "side" | "run-flag" | "turn-flag" | "persistent-flag" | "unique" | "req";
+type RezReason =
+  | true
+  | "side"
+  | "run-flag"
+  | "turn-flag"
+  | "persistent-flag"
+  | "unique"
+  | "req";
 
 function canRezReason(state: GameState, side: string, card: Card): RezReason {
   const uniqueness = card.uniqueness === true;
@@ -378,7 +438,8 @@ export function canRez(
     return false;
   };
   switch (reason) {
-    case true: return true;
+    case true:
+      return true;
     case "side":
     case "run-flag":
     case "turn-flag":
@@ -400,22 +461,42 @@ export function canRez(
 // can-steal? / can-trash? / can-run? / can-access? / can-advance? / can-score?
 // ---------------------------------------------------------------------------
 
-export function canSteal(state: GameState, side: string, agenda: Card): boolean {
+export function canSteal(
+  state: GameState,
+  side: string,
+  agenda: Card,
+): boolean {
   return (
     !anyEffects(state, side, "cannot-steal", (v) => v === true, agenda, []) &&
-    checkFlagTypes(state, side, agenda, "can-steal", ["currentTurn", "currentRun"]) &&
-    checkFlagTypes(state, side, agenda, "can-steal", ["currentTurn", "persistent"])
+    checkFlagTypes(state, side, agenda, "can-steal", [
+      "currentTurn",
+      "currentRun",
+    ]) &&
+    checkFlagTypes(state, side, agenda, "can-steal", [
+      "currentTurn",
+      "persistent",
+    ])
   );
 }
 
 export function canTrash(state: GameState, side: string, card: Card): boolean {
   return (
-    checkFlagTypes(state, side, card, "can-trash", ["currentTurn", "currentRun"]) &&
-    checkFlagTypes(state, side, card, "can-trash", ["currentTurn", "persistent"])
+    checkFlagTypes(state, side, card, "can-trash", [
+      "currentTurn",
+      "currentRun",
+    ]) &&
+    checkFlagTypes(state, side, card, "can-trash", [
+      "currentTurn",
+      "persistent",
+    ])
   );
 }
 
-export function canRun(state: GameState, side: string, silent = false): boolean {
+export function canRun(
+  state: GameState,
+  side: string,
+  silent = false,
+): boolean {
   const entries = state.flagStack.currentTurn["can-run"] ?? [];
   if (entries.length === 0) return true;
   if (!silent) {
@@ -437,7 +518,11 @@ export function canAccess(state: GameState, side: string, card: Card): boolean {
  * Like canAccess but toasts the cards that prevent access.
  * Mirrors: can-access-loud in flags.clj
  */
-export function canAccessLoud(state: GameState, side: string, card: Card): boolean {
+export function canAccessLoud(
+  state: GameState,
+  side: string,
+  card: Card,
+): boolean {
   const blockers = getPreventingCards(state, side, card, "can-access", [
     "currentRun",
     "currentTurn",
@@ -454,8 +539,15 @@ export function canAccessLoud(state: GameState, side: string, card: Card): boole
   return false;
 }
 
-export function canAdvance(state: GameState, side: string, card: Card): boolean {
-  return checkFlagTypes(state, side, card, "can-advance", ["currentTurn", "persistent"]);
+export function canAdvance(
+  state: GameState,
+  side: string,
+  card: Card,
+): boolean {
+  return checkFlagTypes(state, side, card, "can-advance", [
+    "currentTurn",
+    "persistent",
+  ]);
 }
 
 export function canScore(
@@ -472,19 +564,30 @@ export function canScore(
   if (inScored(card)) return false;
 
   if (!noReq) {
-    const cost = (card as any).currentAdvancementRequirement as number | undefined;
+    const cost = (card as any).currentAdvancementRequirement as
+      | number
+      | undefined;
     if (cost == null || cost > getCounter(card, "advancement")) return false;
   }
 
-  if (cardFlag(card, "can-score") && !cardFlagFn(state, side, card, "can-score")) {
+  if (
+    cardFlag(card, "can-score") &&
+    !cardFlagFn(state, side, card, "can-score")
+  ) {
     return false;
   }
 
-  if (!checkFlagTypes(state, side, card, "can-score", ["currentTurn", "persistent"])) {
+  if (
+    !checkFlagTypes(state, side, card, "can-score", [
+      "currentTurn",
+      "persistent",
+    ])
+  ) {
     return false;
   }
 
-  if (anyEffects(state, side, "cannot-score", (v) => v === true, card, [])) return false;
+  if (anyEffects(state, side, "cannot-score", (v) => v === true, card, []))
+    return false;
 
   const corpRegister = state.corp.register ?? {};
   if (corpRegister["terminal"]) return false;
@@ -505,11 +608,19 @@ export function isScored(state: GameState, side: string, card: Card): boolean {
   return scored.some((c) => sameCard(c, card));
 }
 
-export function inCorpScored(state: GameState, _side: string, card: Card): boolean {
+export function inCorpScored(
+  state: GameState,
+  _side: string,
+  card: Card,
+): boolean {
   return isScored(state, CORP_SIDE, card);
 }
 
-export function inRunnerScored(state: GameState, _side: string, card: Card): boolean {
+export function inRunnerScored(
+  state: GameState,
+  _side: string,
+  card: Card,
+): boolean {
   return isScored(state, "runner", card);
 }
 

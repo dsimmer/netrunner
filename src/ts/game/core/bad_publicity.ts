@@ -1,15 +1,15 @@
 // Bad publicity gain/lose/spend functions.
 // Mirrors: src/clj/game/core/bad_publicity.clj
 
-import type { GameState } from "./state.js";
-import type { EID } from "./eid.js";
-import { makeEID, effectCompleted } from "./eid.js";
-import { gain, lose } from "./gaining.js";
-import { toast } from "./toasts.js";
-import { queueEvent } from "./engine.js";
-import { checkpoint } from "./checkpoint.js";
-import { triggerEventSync } from "./engine.js";
-import { resolveBadPubPrevention } from "./prevention.js";
+import type { GameState } from "./state";
+import type { EID } from "./eid";
+import { makeEID, effectCompleted } from "./eid";
+import { gain, lose } from "./gaining";
+import { toast } from "./toasts";
+import { queueEvent } from "./engine";
+import { checkpoint } from "./checkpoint";
+import { triggerEventSync } from "./engine";
+import { resolveBadPubPrevention } from "./prevention";
 
 export interface BadPublicityArgs {
   suppressCheckpoint?: boolean;
@@ -21,7 +21,9 @@ export interface BadPublicityArgs {
 /** Amount of bad publicity available for this run (runner only). */
 export function badPublicityAvailable(state: GameState, side: string): number {
   if (side === "runner") {
-    return (state.run as Record<string, number>)?.["bad-publicity-available"] ?? 0;
+    return (
+      (state.run as Record<string, number>)?.["bad-publicity-available"] ?? 0
+    );
   }
   return 0;
 }
@@ -72,25 +74,42 @@ export async function loseBadPublicity(
   const { noEvent } = args ?? {};
 
   if (n === "all") {
-    const base = (state.corp as Record<string, Record<string, number>>)["bad-publicity"]?.["base"] ?? 0;
+    const base =
+      (state.corp as Record<string, Record<string, number>>)["bad-publicity"]?.[
+        "base"
+      ] ?? 0;
     return loseBadPublicity(state, side, resolvedEid, base, args);
   }
 
-  const current = (state.corp as Record<string, Record<string, number>>)["bad-publicity"]?.["base"] ?? 0;
+  const current =
+    (state.corp as Record<string, Record<string, number>>)["bad-publicity"]?.[
+      "base"
+    ] ?? 0;
   const actual = Math.min(n, current);
   lose(state, "corp", "bad-publicity", actual);
 
   if (noEvent) {
     effectCompleted(state, side, resolvedEid);
   } else {
-    await triggerEventSync(state, side, resolvedEid, "corp-lose-bad-publicity", { amount: actual, side });
+    await triggerEventSync(
+      state,
+      side,
+      resolvedEid,
+      "corp-lose-bad-publicity",
+      { amount: actual, side },
+    );
   }
 }
 
 /** Spend bad publicity during a run. */
-export function spendBadPublicity(state: GameState, side: string, amt: number): void {
+export function spendBadPublicity(
+  state: GameState,
+  side: string,
+  amt: number,
+): void {
   if (side === "runner" && badPublicityAvailable(state, side) > 0) {
     const run = state.run as Record<string, number>;
-    run["bad-publicity-available"] = (run["bad-publicity-available"] ?? 0) - amt;
+    run["bad-publicity-available"] =
+      (run["bad-publicity-available"] ?? 0) - amt;
   }
 }

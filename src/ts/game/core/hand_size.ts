@@ -1,12 +1,12 @@
 // Hand size calculations.
 // Mirrors: src/clj/game/core/hand_size.clj + src/go/game/core/hand_size.go
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import type { EID } from "./eid.js";
-import type { ReqFn, ValueFn, StaticAbility } from "./types.js";
-import { CORP_SIDE, RUNNER_SIDE } from "./state.js";
-import { sumEffects } from "./effects.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import type { EID } from "./eid";
+import type { ReqFn, ValueFn, StaticAbility } from "./types.ts";
+import { CORP_SIDE, RUNNER_SIDE } from "./state";
+import { sumEffects } from "./effects";
 
 function sumHandSizeEffects(state: GameState, side: string): number {
   let base: number;
@@ -43,7 +43,9 @@ export function handSizeTotal(state: GameState, side: string): number {
  */
 export function updateHandSize(state: GameState, side: string): boolean {
   const oldTotal =
-    side === CORP_SIDE ? state.corp.handSize.total : state.runner.handSize.total;
+    side === CORP_SIDE
+      ? state.corp.handSize.total
+      : state.runner.handSize.total;
   const newTotal = sumHandSizeEffects(state, side);
   if (oldTotal === newTotal) return false;
   if (side === CORP_SIDE) {
@@ -74,7 +76,10 @@ export function handSizePlus(req: ReqFn | null, value: ValueFn): StaticAbility {
  * Creates a Corp-only hand-size+ StaticAbility.
  * Mirrors: corp-hand-size+ in hand_size.clj
  */
-export function corpHandSizePlus(req: ReqFn | null, value: ValueFn): StaticAbility {
+export function corpHandSizePlus(
+  req: ReqFn | null,
+  value: ValueFn,
+): StaticAbility {
   const corpReq: ReqFn = (state, side, eid, card, targets) => {
     if (side !== CORP_SIDE) return false;
     return req ? req(state, side, eid, card, targets) : true;
@@ -86,7 +91,10 @@ export function corpHandSizePlus(req: ReqFn | null, value: ValueFn): StaticAbili
  * Creates a Runner-only hand-size+ StaticAbility.
  * Mirrors: runner-hand-size+ in hand_size.clj
  */
-export function runnerHandSizePlus(req: ReqFn | null, value: ValueFn): StaticAbility {
+export function runnerHandSizePlus(
+  req: ReqFn | null,
+  value: ValueFn,
+): StaticAbility {
   const runnerReq: ReqFn = (state, side, eid, card, targets) => {
     if (side !== RUNNER_SIDE) return false;
     return req ? req(state, side, eid, card, targets) : true;

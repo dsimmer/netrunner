@@ -367,9 +367,11 @@ function normalizeFmt(s: string | undefined | null): string | undefined {
 }
 
 function higherQuality(fmt1: string | undefined, fmt2: string | undefined): boolean {
+  const r1 = normalizeFmt(fmt1);
+  const r2 = normalizeFmt(fmt2);
   return (
-    (FORMAT_RANK[normalizeFmt(fmt1)] ?? -1) >
-    (FORMAT_RANK[normalizeFmt(fmt2)] ?? -1)
+    (r1 !== undefined ? FORMAT_RANK[r1] ?? -1 : -1) >
+    (r2 !== undefined ? FORMAT_RANK[r2] ?? -1 : -1)
   );
 }
 

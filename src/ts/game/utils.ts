@@ -2,8 +2,8 @@
 // Mirrors: src/clj/game/utils.clj + src/go/game/utils.go
 
 import { randomUUID } from "crypto";
-import type { Card } from "./core/card.js";
-import type { GameState } from "./core/state.js";
+import type { Card } from "./core/card";
+import type { GameState } from "./core/state";
 
 // Global card registry (all-cards atom equivalent).
 // Populated by the card loading task before any game starts.
@@ -37,7 +37,10 @@ export function makeTimestamp(): Date {
  * Throws if strict=true and card is not found.
  * Mirrors server-card.
  */
-export function serverCard(title: string, strict = true): Record<string, unknown> | null {
+export function serverCard(
+  title: string,
+  strict = true,
+): Record<string, unknown> | null {
   const card = allCards.get(title);
   if (card) return card;
   if (

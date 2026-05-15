@@ -8,22 +8,22 @@
 //   - payable:      predicate for whether the cost can be paid right now
 //   - handler:      effect that actually pays the cost; signals completion via the eid
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import type { EID } from "./eid.js";
-import type { Ability, NumberFn } from "./types.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import type { EID } from "./eid";
+import type { Ability, NumberFn } from "./types.ts";
 
 import {
   badPublicityAvailable,
   gainBadPublicity,
   loseBadPublicity,
-} from "./bad_publicity.js";
+} from "./bad_publicity";
 import {
   allActive,
   allActiveInstalled,
   allInstalled,
   allInstalledRunnerType,
-} from "./board.js";
+} from "./board";
 import {
   hasSubtype,
   getCounter,
@@ -40,19 +40,19 @@ import {
   isRezzed,
   isRunner,
   isActive,
-} from "./card.js";
-import { getCardDef } from "./types.js";
-import { damage } from "./damage.js";
+} from "./card";
+import { getCardDef } from "./types.ts";
+import { damage } from "./damage";
 import {
   completeWithResult,
   makeEID,
   makeEIDFrom,
   registerEIDCallback,
-} from "./eid.js";
-import { resolveAbility, queueEvent } from "./engine.js";
-import { anyEffects, isDisabledReg } from "./effects.js";
-import { isScored } from "./flags.js";
-import { deduct, lose } from "./gaining.js";
+} from "./eid";
+import { resolveAbility, queueEvent } from "./engine";
+import { anyEffects, isDisabledReg } from "./effects";
+import { isScored } from "./flags";
+import { deduct, lose } from "./gaining";
 import {
   discardFromHand,
   flipFacedown,
@@ -61,24 +61,33 @@ import {
   move,
   trash,
   trashCards,
-} from "./moving.js";
+} from "./moving";
 import {
   pickCreditProvidingCards,
   pickCreditReducers,
   pickVirusCountersToSpend,
-} from "./pick_counters.js";
-import { addCounter, addProp } from "./props.js";
-import { reveal, revealAndQueueEvent } from "./revealing.js";
-import { derez } from "./rezzing.js";
-import { shuffleDeck } from "./shuffling.js";
-import { gainTags, loseTags } from "./tags.js";
-import { cardStr } from "./to_string.js";
-import { numberOfVirusCounters } from "./virus.js";
-import { getCard } from "./finding.js";
-import { continue_ability } from "../macros.js";
-import { enumerateCards, enumerateStr, quantify, sameCard } from "../utils.js";
+} from "./pick_counters";
+import { addCounter, addProp } from "./props";
+import { reveal, revealAndQueueEvent } from "./revealing";
+import { derez } from "./rezzing";
+import { shuffleDeck } from "./shuffling";
+import { gainTags, loseTags } from "./tags";
+import { cardStr } from "./to_string";
+import { numberOfVirusCounters } from "./virus";
+import { getCard } from "./finding";
+import { continue_ability } from "../macros";
+import { enumerateCards, enumerateStr, quantify, sameCard } from "../utils";
 
-import { handler, handlerDispatch, label, labelDispatch, payableDispatch, value, valueDispatch, waitFor } from './costs_1';
+import {
+  handler,
+  handlerDispatch,
+  label,
+  labelDispatch,
+  payableDispatch,
+  value,
+  valueDispatch,
+  waitFor,
+} from "./costs_1";
 
 // ===========================================================================
 // Gain-tag
@@ -92,7 +101,9 @@ handlerDispatch.set("gain-tag", (c, state, side, eid) => {
     state,
     eid,
     (innerEid) =>
-      gainTags(state, side, innerEid, value(c), { "suppress-checkpoint": true }),
+      gainTags(state, side, innerEid, value(c), {
+        "suppress-checkpoint": true,
+      }),
     () => {
       completeWithResult(state, side, eid, {
         "paid/msg": `takes ${quantify(value(c), "tag")}`,
@@ -117,7 +128,9 @@ handlerDispatch.set("tag", (c, state, side, eid) => {
     state,
     eid,
     (innerEid) =>
-      loseTags(state, side, innerEid, value(c), { "suppress-checkpoint": true }),
+      loseTags(state, side, innerEid, value(c), {
+        "suppress-checkpoint": true,
+      }),
     () => {
       completeWithResult(state, side, eid, {
         "paid/msg": `removes ${quantify(value(c), "tag")}`,
@@ -154,7 +167,13 @@ handlerDispatch.set("x-tags", (_c, state, side, eid, card) => {
       choices: {
         number: ((s: GameState) => (s as any).runner?.tag?.base ?? 0) as any,
       } as any,
-      effect: ((s: GameState, sd: string, ei: EID, _ca: Card | null, targets: any[]) => {
+      effect: ((
+        s: GameState,
+        sd: string,
+        ei: EID,
+        _ca: Card | null,
+        targets: any[],
+      ) => {
         const cost = targets[0] as number;
         if (cost === 0) {
           completeWithResult(s, sd, ei, {
@@ -225,7 +244,13 @@ handlerDispatch.set("tag-or-bad-pub", (c, state, side, eid, card) => {
         `Gain ${value(c)} bad publicity`,
       ],
       async: true,
-      effect: ((s: GameState, sd: string, ei: EID, _ca: Card | null, targets: any[]) => {
+      effect: ((
+        s: GameState,
+        sd: string,
+        ei: EID,
+        _ca: Card | null,
+        targets: any[],
+      ) => {
         const t = targets[0] as string;
         if (t === `Gain ${value(c)} bad publicity`) {
           waitFor(
@@ -248,7 +273,9 @@ handlerDispatch.set("tag-or-bad-pub", (c, state, side, eid, card) => {
             s,
             ei,
             (innerEid) =>
-              loseTags(s, sd, innerEid, value(c), { "suppress-checkpoint": true }),
+              loseTags(s, sd, innerEid, value(c), {
+                "suppress-checkpoint": true,
+              }),
             () => {
               completeWithResult(s, sd, ei, {
                 "paid/msg": `removes ${quantify(value(c), "tag")}`,
@@ -329,11 +356,20 @@ handlerDispatch.set("rfg-program", (c, state, side, eid, card) => {
         card: (x: Card) => isInstalled(x) && isProgram(x) && !isFacedown(x),
       } as any,
       async: true,
-      effect: ((s: GameState, sd: string, ei: EID, _ca: Card | null, targets: Card[]) => {
+      effect: ((
+        s: GameState,
+        sd: string,
+        ei: EID,
+        _ca: Card | null,
+        targets: Card[],
+      ) => {
         for (const t of targets) {
           const tagged: Card = {
             ...t,
-            persistent: { ...((t as any).persistent ?? {}), "from-cid": card?.cid },
+            persistent: {
+              ...((t as any).persistent ?? {}),
+              "from-cid": card?.cid,
+            },
           } as Card;
           move(s, sd, tagged, "rfg");
         }
@@ -358,7 +394,11 @@ function registerTrashInstalled(
   type: string,
   description: string,
   countSelector: (state: GameState, side: string, card: Card | null) => Card[],
-  cardPred: (state: GameState, side: string, card: Card | null) => (c: Card) => boolean,
+  cardPred: (
+    state: GameState,
+    side: string,
+    card: Card | null,
+  ) => (c: Card) => boolean,
 ): void {
   valueDispatch.set(type, (c) => c.amount);
   labelDispatch.set(type, (c) => `trash ${quantify(value(c), description)}`);
@@ -377,7 +417,13 @@ function registerTrashInstalled(
           card: cardPred(state, side, card),
         } as any,
         async: true,
-        effect: ((s: GameState, sd: string, ei: EID, _ca: Card | null, targets: Card[]) => {
+        effect: ((
+          s: GameState,
+          sd: string,
+          ei: EID,
+          _ca: Card | null,
+          targets: Card[],
+        ) => {
           waitFor(
             s,
             ei,
@@ -449,7 +495,13 @@ handlerDispatch.set("hardware", (c, state, side, eid, card) => {
         card: (x: Card) => isInstalled(x) && isHardware(x) && !isFacedown(x),
       } as any,
       async: true,
-      effect: ((s: GameState, sd: string, ei: EID, _ca: Card | null, targets: Card[]) => {
+      effect: ((
+        s: GameState,
+        sd: string,
+        ei: EID,
+        _ca: Card | null,
+        targets: Card[],
+      ) => {
         waitFor(
           s,
           ei,
@@ -497,9 +549,14 @@ registerTrashInstalled(
   "connection",
   "installed connection resource",
   (state) =>
-    allActiveInstalled(state, "runner").filter((c) => hasSubtype(c, "Connection")),
+    allActiveInstalled(state, "runner").filter((c) =>
+      hasSubtype(c, "Connection"),
+    ),
   () => (c) =>
-    isInstalled(c) && isResource(c) && hasSubtype(c, "Connection") && !isFacedown(c),
+    isInstalled(c) &&
+    isResource(c) &&
+    hasSubtype(c, "Connection") &&
+    !isFacedown(c),
 );
 
 // ice
@@ -507,7 +564,9 @@ registerTrashInstalled(
   "ice",
   "installed rezzed ice",
   (state) =>
-    allInstalled(state, "corp").filter((c) => isInstalled(c) && isRezzed(c) && isICE(c)),
+    allInstalled(state, "corp").filter(
+      (c) => isInstalled(c) && isRezzed(c) && isICE(c),
+    ),
   () => (c) => isInstalled(c) && isRezzed(c) && isICE(c),
 );
 
@@ -516,11 +575,15 @@ registerTrashInstalled(
 // ===========================================================================
 
 valueDispatch.set("derez-other-harmonic", (c) => c.amount);
-labelDispatch.set("derez-other-harmonic", (c) => `derez ${value(c)} Harmonic ice`);
+labelDispatch.set(
+  "derez-other-harmonic",
+  (c) => `derez ${value(c)} Harmonic ice`,
+);
 payableDispatch.set("derez-other-harmonic", (c, state, _side, _eid, card) => {
   return (
     allActiveInstalled(state, "corp").filter(
-      (x) => isRezzed(x) && hasSubtype(x, "Harmonic") && !sameCard(card as any, x),
+      (x) =>
+        isRezzed(x) && hasSubtype(x, "Harmonic") && !sameCard(card as any, x),
     ).length -
       value(c) >=
     0
@@ -539,7 +602,13 @@ handlerDispatch.set("derez-other-harmonic", (c, state, side, eid, card) => {
           isRezzed(x) && !sameCard(x, card as any) && hasSubtype(x, "Harmonic"),
       } as any,
       async: true,
-      effect: ((s: GameState, sd: string, ei: EID, _ca: Card | null, targets: Card[]) => {
+      effect: ((
+        s: GameState,
+        sd: string,
+        ei: EID,
+        _ca: Card | null,
+        targets: Card[],
+      ) => {
         waitFor(
           s,
           ei,
@@ -599,7 +668,13 @@ handlerDispatch.set("bioroid-run-server", (c, state, side, eid, card) => {
       choices: {
         all: true,
         max: value(c),
-        req: ((_s: GameState, _sd: string, _e: EID, _ca: Card | null, targets: any[]) => {
+        req: ((
+          _s: GameState,
+          _sd: string,
+          _e: EID,
+          _ca: Card | null,
+          targets: any[],
+        ) => {
           const t = targets[0] as Card;
           return (
             isInstalled(t) &&
@@ -610,7 +685,13 @@ handlerDispatch.set("bioroid-run-server", (c, state, side, eid, card) => {
         }) as any,
       } as any,
       async: true,
-      effect: ((s: GameState, sd: string, ei: EID, _ca: Card | null, targets: Card[]) => {
+      effect: ((
+        s: GameState,
+        sd: string,
+        ei: EID,
+        _ca: Card | null,
+        targets: Card[],
+      ) => {
         waitFor(
           s,
           ei,
@@ -652,7 +733,10 @@ handlerDispatch.set("trash-from-deck", (c, state, side, eid) => {
   waitFor(
     state,
     eid,
-    (innerEid) => mill(state, side, side, innerEid, value(c), { "suppress-checkpoint": true }),
+    (innerEid) =>
+      mill(state, side, side, innerEid, value(c), {
+        "suppress-checkpoint": true,
+      }),
     (asyncResult) => {
       const trashed = (asyncResult as Card[]) ?? [];
       completeWithResult(state, side, eid, {
@@ -688,7 +772,13 @@ handlerDispatch.set("trash-from-hand", (c, state, side, eid) => {
       prompt: `Choose ${quantify(value(c), "card")} to trash`,
       choices: { all: true, max: value(c), card: selectFn } as any,
       async: true,
-      effect: ((s: GameState, sd: string, ei: EID, _ca: Card | null, targets: Card[]) => {
+      effect: ((
+        s: GameState,
+        sd: string,
+        ei: EID,
+        _ca: Card | null,
+        targets: Card[],
+      ) => {
         waitFor(
           s,
           ei,

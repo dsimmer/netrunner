@@ -1,7 +1,15 @@
 import * as core from "@/game/core";
+import { initGame, type GameData } from "@/game/core/set_up";
 
 export type Side = "corp" | "runner";
-export type Zone = "hand" | "deck" | "discard" | "scored" | "rfg" | "set-aside" | "play-area";
+export type Zone =
+  | "hand"
+  | "deck"
+  | "discard"
+  | "scored"
+  | "rfg"
+  | "set-aside"
+  | "play-area";
 export type GameState = any;
 export type Card = any;
 
@@ -30,7 +38,9 @@ export function getPromptMap(state: GameState, side: Side): any {
 // ============================================================
 
 export function findCard(title: string, cards: Card[]): Card | undefined {
-  return cards?.find((c: Card) => c?.title === title || c?.printedTitle === title);
+  return cards?.find(
+    (c: Card) => c?.title === title || c?.printedTitle === title,
+  );
 }
 
 export function refresh(state: GameState, card: Card): Card {
@@ -74,7 +84,11 @@ export function getIce(state: GameState, server: string, pos?: number): any {
   return pos === undefined ? ices : ices[pos];
 }
 
-export function getContent(state: GameState, server: string, pos?: number): any {
+export function getContent(
+  state: GameState,
+  server: string,
+  pos?: number,
+): any {
   const content = state.corp?.servers?.[server]?.content ?? [];
   return pos === undefined ? content : content[pos];
 }
@@ -99,7 +113,11 @@ export function getRunnerFacedown(state: GameState, pos?: number): any {
   return pos === undefined ? facedowns : facedowns[pos];
 }
 
-export function getScored(state: GameState, side: Side, x?: number | string): any {
+export function getScored(
+  state: GameState,
+  side: Side,
+  x?: number | string,
+): any {
   const scored = state[side]?.scored ?? [];
   if (x === undefined) return scored;
   if (typeof x === "number") return scored[x];
@@ -152,12 +170,20 @@ export function accessing(state: GameState, title: string): boolean {
   return state.runner?.prompt?.[0]?.card?.title === title;
 }
 
-export function promptIsCard(state: GameState, side: Side, card: Card): boolean {
+export function promptIsCard(
+  state: GameState,
+  side: Side,
+  card: Card,
+): boolean {
   const prompt = getPromptMap(state, side);
   return card?.cid != null && prompt?.card?.cid === card.cid;
 }
 
-export function promptIsType(state: GameState, side: Side, promptType: string): boolean {
+export function promptIsType(
+  state: GameState,
+  side: Side,
+  promptType: string,
+): boolean {
   const prompt = getPromptMap(state, side);
   return prompt?.promptType === promptType;
 }
@@ -170,11 +196,160 @@ export function qty(card: string, amount: number): string[] {
   return Array.from({ length: amount }, () => card);
 }
 
-export function newGame(config?: any): GameState {
-  return core.newGame(config);
+export function newGame(
+  stateOrConfig?: GameState | any,
+  config?: any,
+): GameState {
+  // Support both patterns:
+  // - newGame({corp: {...}, runner: {...}}) - config as first arg
+  // - newGame(state, {corp: {...}, runner: {...}}) - state + config
+  let state: GameState;
+  let actualConfig: any;
+
+  if (config !== undefined) {
+    state = stateOrConfig as GameState;
+    actualConfig = config;
+  } else {
+    state = stateOrConfig ?? {};
+    actualConfig = (stateOrConfig as any)?.corp !== undefined || (stateOrConfig as any)?.runner !== undefined
+      ? stateOrConfig
+      : {};
+  }
+
+  // Build game data from config, mirroring Clojure's new-game/make-decks
+  const corpCfg = actualConfig?.corp ?? {};
+  const runnerCfg = actualConfig?.runner ?? {};
+
+  const corpDeck = corpCfg.deck ?? [];
+  const runnerDeck = runnerCfg.deck ?? [];
+
+  // Find identity cards in decks, use first one or default
+  const corpIdentity =
+    corpDeck.find((c: string) =>
+      [
+        "Haas-Bioroid",
+        "Weyland Consortium",
+        "NBN",
+        "Jinteki",
+        "Shiro",
+        "Neutral Corporation",
+      ].includes(c),
+    ) ?? "Neutral Corporation";
+  const runnerIdentity =
+    runnerDeck.find((c: string) =>
+      [
+        "Ace of Spades",
+        "Amalgamated Culture",
+        "Anarch",
+        "Apex",
+        "Neutral Runner",
+      ].includes(c),
+    ) ?? "Neutral Runner";
+
+  // Filter out identity from deck cards
+  const corpCards = corpDeck.filter((c: string) => c !== corpIdentity);
+  const runnerCards = runnerDeck.filter((c: string) => c !== runnerIdentity);
+
+  const gameData: GameData = {
+    gameid: "1",
+    format: config?.format ?? "Standard",
+    players: [
+      {
+        side: "Corp",
+        user: { username: "Corp" },
+        deck: { identity: corpIdentity, cards: corpCards },
+      },
+      {
+        side: "Runner",
+        user: { username: "Runner" },
+        deck: { identity: runnerIdentity, cards: runnerCards },
+      },
+    ],
+  };
+
+  const gameState = initGame(gameData);
+  Object.assign(state, gameState);
+
+  // Handle mulligan (keep by default)
+  if (!config?.dontStartGame) {
+    core.clickPrompt(state, "corp", "Keep");
+    core.clickPrompt(state, "runner", "Keep");
+    if (!config?.dontStartTurn) {
+      core.startTurn(state, "corp");
+    }
+  }
+
+  // Set up hands
+  if (corpCfg.hand) {
+    core.startingHand(state, "corp", corpCfg.hand);
+  }
+  if (runnerCfg.hand) {
+    core.startingHand(state, "runner", runnerCfg.hand);
+  }
+
+  // Set up discard piles
+  for (const side of ["corp", "runner"] as Side[]) {
+    const cfg = side === "corp" ? corpCfg : runnerCfg;
+    if (cfg.discard) {
+      for (const title of cfg.discard) {
+        const card =
+          core.findCard(title, state[side]?.deck) ??
+          core.findCard(title, state[side]?.hand);
+        if (card) {
+          core.move(state, side, card, "discard");
+        }
+      }
+    }
+    // Set credits if specified
+    if (cfg.credits) {
+      state[side].credit = cfg.credits;
+    }
+  }
+
+  // Handle score-area
+  if (corpCfg.scoreArea) {
+    for (const title of corpCfg.scoreArea) {
+      const card =
+        core.findCard(title, state.corp?.deck) ??
+        core.findCard(title, state.corp?.hand);
+      if (card) core.scoreAgenda(state, card);
+    }
+  }
+  if (runnerCfg.scoreArea) {
+    for (const title of runnerCfg.scoreArea) {
+      const card =
+        core.findCard(title, state.runner?.deck) ??
+        core.findCard(title, state.runner?.hand);
+      if (card) core.scoreAgenda(state, card);
+    }
+  }
+
+  // Set bad publicity
+  if (corpCfg.badPub) {
+    if (!state.corp.badPublicity) state.corp.badPublicity = { base: 0 };
+    state.corp.badPublicity.base = corpCfg.badPub;
+  }
+
+  // Set tags
+  if (runnerCfg.tags) {
+    if (!state.runner.tag) state.runner.tag = { base: 0 };
+    state.runner.tag.base = runnerCfg.tags;
+  }
+
+  // start-as runner
+  if (actualConfig?.startAs === "runner") {
+    core.takeCredits(state, "corp");
+  }
+
+  core.fakeCheckpoint(state);
+  return state;
 }
 
-export function startingHand(state: GameState, side: Side, cards: string[]): void {
+export function startingHand(
+  state: GameState,
+  side: Side,
+  cards: string[],
+): void {
   core.startingHand(state, side, cards);
 }
 
@@ -210,7 +385,12 @@ export function endPhase12(state: GameState, side: Side): void {
 // Card plays
 // ============================================================
 
-export function playFromHand(state: GameState, side: Side, title: string, server?: string): boolean {
+export function playFromHand(
+  state: GameState,
+  side: Side,
+  title: string,
+  server?: string,
+): boolean {
   return core.playFromHand(state, side, title, server);
 }
 
@@ -222,8 +402,18 @@ export function scoreAgenda(state: GameState, side: Side, card: Card): boolean {
   return core.scoreAgenda(state, card);
 }
 
-export function score(state: GameState, side: Side, card: Card, args?: any): boolean {
-  return core.processAction("score", state, "corp", args ? { ...args, card } : { card });
+export function score(
+  state: GameState,
+  side: Side,
+  card: Card,
+  args?: any,
+): boolean {
+  return core.processAction(
+    "score",
+    state,
+    "corp",
+    args ? { ...args, card } : { card },
+  );
 }
 
 export function playCards(state: GameState, side: Side, ...plays: any[]): void {
@@ -246,7 +436,11 @@ export function runContinue(state: GameState, phase?: string): void {
   core.runContinue(state, phase);
 }
 
-export function runContinueUntil(state: GameState, phase: string, ice?: Card): void {
+export function runContinueUntil(
+  state: GameState,
+  phase: string,
+  ice?: Card,
+): void {
   core.runContinueUntil(state, phase, ice);
 }
 
@@ -262,7 +456,11 @@ export function encounterContinue(state: GameState, phase?: string): void {
   core.encounterContinue(state, phase);
 }
 
-export function playRunEvent(state: GameState, card: string, server: string): void {
+export function playRunEvent(
+  state: GameState,
+  card: string,
+  server: string,
+): void {
   core.playRunEvent(state, card, server);
 }
 
@@ -270,17 +468,30 @@ export function playRunEvent(state: GameState, card: string, server: string): vo
 // Prompts and clicks
 // ============================================================
 
-export function clickPrompt(state: GameState, side: Side, choice: string | number, args?: any): void {
+export function clickPrompt(
+  state: GameState,
+  side: Side,
+  choice: string | number,
+  args?: any,
+): void {
   core.clickPrompt(state, side, choice, args);
 }
 
-export function clickPrompts(state: GameState, side: Side, ...choices: (string | number)[]): void {
+export function clickPrompts(
+  state: GameState,
+  side: Side,
+  ...choices: (string | number)[]
+): void {
   for (const choice of choices) {
     core.clickPrompt(state, side, choice);
   }
 }
 
-export function clickCard(state: GameState, side: Side, card: Card | string): void {
+export function clickCard(
+  state: GameState,
+  side: Side,
+  card: Card | string,
+): void {
   core.clickCard(state, side, card);
 }
 
@@ -300,7 +511,12 @@ export function clickCredit(state: GameState, side: Side): void {
 // Card interactions
 // ============================================================
 
-export function rez(state: GameState, side: Side, card: Card, opts?: { expectRez?: boolean }): void {
+export function rez(
+  state: GameState,
+  side: Side,
+  card: Card,
+  opts?: { expectRez?: boolean },
+): void {
   core.rez(state, side, card, opts);
 }
 
@@ -314,26 +530,50 @@ export function advance(state: GameState, card: Card, n: number = 1): void {
   }
 }
 
-export function cardAbility(state: GameState, side: Side, card: Card, ability: number | string, targets?: any): boolean {
+export function cardAbility(
+  state: GameState,
+  side: Side,
+  card: Card,
+  ability: number | string,
+  targets?: any,
+): boolean {
   return core.cardAbility(state, side, card, ability, targets);
 }
 
 export function expend(state: GameState, side: Side, card: Card): boolean {
-  return core.processAction("expend", state, side, { card: core.getCard(state, card) });
+  return core.processAction("expend", state, side, {
+    card: core.getCard(state, card),
+  });
 }
 
-export function cardSubroutine(state: GameState, _: Side, card: Card, ability: number): void {
-  core.processAction("subroutine", state, "corp", { card: core.getCard(state, card), subroutine: ability });
+export function cardSubroutine(
+  state: GameState,
+  _: Side,
+  card: Card,
+  ability: number,
+): void {
+  core.processAction("subroutine", state, "corp", {
+    card: core.getCard(state, card),
+    subroutine: ability,
+  });
 }
 
-export function cardSideAbility(state: GameState, side: Side, card: Card, ability: any, targets?: any): void {
+export function cardSideAbility(
+  state: GameState,
+  side: Side,
+  card: Card,
+  ability: any,
+  targets?: any,
+): void {
   const ab = { card: core.getCard(state, card), ability, targets };
   const action = side === "corp" ? "corp-ability" : "runner-ability";
   core.processAction(action, state, side, ab);
 }
 
 export function fireSubs(state: GameState, card: Card): void {
-  core.processAction("unbroken-subroutines", state, "corp", { card: core.getCard(state, card) });
+  core.processAction("unbroken-subroutines", state, "corp", {
+    card: core.getCard(state, card),
+  });
 }
 
 export function autoPump(state: GameState, card: Card): void {
@@ -365,7 +605,11 @@ export function trash(state: GameState, side: Side, card: Card): void {
   core.processAction("trash", state, side, { card: core.getCard(state, card) });
 }
 
-export function trashFromHand(state: GameState, side: Side, title: string): void {
+export function trashFromHand(
+  state: GameState,
+  side: Side,
+  title: string,
+): void {
   const card = findCard(title, state[side]?.hand);
   if (card) trash(state, side, card);
 }
@@ -374,7 +618,13 @@ export function trashResource(state: GameState): void {
   core.processAction("trash-resource", state, "corp", null);
 }
 
-export function move(state: GameState, side: Side, card: Card, location: Zone, args?: any): void {
+export function move(
+  state: GameState,
+  side: Side,
+  card: Card,
+  location: Zone,
+  args?: any,
+): void {
   core.move(state, side, card, location, args);
   core.fakeCheckpoint(state);
 }
@@ -383,17 +633,32 @@ export function move(state: GameState, side: Side, card: Card, location: Zone, a
 // Direct resource mutations (wrapping core)
 // ============================================================
 
-export function gain(state: GameState, side: Side, ...keysAndValues: any[]): void {
+export function gain(
+  state: GameState,
+  side: Side,
+  ...keysAndValues: any[]
+): void {
   core.gain(state, side, ...keysAndValues);
   core.fakeCheckpoint(state);
 }
 
-export function lose(state: GameState, side: Side, ...keysAndValues: any[]): void {
+export function lose(
+  state: GameState,
+  side: Side,
+  ...keysAndValues: any[]
+): void {
   core.lose(state, side, ...keysAndValues);
   core.fakeCheckpoint(state);
 }
 
-export function addProp(state: GameState, side: Side, eid: any, card: Card, key: string, value: any): void {
+export function addProp(
+  state: GameState,
+  side: Side,
+  eid: any,
+  card: Card,
+  key: string,
+  value: any,
+): void {
   core.addProp(state, side, eid, card, key, value);
   core.fakeCheckpoint(state);
 }
@@ -419,12 +684,22 @@ export function loseTags(state: GameState, side: Side, n: number): void {
   core.loseTags(state, side, core.makeEid(state), n);
 }
 
-export function damage(state: GameState, side: Side, dmgType: string, qty: number): void {
+export function damage(
+  state: GameState,
+  side: Side,
+  dmgType: string,
+  qty: number,
+): void {
   core.damage(state, side, core.makeEid(state), dmgType, qty, null);
   core.fakeCheckpoint(state);
 }
 
-export function draw(state: GameState, side: Side, n: number = 1, args?: any): void {
+export function draw(
+  state: GameState,
+  side: Side,
+  n: number = 1,
+  args?: any,
+): void {
   core.draw(state, side, core.makeEid(state), n, args);
   core.fakeCheckpoint(state);
 }
@@ -435,10 +710,20 @@ export function purge(state: GameState, side: Side): void {
 }
 
 export function trace(state: GameState, base: number): void {
-  core.initTrace(state, "corp", core.makeCard({ title: "/trace command", side: "Corp" }), { base });
+  core.initTrace(
+    state,
+    "corp",
+    core.makeCard({ title: "/trace command", side: "Corp" }),
+    { base },
+  );
 }
 
-export function change(state: GameState, side: Side, valueKey: string, delta: number): void {
+export function change(
+  state: GameState,
+  side: Side,
+  valueKey: string,
+  delta: number,
+): void {
   core.processAction("change", state, side, { key: valueKey, delta });
 }
 
@@ -447,19 +732,21 @@ export function change(state: GameState, side: Side, valueKey: string, delta: nu
 // ============================================================
 
 export function countTags(state: GameState): number {
-  return core.countTags(state);
+  return (state.runner as any)?.tag?.total ?? 0;
 }
 
 export function countRealTags(state: GameState): number {
-  return core.countRealTags(state);
+  return (state.runner as any)?.tag?.base ?? 0;
 }
 
 export function isTagged(state: GameState): boolean {
-  return core.isTagged(state);
+  const runner = state.runner as any;
+  return !!(runner?.tag?.["is-tagged"] || countTags(state) > 0);
 }
 
 export function countBadPub(state: GameState): number {
-  return core.countBadPub(state);
+  const badPub = (state.corp as any)?.badPublicity;
+  return (badPub?.base ?? 0) + (badPub?.additional ?? 0);
 }
 
 export function getLink(state: GameState): number {
@@ -467,7 +754,7 @@ export function getLink(state: GameState): number {
 }
 
 export function handSize(state: GameState, side: Side): number {
-  return core.handSize(state, side);
+  return core.handSizeTotal(state, side);
 }
 
 // ============================================================
@@ -484,19 +771,32 @@ function sideLog(side: LogSide, log: any[]): any[] {
   return (log ?? []).filter((entry: any) => entry?.[side] ?? entry?.public);
 }
 
-export function lastLogContains(state: GameState, content: string, side: LogSide = "public"): boolean {
+export function lastLogContains(
+  state: GameState,
+  content: string,
+  side: LogSide = "public",
+): boolean {
   const log = sideLog(side, state.log ?? []);
   const lastEntry = log[log.length - 1]?.text ?? "";
   return new RegExp(escapeLogString(content)).test(lastEntry);
 }
 
-export function secondLastLogContains(state: GameState, content: string, side: LogSide = "public"): boolean {
+export function secondLastLogContains(
+  state: GameState,
+  content: string,
+  side: LogSide = "public",
+): boolean {
   const log = sideLog(side, state.log ?? []);
   const entry = log[log.length - 2]?.text ?? "";
   return new RegExp(escapeLogString(content)).test(entry);
 }
 
-export function lastNLogContains(state: GameState, n: number, content: string, side: LogSide = "public"): boolean {
+export function lastNLogContains(
+  state: GameState,
+  n: number,
+  content: string,
+  side: LogSide = "public",
+): boolean {
   const log = sideLog(side, state.log ?? []);
   const entry = log[log.length - 1 - n]?.text ?? "";
   return new RegExp(escapeLogString(content)).test(entry);
@@ -506,8 +806,14 @@ export function lastNLogContains(state: GameState, n: number, content: string, s
 // Deck assertions
 // ============================================================
 
-export function isDeckStacked(state: GameState, side: Side, cards: string[]): boolean {
-  const topN = (state[side]?.deck ?? []).slice(0, cards.length).map((c: Card) => c?.title);
+export function isDeckStacked(
+  state: GameState,
+  side: Side,
+  cards: string[],
+): boolean {
+  const topN = (state[side]?.deck ?? [])
+    .slice(0, cards.length)
+    .map((c: Card) => c?.title);
   return cards.every((title, i) => topN[i] === title);
 }
 
@@ -515,16 +821,32 @@ export function isDeckStacked(state: GameState, side: Side, cards: string[]): bo
 // Changed helpers (replacing Clojure's changed? macro)
 // ============================================================
 
-export function changed(getter: () => number, delta: number, body: () => void): boolean {
+export function changed(
+  getter: () => number,
+  delta: number,
+  body: () => void,
+): boolean {
   const before = getter();
   body();
   const after = getter();
   return after - before === delta;
 }
 
-export function changedMulti(bindings: Array<[() => number, number]>, body: () => void): boolean {
+export function changedMulti(
+  bindings: Array<[() => number, number]>,
+  body: () => void,
+): boolean {
   const befores = bindings.map(([getter]) => getter());
   body();
   const afters = bindings.map(([getter]) => getter());
   return bindings.every(([, delta], i) => afters[i] - befores[i] === delta);
+}
+
+// ============================================================
+// doGame wrapper (mirrors Clojure's do-game macro)
+// ============================================================
+
+export function doGame(fn: (state: GameState) => void): void {
+  const state: GameState = {};
+  fn(state);
 }

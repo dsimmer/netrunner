@@ -3,63 +3,103 @@
 // Mirrors: src/clj/game/core/engine.clj
 
 import { randomUUID } from "crypto";
-import type { GameState, Prompt } from "./state.js";
-import type { Card, Zone } from "./card.js";
-import type { EID } from "./eid.js";
+import type { GameState, Prompt } from "./state";
+import type { Card, Zone } from "./card";
+import type { EID } from "./eid";
 import type {
-  Ability, ReqFn, MsgFn, AbilityFn, NumberFn, Cost, ChoicesSpec,
-} from "./types.js";
-import type { Effect, RegisteredEvent } from "./state.js";
-import { CORP_SIDE, RUNNER_SIDE, getPlayer } from "./state.js";
+  Ability,
+  ReqFn,
+  MsgFn,
+  AbilityFn,
+  NumberFn,
+  Cost,
+  ChoicesSpec,
+} from "./types.ts";
+import type { Effect, RegisteredEvent } from "./state";
+import { CORP_SIDE, RUNNER_SIDE, getPlayer } from "./state";
 import {
-  getTitle, getType, getSide, isCorp, isRunner, isInstalled,
-  isRezzed, isFacedown, isFaceup, isAgenda, isICE, isUpgrade,
-  isAsset, isCounter, isEvent, isOperation, isHardware, isProgram,
-  isResource, isIdentity, isBasicAction, inHand, inDiscard, inRFG,
-  getZone, inZone, printedTitle,
-} from "./card.js";
-import { getCardDef } from "./types.js";
+  getTitle,
+  getType,
+  getSide,
+  isCorp,
+  isRunner,
+  isInstalled,
+  isRezzed,
+  isFacedown,
+  isFaceup,
+  isAgenda,
+  isICE,
+  isUpgrade,
+  isAsset,
+  isCounter,
+  isEvent,
+  isOperation,
+  isHardware,
+  isProgram,
+  isResource,
+  isIdentity,
+  isBasicAction,
+  inHand,
+  inDiscard,
+  inRFG,
+  getZone,
+  inZone,
+  printedTitle,
+} from "./card";
+import { getCardDef } from "./types.ts";
 import {
-  getEffectMaps, unregisterLingeringEffects, isDisabled,
-  isDisabledReg, updateDisabledCards,
-} from "./effects.js";
+  getEffectMaps,
+  unregisterLingeringEffects,
+  isDisabled,
+  isDisabledReg,
+  updateDisabledCards,
+} from "./effects";
 import {
-  makeEID, makeEIDFrom, effectCompleted, completeWithResult,
-} from "./eid.js";
-import { getCard, findCID, getAllCards } from "./finding.js";
+  makeEID,
+  makeEIDFrom,
+  effectCompleted,
+  completeWithResult,
+} from "./eid";
+import { getCard, findCID, getAllCards } from "./finding";
+import { canPay, buildSpendMsg } from "./payment";
+import { handler as payHandler } from "./costs";
+import { addToPromptQueue } from "./prompt_state";
 import {
-  canPay, buildSpendMsg,
-} from "./payment.js";
+  showPrompt,
+  showSelect,
+  showWaitPrompt,
+  clearWaitPrompt,
+} from "./prompts";
+import { systemMsg, multiMsg, systemSay, nLastLogs } from "./say";
+import { update } from "./update";
+import { checkWinByAgenda } from "./winning";
+import { updateMU } from "./memory";
+import { cardStr } from "./to_string";
+import { otherSide } from "../../jinteki/utils";
 import {
-  handler as payHandler,
-} from "./costs.js";
-import { addToPromptQueue } from "./prompt_state.js";
+  sameCard,
+  sideStr,
+  toKeyword,
+  removeOnce,
+  distinctBy,
+  enumerateStr,
+  inColl,
+} from "../utils";
 import {
-  showPrompt, showSelect, showWaitPrompt, clearWaitPrompt,
-} from "./prompts.js";
-import { systemMsg, multiMsg, systemSay, nLastLogs } from "./say.js";
-import { update } from "./update.js";
-import { checkWinByAgenda } from "./winning.js";
-import { updateMU } from "./memory.js";
-import { cardStr } from "./to_string.js";
-import { otherSide } from "../../jinteki/utils.js";
-import {
-  sameCard, sideStr, toKeyword, removeOnce, distinctBy,
-  enumerateStr, inColl,
-} from "../utils.js";
-import {
-  allActiveInstalled, allInstalled, allInstalledRunner,
-  allInstalledRunnerType, clearEmptyRemotes,
-} from "./board.js";
-import { continue_ability, req, wait_for } from "../macros.js";
-import { move as moveAction } from "./moving.js";
-import { checkpoint } from "./checkpoint.js";
-import type { CostData } from "./payment.js";
-import { toC } from "./payment.js";
+  allActiveInstalled,
+  allInstalled,
+  allInstalledRunner,
+  allInstalledRunnerType,
+  clearEmptyRemotes,
+} from "./board";
+import { continue_ability, req, wait_for } from "../macros";
+import { move as moveAction } from "./moving";
+import { checkpoint } from "./checkpoint";
+import type { CostData } from "./payment";
+import { toC } from "./payment";
 
-import { promptFn, serverCardTitles } from './engine_2';
-import { queueEvent } from './engine_3';
-
+import { promptFn, serverCardTitles } from "./engine_2";
+import { queueEvent } from "./engine_3";
 
 // ---------------------------------------------------------------------------
 // Payment (pay) - mirrors pay in engine.clj
@@ -85,7 +125,14 @@ export function pay(
     }
   }
 
-  const checkable = canPay(state, side, eid, card, card ? getTitle(card) : "", flattened);
+  const checkable = canPay(
+    state,
+    side,
+    eid,
+    card,
+    card ? getTitle(card) : "",
+    flattened,
+  );
   if (!checkable || checkable.length === 0) {
     completeWithResult(state, side, eid, null);
     return;
@@ -100,7 +147,9 @@ export function pay(
       queueEvent(state, "costs-paid", { side, payment: paymentResult });
       checkpoint(state, null, makeEID(state, eid), null);
       const msg = enumerateStr(
-        paymentResult.filter((m: any) => m && m["paid/msg"]).map((m: any) => m["paid/msg"])
+        paymentResult
+          .filter((m: any) => m && m["paid/msg"])
+          .map((m: any) => m["paid/msg"]),
       );
       const costPaid: Record<string, unknown> = {};
       for (const item of paymentResult) {
@@ -117,9 +166,11 @@ export function pay(
     const costEid = makeEID(state, payEid);
     wait_for(
       state,
-      [(result: unknown) => {
-        payNextRecursive(restCosts, [...msgs, result]);
-      }],
+      [
+        (result: unknown) => {
+          payNextRecursive(restCosts, [...msgs, result]);
+        },
+      ],
       [payHandler, firstCost, state, side, costEid, card],
     );
   }
@@ -135,12 +186,27 @@ export function pay(
  * Registry of "ability-type" keywords (e.g. :psi, :trace, :optional) to their
  * resolver functions.  Mirrors `ability-types` atom.
  */
-const abilityTypes = new Map<string, (state: GameState, side: string, ability: Ability, card: Card | null, targets: unknown[]) => void>();
+const abilityTypes = new Map<
+  string,
+  (
+    state: GameState,
+    side: string,
+    ability: Ability,
+    card: Card | null,
+    targets: unknown[],
+  ) => void
+>();
 
 /** Register a new ability-type handler. Mirrors `register-ability-type`. */
 export function registerAbilityType(
   kw: string,
-  fn: (state: GameState, side: string, ability: Ability, card: Card | null, targets: unknown[]) => void,
+  fn: (
+    state: GameState,
+    side: string,
+    ability: Ability,
+    card: Card | null,
+    targets: unknown[],
+  ) => void,
 ): void {
   abilityTypes.set(kw, fn);
 }
@@ -162,7 +228,12 @@ function selectAbilityKw(ability: Ability): string | undefined {
  */
 export function dissocReq(ability: Ability): Ability {
   const ab = selectAbilityKw(ability);
-  if (ab && ab in ability && typeof (ability as any)[ab] === "object" && (ability as any)[ab] !== null) {
+  if (
+    ab &&
+    ab in ability &&
+    typeof (ability as any)[ab] === "object" &&
+    (ability as any)[ab] !== null
+  ) {
     const nested = { ...((ability as any)[ab] as Ability) };
     delete (nested as any).req;
     const out = { ...ability };
@@ -193,8 +264,20 @@ function shouldTrigger(
 ): boolean {
   if (!ability) return false;
   const ab = selectAbilityKw(ability);
-  if (ab && ab in ability && typeof (ability as any)[ab] === "object" && (ability as any)[ab] !== null) {
-    return shouldTrigger(state, side, eid, card, targets, (ability as any)[ab] as Ability);
+  if (
+    ab &&
+    ab in ability &&
+    typeof (ability as any)[ab] === "object" &&
+    (ability as any)[ab] !== null
+  ) {
+    return shouldTrigger(
+      state,
+      side,
+      eid,
+      card,
+      targets,
+      (ability as any)[ab] as Ability,
+    );
   }
   if (ability.req) {
     return ability.req(state, side, eid, card, targets as Card[]);
@@ -216,9 +299,12 @@ function notUsedOnce(
   if (!once) return true;
   const key = onceKey ?? card?.cid ?? "";
   // Check per-run / per-turn / per-encounter registry
-  const reg = once === "per-turn" ? state.perTurn :
-              once === "per-run" ? state.perRun :
-              (state as any).perEncounter ?? {};
+  const reg =
+    once === "per-turn"
+      ? state.perTurn
+      : once === "per-run"
+        ? state.perRun
+        : ((state as any).perEncounter ?? {});
   return !(key in reg);
 }
 
@@ -234,8 +320,10 @@ export function canTrigger(
   card: Card | null,
   targets: unknown[],
 ): boolean {
-  return notUsedOnce(state, ability, card) &&
-         shouldTrigger(state, side, eid, card, targets, ability);
+  return (
+    notUsedOnce(state, ability, card) &&
+    shouldTrigger(state, side, eid, card, targets, ability)
+  );
 }
 
 /**
@@ -269,9 +357,12 @@ export function registerOnce(
   const onceKey = (ability as any).onceKey as string | undefined;
   if (!once) return;
   const key = onceKey ?? card?.cid ?? "";
-  const reg = once === "per-turn" ? state.perTurn :
-              once === "per-run" ? state.perRun :
-              (state as any).perEncounter ?? {};
+  const reg =
+    once === "per-turn"
+      ? state.perTurn
+      : once === "per-run"
+        ? state.perRun
+        : ((state as any).perEncounter ?? {});
   if (!reg) return;
   (reg as Record<string, unknown>)[key] = true;
 }
@@ -289,8 +380,11 @@ function isConsole(card: Card | null): boolean {
 /** Returns true if card has the given subtype. Mirrors `has-subtype?` from card.cljc. */
 function hasSubtype(card: Card | null, subtype: string): boolean {
   if (!card) return false;
-  const subs = Array.isArray(card.subtypes) ? card.subtypes :
-               typeof card.subtype === "string" ? card.subtype.split(" - ") : [];
+  const subs = Array.isArray(card.subtypes)
+    ? card.subtypes
+    : typeof card.subtype === "string"
+      ? card.subtype.split(" - ")
+      : [];
   return subs.some((s: string) => s.toLowerCase() === subtype.toLowerCase());
 }
 
@@ -334,7 +428,7 @@ export function resolveAbility(
   targets: unknown[],
 ): void {
   const eid = (ability as any).eid ?? makeEID(state);
-  const eidObj = typeof eid === "object" ? eid as EID : makeEID(state);
+  const eidObj = typeof eid === "object" ? (eid as EID) : makeEID(state);
   resolveAbilityWithEID(state, side, eidObj, ability, card, targets);
 }
 
@@ -351,7 +445,7 @@ function resolveAbilityWithEID(
   targets: unknown[],
 ): void {
   // Resolve card from eid source if not provided
-  const resolvedCard = card ?? (eid.source ?? null);
+  const resolvedCard = card ?? eid.source ?? null;
 
   // Only has the eid, in effect a nil ability
   if (eid && Object.keys(ability).length === 1 && "eid" in ability) {
@@ -383,7 +477,9 @@ function resolveAbilityWithEID(
   console.error("Ability is nil????", ability, resolvedCard, targets);
   try {
     nLastLogs(state, 5);
-  } catch (_e) { /* ignore */ }
+  } catch (_e) {
+    /* ignore */
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -433,9 +529,16 @@ function getSideMessage(
   const message = ability.msg;
   if (!message) return undefined;
 
-  const desc = (message === ":cost" || typeof message === "string")
-    ? message as string
-    : (message as MsgFn)(state, side, (ability as any).eid, card, targets as Card[]);
+  const desc =
+    message === ":cost" || typeof message === "string"
+      ? (message as string)
+      : (message as MsgFn)(
+          state,
+          side,
+          (ability as any).eid,
+          card,
+          targets as Card[],
+        );
 
   const costSpendMsg = buildSpendMsg(state, side, paymentStr, "use");
 
@@ -454,13 +557,25 @@ function printMsg(
   targets: unknown[],
   paymentStr: string,
 ): void {
-  const displaySide = (ability as any).displaySide ?? toKeyword(getSide(card) ?? side);
+  const displaySide =
+    (ability as any).displaySide ?? toKeyword(getSide(card) ?? side);
 
-  if (typeof (ability as any).msg === "object" && (ability as any).msg !== null && !Array.isArray((ability as any).msg)) {
+  if (
+    typeof (ability as any).msg === "object" &&
+    (ability as any).msg !== null &&
+    !Array.isArray((ability as any).msg)
+  ) {
     const msgMap = (ability as any).msg as Record<string, string | MsgFn>;
     const out: Record<string, string> = {};
     for (const [k, v] of Object.entries(msgMap)) {
-      const msg = getSideMessage(state, side, { ...ability, msg: v }, card, targets, paymentStr);
+      const msg = getSideMessage(
+        state,
+        side,
+        { ...ability, msg: v },
+        card,
+        targets,
+        paymentStr,
+      );
       if (msg) out[k] = msg;
     }
     if (Object.keys(out).length > 0) {
@@ -469,7 +584,14 @@ function printMsg(
     return;
   }
 
-  const message = getSideMessage(state, side, ability, card, targets, paymentStr);
+  const message = getSideMessage(
+    state,
+    side,
+    ability,
+    card,
+    targets,
+    paymentStr,
+  );
   if (message) {
     systemMsg(state, displaySide, message);
   }
@@ -489,7 +611,14 @@ function doNothing(
 ): void {
   const silent = ((ability as any).changeInGameState as any)?.silent;
   if (!silent) {
-    printMsg(state, side, { ...ability, msg: "do nothing" }, card, [], paymentStr ?? "");
+    printMsg(
+      state,
+      side,
+      { ...ability, msg: "do nothing" },
+      card,
+      [],
+      paymentStr ?? "",
+    );
   }
   effectCompleted(state, side, eid);
 }
@@ -501,7 +630,9 @@ function changeInGameState(
   card: Card | null,
   targets: unknown[],
 ): boolean {
-  const cigReq = ((ability as any).changeInGameState as any)?.req as ReqFn | undefined;
+  const cigReq = ((ability as any).changeInGameState as any)?.req as
+    | ReqFn
+    | undefined;
   if (!cigReq) return true;
   return cigReq(state, side, (ability as any).eid, card, targets as Card[]);
 }
@@ -540,9 +671,11 @@ interface CostPaid {
   "paid/targets": unknown[];
 }
 
-function mergeCostsPaid(...costPaidArr: (Record<string, unknown> | undefined)[]): Record<string, CostPaid> {
+function mergeCostsPaid(
+  ...costPaidArr: (Record<string, unknown> | undefined)[]
+): Record<string, CostPaid> {
   if (costPaidArr.length === 1) {
-    return costPaidArr[0] as Record<string, CostPaid> ?? {};
+    return (costPaidArr[0] as Record<string, CostPaid>) ?? {};
   }
 
   // Flatten all values from each costPaid map
@@ -558,12 +691,21 @@ function mergeCostsPaid(...costPaidArr: (Record<string, unknown> | undefined)[])
   const acc: Record<string, CostPaid> = {};
   for (const cur of allEntries) {
     const type = cur["paid/type"] ?? "";
-    const existing = acc[type] ?? { "paid/type": type, "paid/value": 0, "paid/x-value": 0, "paid/targets": [] };
+    const existing = acc[type] ?? {
+      "paid/type": type,
+      "paid/value": 0,
+      "paid/x-value": 0,
+      "paid/targets": [],
+    };
     acc[type] = {
       "paid/type": type,
       "paid/value": (existing["paid/value"] ?? 0) + (cur["paid/value"] ?? 0),
-      "paid/x-value": (existing["paid/x-value"] ?? 0) + (cur["paid/x-value"] ?? 0),
-      "paid/targets": [...(existing["paid/targets"] ?? []), ...(cur["paid/targets"] ?? [])].filter(Boolean),
+      "paid/x-value":
+        (existing["paid/x-value"] ?? 0) + (cur["paid/x-value"] ?? 0),
+      "paid/targets": [
+        ...(existing["paid/targets"] ?? []),
+        ...(cur["paid/targets"] ?? []),
+      ].filter(Boolean),
     };
   }
   return acc;
@@ -583,10 +725,15 @@ function doPaidAbility(
 ): void {
   const eid = (ability as any).eid;
   const paymentStr = (asyncResult.msg as string) ?? "";
-  const costPaid = mergeCostsPaid((eid as any)?.["cost-paid"], asyncResult["cost-paid"] ?? {});
+  const costPaid = mergeCostsPaid(
+    (eid as any)?.["cost-paid"],
+    asyncResult["cost-paid"] ?? {},
+  );
   (eid as any)["cost-paid"] = costPaid;
   const lastPaymentStr = (eid as any)["latest-payment-str"];
-  (eid as any)["latest-payment-str"] = paymentStr.trim() ? paymentStr : lastPaymentStr;
+  (eid as any)["latest-payment-str"] = paymentStr.trim()
+    ? paymentStr
+    : lastPaymentStr;
 
   // After paying costs, counters will be removed, so fetch the latest version.
   const resolvedCard = getCard(state, card) ?? card;
@@ -617,24 +764,29 @@ function doAbility(
   const eid = (ability as any).eid ?? makeEID(state);
   const cost = (ability as any).cost as Cost[] | undefined;
   const player = ability.player;
-  const waitingPrompt = (ability as any).waitingPrompt as string | boolean | undefined;
+  const waitingPrompt = (ability as any).waitingPrompt as
+    | string
+    | boolean
+    | undefined;
 
   if (waitingPrompt) {
     const waiterSide = player
-      ? (player === CORP_SIDE ? RUNNER_SIDE : CORP_SIDE)
-      : (side === CORP_SIDE ? RUNNER_SIDE : CORP_SIDE);
-    const msg = typeof waitingPrompt === "boolean" && waitingPrompt
-      ? `${sideStr(side)} to make a decision`
-      : waitingPrompt;
-    addToPromptQueue(
-      state, waiterSide,
-      {
-        eid: { id: eid.id },
-        card: card,
-        promptType: "waiting",
-        msg: msg,
-      } as Prompt,
-    );
+      ? player === CORP_SIDE
+        ? RUNNER_SIDE
+        : CORP_SIDE
+      : side === CORP_SIDE
+        ? RUNNER_SIDE
+        : CORP_SIDE;
+    const msg =
+      typeof waitingPrompt === "boolean" && waitingPrompt
+        ? `${sideStr(side)} to make a decision`
+        : waitingPrompt;
+    addToPromptQueue(state, waiterSide, {
+      eid: { id: eid.id },
+      card: card,
+      promptType: "waiting",
+      msg: msg,
+    } as Prompt);
   }
 
   if (cost && cost.length > 0) {
@@ -646,7 +798,7 @@ function doAbility(
         { asyncResult: "result" },
         function (s: GameState, _eid: EID, binds: any) {
           const result = binds.asyncResult;
-          if (result && ("cost-paid" in result)) {
+          if (result && "cost-paid" in result) {
             doPaidAbility(state, side, ability, card, targets, result);
           } else {
             effectCompleted(state, side, eid);
@@ -707,7 +859,12 @@ function doChoices(
     return;
   }
 
-  if (choices && typeof choices === "object" && !Array.isArray(choices) && choices !== null) {
+  if (
+    choices &&
+    typeof choices === "object" &&
+    !Array.isArray(choices) &&
+    choices !== null
+  ) {
     const choicesMap = choices as Record<string, unknown>;
     // Counter prompt
     if (choicesMap.counter) {
@@ -721,20 +878,46 @@ function doChoices(
     }
     // Number prompt
     if (choicesMap.number) {
-      const n = typeof choicesMap.number === "function"
-        ? (choicesMap.number as NumberFn)(state, side, eid, card, targets as Card[])
-        : choicesMap.number as number;
+      const n =
+        typeof choicesMap.number === "function"
+          ? (choicesMap.number as NumberFn)(
+              state,
+              side,
+              eid,
+              card,
+              targets as Card[],
+            )
+          : (choicesMap.number as number);
       const m = (choicesMap.minimum as number) ?? 0;
       const dfunc = choicesMap.default as NumberFn | undefined;
-      const d = dfunc ? dfunc(state, side, makeEID(state), card, targets as Card[]) : m;
-      promptFn(state, s, card, prompt, { number: n, default: d, minimum: m }, ab, args);
+      const d = dfunc
+        ? dfunc(state, side, makeEID(state), card, targets as Card[])
+        : m;
+      promptFn(
+        state,
+        s,
+        card,
+        prompt,
+        { number: n, default: d, minimum: m },
+        ab,
+        args,
+      );
       return;
     }
     // card-title prompt
     if (choicesMap["card-title"]) {
-      const predicate = choicesMap["card-title"] as (s: GameState, sid: string, e: EID, c: Card | null, t: unknown[]) => boolean;
+      const predicate = choicesMap["card-title"] as (
+        s: GameState,
+        sid: string,
+        e: EID,
+        c: Card | null,
+        t: unknown[],
+      ) => boolean;
       const serverCardTitles = serverCardTitles(state, predicate);
-      const augmentedChoices = { ...choicesMap, autocomplete: serverCardTitles };
+      const augmentedChoices = {
+        ...choicesMap,
+        autocomplete: serverCardTitles,
+      };
       (args as any).promptType = "card-title";
       promptFn(state, s, card, prompt, augmentedChoices, ab, args);
       return;
@@ -744,11 +927,20 @@ function doChoices(
   }
 
   // Not a map; either :credit, :counter, or a vector of cards or strings
-  const cs = typeof choices === "function"
-    ? (() => {
-        const cards = (choices as any)(state, side, eid, card, targets as Card[]);
-        return notDistinct ? cards : distinctBy((c: unknown) => (c as Card)?.title ?? c, cards);
-      })()
-    : choices;
+  const cs =
+    typeof choices === "function"
+      ? (() => {
+          const cards = (choices as any)(
+            state,
+            side,
+            eid,
+            card,
+            targets as Card[],
+          );
+          return notDistinct
+            ? cards
+            : distinctBy((c: unknown) => (c as Card)?.title ?? c, cards);
+        })()
+      : choices;
   promptFn(state, s, card, prompt, cs, ab, args);
 }

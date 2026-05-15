@@ -7,15 +7,15 @@ import { chskSend } from "./ws";
 import { activeUser } from "./user";
 import { response, jsonResponse, mongoTimeToUtcString } from "./utils";
 
-import { filterLogForSide, stripOpponentDeckName, toObjectId } from './stats_1';
-import type { Annotation, RequestLike } from './stats_1';
+import { filterLogForSide, stripOpponentDeckName, toObjectId } from "./stats_1";
+import type { Annotation, RequestLike } from "./stats_1";
 
 /**
  * Clear deck stats.
  * Mirrors: clear-deckstats-handler
  */
 export async function clearDeckstatsHandler(
-  req: RequestLike
+  req: RequestLike,
 ): Promise<{ status: number; body: Record<string, string> }> {
   const db = req.system?.db;
   const username = (req.user as any)?.username;
@@ -30,9 +30,7 @@ export async function clearDeckstatsHandler(
     return response(401, { message: "Unauthorized" });
   }
 
-  const deck = await db
-    .collection("decks")
-    .findOne({ _id: deckId, username });
+  const deck = await db.collection("decks").findOne({ _id: deckId, username });
 
   if (!deck) {
     return response(401, { message: "Unauthorized" });
@@ -53,7 +51,7 @@ export async function clearDeckstatsHandler(
  * Mirrors: history
  */
 export async function historyHandler(
-  req: RequestLike
+  req: RequestLike,
 ): Promise<{ status: number; body: unknown }> {
   const db = req.system?.db;
   const user = req.user as any;
@@ -96,7 +94,7 @@ export async function historyHandler(
  * Mirrors: fetch-log
  */
 export async function fetchLog(
-  req: RequestLike
+  req: RequestLike,
 ): Promise<{ status: number; body: unknown }> {
   const db = req.system?.db;
   const username = (req.user as any)?.username;
@@ -106,10 +104,9 @@ export async function fetchLog(
     return response(401, { message: "Unauthorized" });
   }
 
-  const game = await db.collection("game-logs").findOne(
-    { gameid },
-    { projection: { corp: 1, runner: 1, log: 1 } }
-  );
+  const game = await db
+    .collection("game-logs")
+    .findOne({ gameid }, { projection: { corp: 1, runner: 1, log: 1 } });
 
   if (!game) {
     return response(401, { message: "Unauthorized" });
@@ -122,8 +119,7 @@ export async function fetchLog(
     return response(401, { message: "Unauthorized" });
   }
 
-  const side: "corp" | "runner" =
-    username === corpUsername ? "corp" : "runner";
+  const side: "corp" | "runner" = username === corpUsername ? "corp" : "runner";
   const filteredLog = filterLogForSide(game.log as unknown[], side);
 
   return response(200, filteredLog.length > 0 ? filteredLog : []);
@@ -134,8 +130,12 @@ export async function fetchLog(
  * Mirrors: fetch-annotations
  */
 export async function fetchAnnotations(
-  req: RequestLike
-): Promise<{ status: number; body: unknown; headers?: Record<string, string> }> {
+  req: RequestLike,
+): Promise<{
+  status: number;
+  body: unknown;
+  headers?: Record<string, string>;
+}> {
   const db = req.system?.db;
   const user = req.user as any;
   const username = user?.username;
@@ -145,10 +145,14 @@ export async function fetchAnnotations(
     return response(401, { message: "Unauthorized" });
   }
 
-  const game = await db.collection("game-logs").findOne(
-    { gameid },
-    { projection: { corp: 1, runner: 1, "replay-shared": 1, annotations: 1 } }
-  );
+  const game = await db
+    .collection("game-logs")
+    .findOne(
+      { gameid },
+      {
+        projection: { corp: 1, runner: 1, "replay-shared": 1, annotations: 1 },
+      },
+    );
 
   if (!game) {
     return response(401, { message: "Unauthorized" });
@@ -158,7 +162,11 @@ export async function fetchAnnotations(
   const runnerUsername = (game.runner as any)?.player?.username;
   const replayShared = game["replay-shared"] as boolean;
 
-  if (!replayShared && username !== corpUsername && username !== runnerUsername) {
+  if (
+    !replayShared &&
+    username !== corpUsername &&
+    username !== runnerUsername
+  ) {
     return response(401, { message: "Unauthorized" });
   }
 
@@ -171,12 +179,11 @@ export async function fetchAnnotations(
  */
 export async function fetchElapsed(
   db: Db,
-  gameid: string
+  gameid: string,
 ): Promise<number | undefined> {
-  const doc = await db.collection("game-logs").findOne(
-    { gameid: String(gameid) },
-    { projection: { stats: 1 } }
-  );
+  const doc = await db
+    .collection("game-logs")
+    .findOne({ gameid: String(gameid) }, { projection: { stats: 1 } });
   const stats = (doc?.stats as any) || {};
   return stats.time?.elapsed;
 }
@@ -185,28 +192,29 @@ export async function fetchElapsed(
  * Check if annotations total size is under 50k characters.
  * Mirrors: check-annotations-size
  */
-function checkAnnotationsSize(
-  annotations: Record<string, unknown>
-): boolean {
+function checkAnnotationsSize(annotations: Record<string, unknown>): boolean {
   const turns = annotations.turns as Record<string, unknown> | undefined;
   const clicks = annotations.clicks as Record<string, unknown> | undefined;
 
-  const corpNotes = (turns?.corp as Record<string, { notes?: string }> | undefined) || {};
-  const runnerNotes = (turns?.runner as Record<string, { notes?: string }> | undefined) || {};
-  const clickNotes = (clicks as Record<string, { notes?: string }> | undefined) || {};
+  const corpNotes =
+    (turns?.corp as Record<string, { notes?: string }> | undefined) || {};
+  const runnerNotes =
+    (turns?.runner as Record<string, { notes?: string }> | undefined) || {};
+  const clickNotes =
+    (clicks as Record<string, { notes?: string }> | undefined) || {};
 
   const totalSize =
     Object.values(corpNotes).reduce(
       (sum, entry) => sum + ((entry as any)?.notes?.length || 0),
-      0
+      0,
     ) +
     Object.values(runnerNotes).reduce(
       (sum, entry) => sum + ((entry as any)?.notes?.length || 0),
-      0
+      0,
     ) +
     Object.values(clickNotes).reduce(
       (sum, entry) => sum + ((entry as any)?.notes?.length || 0),
-      0
+      0,
     );
 
   return 50000 >= totalSize;
@@ -217,7 +225,7 @@ function checkAnnotationsSize(
  * Mirrors: publish-annotations
  */
 export async function publishAnnotations(
-  req: RequestLike
+  req: RequestLike,
 ): Promise<{ status: number; body: Record<string, string> }> {
   const db = req.system?.db;
   const username = (req.user as any)?.username;
@@ -228,10 +236,20 @@ export async function publishAnnotations(
     return response(401, { message: "Unauthorized" });
   }
 
-  const game = await db.collection("game-logs").findOne(
-    { gameid },
-    { projection: { corp: 1, runner: 1, replay: 1, "replay-shared": 1, annotations: 1 } }
-  );
+  const game = await db
+    .collection("game-logs")
+    .findOne(
+      { gameid },
+      {
+        projection: {
+          corp: 1,
+          runner: 1,
+          replay: 1,
+          "replay-shared": 1,
+          annotations: 1,
+        },
+      },
+    );
 
   if (!game) {
     return response(404, { message: "Replay not found" });
@@ -243,7 +261,11 @@ export async function publishAnnotations(
   const replay = (game.replay as string) || "";
   const annotations = game.annotations || [];
 
-  if (!replayShared && username !== corpUsername && username !== runnerUsername) {
+  if (
+    !replayShared &&
+    username !== corpUsername &&
+    username !== runnerUsername
+  ) {
     return response(401, { message: "Unauthorized" });
   }
 
@@ -268,10 +290,12 @@ export async function publishAnnotations(
 
   const newAnnotations = [...annotations, newAnnotation];
 
-  await db.collection("game-logs").updateOne(
-    { gameid: String(gameid) },
-    { $set: { annotations: newAnnotations } }
-  );
+  await db
+    .collection("game-logs")
+    .updateOne(
+      { gameid: String(gameid) },
+      { $set: { annotations: newAnnotations } },
+    );
 
   return response(200, { message: "Annotations published" });
 }
@@ -281,7 +305,7 @@ export async function publishAnnotations(
  * Mirrors: delete-annotations
  */
 export async function deleteAnnotations(
-  req: RequestLike
+  req: RequestLike,
 ): Promise<{ status: number; body: Record<string, string> }> {
   const db = req.system?.db;
   const username = (req.user as any)?.username;
@@ -292,10 +316,20 @@ export async function deleteAnnotations(
     return response(401, { message: "Unauthorized" });
   }
 
-  const game = await db.collection("game-logs").findOne(
-    { gameid },
-    { projection: { corp: 1, runner: 1, replay: 1, "replay-shared": 1, annotations: 1 } }
-  );
+  const game = await db
+    .collection("game-logs")
+    .findOne(
+      { gameid },
+      {
+        projection: {
+          corp: 1,
+          runner: 1,
+          replay: 1,
+          "replay-shared": 1,
+          annotations: 1,
+        },
+      },
+    );
 
   if (!game) {
     return response(404, { message: "Replay not found" });
@@ -340,10 +374,12 @@ export async function deleteAnnotations(
     ...annotations.slice((ind as number) + 1),
   ];
 
-  await db.collection("game-logs").updateOne(
-    { gameid: String(gameid) },
-    { $set: { annotations: newAnnotations } }
-  );
+  await db
+    .collection("game-logs")
+    .updateOne(
+      { gameid: String(gameid) },
+      { $set: { annotations: newAnnotations } },
+    );
 
   return response(200, { message: "Annotations deleted" });
 }
@@ -353,8 +389,12 @@ export async function deleteAnnotations(
  * Mirrors: fetch-replay
  */
 export async function fetchReplay(
-  req: RequestLike
-): Promise<{ status: number; body: unknown; headers?: Record<string, string> }> {
+  req: RequestLike,
+): Promise<{
+  status: number;
+  body: unknown;
+  headers?: Record<string, string>;
+}> {
   const db = req.system?.db;
   const username = (req.user as any)?.username;
   const gameid = req["path-params"]?.gameid;
@@ -363,10 +403,20 @@ export async function fetchReplay(
     return response(401, { message: "Unauthorized" });
   }
 
-  const game = await db.collection("game-logs").findOne(
-    { gameid },
-    { projection: { corp: 1, runner: 1, replay: 1, "replay-shared": 1, "bug-reported": 1 } }
-  );
+  const game = await db
+    .collection("game-logs")
+    .findOne(
+      { gameid },
+      {
+        projection: {
+          corp: 1,
+          runner: 1,
+          replay: 1,
+          "replay-shared": 1,
+          "bug-reported": 1,
+        },
+      },
+    );
 
   if (!game) {
     return response(404, { message: "Replay not found" });
@@ -392,7 +442,8 @@ export async function fetchReplay(
     return response(404, { message: "Replay not found" });
   }
 
-  const parsedReplay = typeof replay === "string" ? JSON.parse(replay) : (replay as any);
+  const parsedReplay =
+    typeof replay === "string" ? JSON.parse(replay) : (replay as any);
   parsedReplay["replay-shared"] = replayShared;
 
   return jsonResponse(200, JSON.stringify(parsedReplay));
@@ -403,7 +454,7 @@ export async function fetchReplay(
  * Mirrors: share-replay
  */
 export async function shareReplay(
-  req: RequestLike
+  req: RequestLike,
 ): Promise<{ status: number; body: Record<string, string> }> {
   const db = req.system?.db;
   const username = (req.user as any)?.username;
@@ -426,7 +477,7 @@ export async function shareReplay(
           },
         ],
       },
-      { $set: { "replay-shared": true } }
+      { $set: { "replay-shared": true } },
     );
     return response(200, { message: "Shared" });
   } catch (e) {
@@ -445,7 +496,7 @@ function getWinnerCard(
   winner: string | undefined,
   corp: Record<string, unknown>,
   runner: Record<string, unknown>,
-  host: string
+  host: string,
 ): string {
   const defaultImg = `${host}/img/icons/jinteki_167.png`;
   if (!winner) return defaultImg;
@@ -455,7 +506,9 @@ function getWinnerCard(
 
   if (winId) {
     const cardData = AllCards[winId] as Record<string, unknown> | undefined;
-    const cardImg = (cardData?.images as any)?.en?.default?.stock as string | undefined;
+    const cardImg = (cardData?.images as any)?.en?.default?.stock as
+      | string
+      | undefined;
     if (cardImg) {
       return `${host}${cardImg}`;
     }
@@ -468,8 +521,12 @@ function getWinnerCard(
  * Mirrors: replay-handler
  */
 export async function replayHandler(
-  req: RequestLike
-): Promise<{ status: number; body: unknown; headers?: Record<string, string> }> {
+  req: RequestLike,
+): Promise<{
+  status: number;
+  body: unknown;
+  headers?: Record<string, string>;
+}> {
   const db = req.system?.db;
   const gameid = req["path-params"]?.gameid;
   const bugid = req["path-params"]?.bugid;
@@ -483,10 +540,12 @@ export async function replayHandler(
     return response(404, { message: "Replay not found" });
   }
 
-  const game = await db.collection("game-logs").findOne(
-    { gameid: gameid || bugid },
-    { projection: { replay: 1, winner: 1, corp: 1, runner: 1, title: 1 } }
-  );
+  const game = await db
+    .collection("game-logs")
+    .findOne(
+      { gameid: gameid || bugid },
+      { projection: { replay: 1, winner: 1, corp: 1, runner: 1, title: 1 } },
+    );
 
   if (!game) {
     return response(404, { message: "Replay not found" });
@@ -520,7 +579,7 @@ export async function replayHandler(
       game.winner as string | undefined,
       game.corp as Record<string, unknown>,
       game.runner as Record<string, unknown>,
-      host
+      host,
     ),
     title: `${gameid ? "REPLAY: " : "BUG-REPORT: "} ${title}`,
     site_name: "jinteki.net",
@@ -540,13 +599,19 @@ export async function replayHandler(
 function renderIndexPage(
   req: RequestLike,
   og: Record<string, string>,
-  replayId?: string
+  replayId?: string,
 ): string {
   const user = req.user || {};
   const serverMode = (req.system as any)?.["server-mode"] || "prod";
 
-  const cssVersion = serverMode === "dev" ? "" : `?v=${(req.system as any)?.["frontend-version"] || ""}`;
-  const jsVersion = serverMode === "dev" ? "" : `?v=${(req.system as any)?.["frontend-version"] || ""}`;
+  const cssVersion =
+    serverMode === "dev"
+      ? ""
+      : `?v=${(req.system as any)?.["frontend-version"] || ""}`;
+  const jsVersion =
+    serverMode === "dev"
+      ? ""
+      : `?v=${(req.system as any)?.["frontend-version"] || ""}`;
 
   return `<!DOCTYPE html>
 <html>
@@ -554,12 +619,12 @@ function renderIndexPage(
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=0.6, minimal-ui">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta property="og:type" content="${og.type || 'website'}">
-  <meta property="og:url" content="${og.url || 'https://jinteki.net'}">
-  <meta property="og:image" content="${og.image || 'https://www.jinteki.net/img/icons/jinteki_167.png'}">
-  <meta property="og:title" content="${og.title || 'Play Netrunner in your browser'}">
-  <meta property="og:site_name" content="${og.site_name || 'jinteki.net'}">
-  <meta property="og:description" content="${og.description || 'Build Netrunner decks and test them online against other players.'}">
+  <meta property="og:type" content="${og.type || "website"}">
+  <meta property="og:url" content="${og.url || "https://jinteki.net"}">
+  <meta property="og:image" content="${og.image || "https://www.jinteki.net/img/icons/jinteki_167.png"}">
+  <meta property="og:title" content="${og.title || "Play Netrunner in your browser"}">
+  <meta property="og:site_name" content="${og.site_name || "jinteki.net"}">
+  <meta property="og:description" content="${og.description || "Build Netrunner decks and test them online against other players."}">
   <link rel="apple-touch-icon" href="/img/icons/jinteki_167.png">
   <title>Jinteki</title>
   <link rel="stylesheet" href="/lib/css/toastr.min.css">
@@ -567,16 +632,16 @@ function renderIndexPage(
 </head>
 <body>
   <div id="sente-csrf-token" style="display:hidden" data-csrf-token=""></div>
-  <div style="display:hidden" id="server-originated-data" data-version="${(req.system as any)?.["frontend-version"] || ''}" data-replay-id="${replayId || ''}"></div>
+  <div style="display:hidden" id="server-originated-data" data-version="${(req.system as any)?.["frontend-version"] || ""}" data-replay-id="${replayId || ""}"></div>
   <div id="main-content"></div>
   <audio id="ting">
     <source src="/sound/ting.mp3" type="audio/mpeg">
     <source src="/sound/ting.ogg" type="audio/ogg">
   </audio>
-  <script src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
-  <script src="https://code.jquery.com/ui/1.13.0/jquery-ui.min.js"></script>
-  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
-  <script src="/lib/js/toastr.min.js"></script>
+  <script src="https://code.jquery.com/jquery-2.1.1.min"></script>
+  <script src="https://code.jquery.com/ui/1.13.0/jquery-ui.min"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min"></script>
+  <script src="/lib/js/toastr.min"></script>
   <script type="text/javascript">var user=${JSON.stringify(user)};</script>
   <script src="/js/main.js${jsVersion}"></script>
 </body>

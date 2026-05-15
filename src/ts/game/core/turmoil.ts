@@ -15,17 +15,17 @@ import {
   identity,
   corp,
   runner,
-} from "./card.js";
-import { lobbyCommand } from "./commands.js";
-import { disableIdentity, disableCard } from "./identities.js";
-import { cardInit, makeCard } from "./initializing.js";
-import { host } from "./hosting.js";
-import { move } from "./moving.js";
-import { systemMsg } from "./say.js";
-import { buildCard } from "./set_up.js";
-import type { GameState } from "./state.js";
-import { getPlayer } from "./state.js";
-import { serverCards, serverCard, toKeyword } from "../utils.js";
+} from "./card";
+import { lobbyCommand } from "./commands";
+import { disableIdentity, disableCard } from "./identities";
+import { cardInit, makeCard } from "./initializing";
+import { host } from "./hosting";
+import { move } from "./moving";
+import { systemMsg } from "./say";
+import { buildCard } from "./set_up";
+import type { GameState } from "./state";
+import { getPlayer } from "./state";
+import { serverCards, serverCard, toKeyword } from "../utils";
 
 // ---------------------------------------------------------------------------
 // Cached card indexes (populated lazily — mirrors defonce atoms)
@@ -35,7 +35,11 @@ interface CachedIndexes {
   agendaByPoints: Record<number, Record<string, unknown>[]>;
   identityBySide: Record<string, Record<string, unknown>[]>;
   programByIcebreaker: Record<string, Record<string, unknown>[]>;
-  cardsByType: Record<string, Record<string, unknown>[] | { economy: Record<string, unknown>[]; regular: Record<string, unknown>[] }>;
+  cardsByType: Record<
+    string,
+    | Record<string, unknown>[]
+    | { economy: Record<string, unknown>[]; regular: Record<string, unknown>[] }
+  >;
 }
 
 let cachedIndexes: CachedIndexes | null = null;
@@ -86,8 +90,12 @@ function setCards(): void {
 
   // program-by-icebreaker
   const programByIcebreaker: Record<string, Record<string, unknown>[]> = {
-    icebreaker: allCards.filter((c) => program(c as any) && hasSubtype(c as any, "Icebreaker")),
-    regular: allCards.filter((c) => program(c as any) && !hasSubtype(c as any, "Icebreaker")),
+    icebreaker: allCards.filter(
+      (c) => program(c as any) && hasSubtype(c as any, "Icebreaker"),
+    ),
+    regular: allCards.filter(
+      (c) => program(c as any) && !hasSubtype(c as any, "Icebreaker"),
+    ),
   };
 
   // cards-by-type
@@ -166,7 +174,9 @@ const runnerCardTypes = new Set(["resource", "hardware", "program", "event"]);
  * Everything else is random.
  * Mirrors pick-replacement-card.
  */
-function pickReplacementCard(card: Record<string, unknown>): Record<string, unknown> {
+function pickReplacementCard(
+  card: Record<string, unknown>,
+): Record<string, unknown> {
   setCards();
   if (!cachedIndexes) throw new Error("Cached indexes not initialized");
 
@@ -193,8 +203,12 @@ function pickReplacementCard(card: Record<string, unknown>): Record<string, unkn
     const hasIcebreaker = !!hasSubtype(card as any, "Icebreaker");
     // 10% chance of cross-contamination for icebreakers
     const choice = shouldReplace("icebreakerCrossContam")
-      ? (hasIcebreaker ? "regular" : "icebreaker")
-      : (hasIcebreaker ? "icebreaker" : "regular");
+      ? hasIcebreaker
+        ? "regular"
+        : "icebreaker"
+      : hasIcebreaker
+        ? "icebreaker"
+        : "regular";
     const pool = cachedIndexes.programByIcebreaker[choice] ?? [];
     if (pool.length === 0) return card;
     return pool[Math.floor(Math.random() * pool.length)];
@@ -205,22 +219,32 @@ function pickReplacementCard(card: Record<string, unknown>): Record<string, unkn
     const cardIsEcon = isEcon(card);
     // 10% cross-contamination for econ
     const choice = shouldReplace("econCrossContam")
-      ? (cardIsEcon ? "regular" : "economy")
-      : (cardIsEcon ? "economy" : "regular");
+      ? cardIsEcon
+        ? "regular"
+        : "economy"
+      : cardIsEcon
+        ? "economy"
+        : "regular";
     const bucket = cachedIndexes.cardsByType[cType];
-    if (typeof bucket === "object" && !Array.isArray(bucket) && "economy" in bucket) {
+    if (
+      typeof bucket === "object" &&
+      !Array.isArray(bucket) &&
+      "economy" in bucket
+    ) {
       const pool = (bucket as any)[choice] ?? [];
       if (pool.length === 0) return card;
       return pool[Math.floor(Math.random() * pool.length)];
     }
     // fallback to regular array
-    const pool = (cachedIndexes.cardsByType[cType] as Record<string, unknown>[]) ?? [];
+    const pool =
+      (cachedIndexes.cardsByType[cType] as Record<string, unknown>[]) ?? [];
     if (pool.length === 0) return card;
     return pool[Math.floor(Math.random() * pool.length)];
   }
 
   // everything else: random from type pool
-  const pool = (cachedIndexes.cardsByType[cType] as Record<string, unknown>[]) ?? [];
+  const pool =
+    (cachedIndexes.cardsByType[cType] as Record<string, unknown>[]) ?? [];
   if (pool.length === 0) return card;
   return pool[Math.floor(Math.random() * pool.length)];
 }

@@ -1,8 +1,8 @@
 // Identity enable/disable.
 // Mirrors: src/clj/game/core/identities.clj
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
 import {
   isBasicAction,
   isIdentity,
@@ -15,15 +15,19 @@ import {
   inZone,
   getType,
   TYPE_COUNTER,
-} from "./card.js";
-import { getPlayer } from "./state.js";
-import type { Corp, Runner } from "./state.js";
-import { getCardDef } from "./types.js";
-import { registerStaticAbilities, unregisterStaticAbilities } from "./effects.js";
-import { makeEID } from "./eid.js";
-import { registerDefaultEvents, resolveAbility, unregisterEvents } from "./engine.js";
-import { cardInit, deactivate } from "./initializing.js";
-import { update } from "./update.js";
+} from "./card";
+import { getPlayer } from "./state";
+import type { Corp, Runner } from "./state";
+import { getCardDef } from "./types.ts";
+import { registerStaticAbilities, unregisterStaticAbilities } from "./effects";
+import { makeEID } from "./eid";
+import {
+  registerDefaultEvents,
+  resolveAbility,
+  unregisterEvents,
+} from "./engine";
+import { cardInit, deactivate } from "./initializing";
+import { update } from "./update";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -66,7 +70,10 @@ function active(card: Card): boolean {
 
 /** Actually disables the side's identity. */
 function actualDisableIdentity(state: GameState, side: string): void {
-  const id = updateIdentity(state, side, { ...getIdentity(state, side)!, disabled: true });
+  const id = updateIdentity(state, side, {
+    ...getIdentity(state, side)!,
+    disabled: true,
+  });
   unregisterEvents(state, side, id);
   unregisterStaticAbilities(state, side, id);
   const cdef = getCardDef(id);
@@ -83,7 +90,10 @@ export function disableIdentity(state: GameState, side: string): void {
   const identity = getIdentity(state, side);
   if (!identity) return;
   const disableCount = (identity.numDisables ?? 0) + 1;
-  const id = updateIdentity(state, side, { ...identity, numDisables: disableCount });
+  const id = updateIdentity(state, side, {
+    ...identity,
+    numDisables: disableCount,
+  });
   if (disableCount === 1) {
     actualDisableIdentity(state, side);
   }
@@ -104,7 +114,10 @@ export function disableCard(state: GameState, side: string, card: Card): void {
 
 /** Actually enables the side's identity. */
 function actualEnableIdentity(state: GameState, side: string): void {
-  const id = updateIdentity(state, side, { ...getIdentity(state, side)!, disabled: false });
+  const id = updateIdentity(state, side, {
+    ...getIdentity(state, side)!,
+    disabled: false,
+  });
   const cdef = getCardDef(id);
   if (cdef.effect) {
     cdef.effect(state, side, makeEID(state), id, []);
@@ -121,7 +134,10 @@ export function enableIdentity(state: GameState, side: string): void {
   const identity = getIdentity(state, side);
   if (!identity) return;
   const disableCount = (identity.numDisables ?? 1) - 1;
-  const id = updateIdentity(state, side, { ...identity, numDisables: disableCount });
+  const id = updateIdentity(state, side, {
+    ...identity,
+    numDisables: disableCount,
+  });
   if (disableCount === 0) {
     actualEnableIdentity(state, side);
   }
@@ -133,10 +149,15 @@ export function enableIdentity(state: GameState, side: string): void {
  */
 export function enableCard(state: GameState, side: string, card: Card): void {
   if (!card.disabled) return;
-  const c = update(state, side, (c) => {
-    const { disabled, ...rest } = c;
-    return rest;
-  }, card);
+  const c = update(
+    state,
+    side,
+    (c) => {
+      const { disabled, ...rest } = c;
+      return rest;
+    },
+    card,
+  );
   if (active(card)) {
     cardInit(state, side, c, { resolveEffect: false });
   }

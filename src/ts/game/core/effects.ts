@@ -2,16 +2,16 @@
 // Mirrors: src/clj/game/core/effects.clj + src/go/game/core/effects.go
 
 import { randomUUID } from "crypto";
-import type { GameState, Effect } from "./state.js";
-import type { Card } from "./card.js";
-import type { EID } from "./eid.js";
-import type { StaticAbility, ValueFn, ReqFn } from "./types.js";
-import { CORP_SIDE, RUNNER_SIDE } from "./state.js";
-import { isCorp, isRunner, isFacedown } from "./card.js";
-import { makeEID } from "./eid.js";
-import { getAllCards, getCard } from "./finding.js";
-import { getCardDef } from "./types.js";
-import { sameCard } from "../utils.js";
+import type { GameState, Effect } from "./state";
+import type { Card } from "./card";
+import type { EID } from "./eid";
+import type { StaticAbility, ValueFn, ReqFn } from "./types.ts";
+import { CORP_SIDE, RUNNER_SIDE } from "./state";
+import { isCorp, isRunner, isFacedown } from "./card";
+import { makeEID } from "./eid";
+import { getAllCards, getCard } from "./finding";
+import { getCardDef } from "./types.ts";
+import { sameCard } from "../utils";
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -107,7 +107,9 @@ export function getEffects(
   extraTargets: Card[],
 ): unknown[] {
   const eid = makeEID(state);
-  const targets: Card[] = target ? [target, ...extraTargets] : [...extraTargets];
+  const targets: Card[] = target
+    ? [target, ...extraTargets]
+    : [...extraTargets];
   const maps = getEffectMaps(state, side, effectType, eid, targets);
   return maps.map((e) => getEffectValue(state, side, eid, targets, e));
 }
@@ -153,14 +155,7 @@ export function isDisabled(
   side: string,
   target: Card,
 ): boolean {
-  return anyEffects(
-    state,
-    side,
-    "disable-card",
-    (v) => v === true,
-    target,
-    [],
-  );
+  return anyEffects(state, side, "disable-card", (v) => v === true, target, []);
 }
 
 /**

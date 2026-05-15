@@ -84,7 +84,7 @@ function parseEdn(str: string): EdnValue {
 		return result;
 	}
 
-	function parseAtom(): unknown {
+	function parseAtom(): EdnValue {
 		const start = pos;
 		while (pos < str.length && !/[\s,\}\]\(\)]/.test(str[pos])) pos++;
 		const s = str.slice(start, pos);

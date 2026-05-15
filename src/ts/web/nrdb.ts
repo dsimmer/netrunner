@@ -1,7 +1,7 @@
 // NRDB decklist download module. Mirrors: src/clj/web/nrdb.clj
 
 import { Db } from "mongodb";
-import type { CardData, DeckLine } from "../jinteki/validator.js";
+import type { CardData, DeckLine } from "../jinteki/validator";
 
 const NRDB_DECKLIST_URL = "https://netrunnerdb.com/api/2.0/public/";
 const NRDB_BASE_URL = "https://netrunnerdb.com/en/";
@@ -53,11 +53,13 @@ function parseInput(input: string): [Endpoint, string] {
  * Mirrors: (lookup-card db id)
  */
 async function lookupCard(db: Db, id: string): Promise<CardData | null> {
-  let card = await db.collection("cards").findOne({ code: id }) as CardData | null;
+  let card = (await db
+    .collection("cards")
+    .findOne({ code: id })) as CardData | null;
   if (!card) {
-    card = await db.collection("cards").findOne({
+    card = (await db.collection("cards").findOne({
       "previous-versions": { $elemMatch: { code: id } },
-    }) as CardData | null;
+    })) as CardData | null;
   }
   return card;
 }
@@ -104,7 +106,12 @@ function readableUrl(endpoint: Endpoint, id: string | number): string {
 function parseNrdbDeck(
   endpoint: Endpoint,
   deck: NrdbApiDeck,
-): { name: string; notes: string; identity: CardData | null; cards: DeckLine[] } | null {
+): {
+  name: string;
+  notes: string;
+  identity: CardData | null;
+  cards: DeckLine[];
+} | null {
   const readable = readableUrl(endpoint, deck.id);
   return {
     name: deck.name,
@@ -121,7 +128,12 @@ async function parseResponse(
   endpoint: Endpoint,
   db: Db,
   body: string,
-): Promise<{ name: string; notes: string; identity: CardData | null; cards: DeckLine[] } | null> {
+): Promise<{
+  name: string;
+  notes: string;
+  identity: CardData | null;
+  cards: DeckLine[];
+} | null> {
   let parsed: NrdbApiResponse;
   try {
     parsed = JSON.parse(body);
@@ -177,7 +189,9 @@ async function tryDownloadPublicDecklist(
   }
 
   if (!response.ok) {
-    console.log(`Failed to download deck ${deckId} using endpoint ${endpoint}, status: ${response.status}`);
+    console.log(
+      `Failed to download deck ${deckId} using endpoint ${endpoint}, status: ${response.status}`,
+    );
     if (endpoint === "unknown") {
       return tryDownloadPublicDecklist(db, deckId, "private");
     }

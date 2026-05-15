@@ -1,19 +1,19 @@
 // Value change helper.
 // Mirrors: src/clj/game/core/change-vals.clj
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import type { EID } from "./eid.js";
-import type { ReqFn, ValueFn } from "./types.js";
-import { RUNNER_SIDE, CORP_SIDE } from "./state.js";
-import { updateAllAgendaPoints } from "./agendas.js";
-import { registerLingeringEffect } from "./effects.js";
-import { gain, lose } from "./gaining.js";
-import { handSizeTotal, updateHandSize } from "./hand_size.js";
-import { getLink, updateLink } from "./link.js";
-import { availableMu, updateMu } from "./memory.js";
-import { systemMsg } from "./say.js";
-import { updateTagStatus } from "./tags.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import type { EID } from "./eid";
+import type { ReqFn, ValueFn } from "./types.ts";
+import { RUNNER_SIDE, CORP_SIDE } from "./state";
+import { updateAllAgendaPoints } from "./agendas";
+import { registerLingeringEffect } from "./effects";
+import { gain, lose } from "./gaining";
+import { handSizeTotal, updateHandSize } from "./hand_size";
+import { getLink, updateLink } from "./link";
+import { availableMu, updateMu } from "./memory";
+import { systemMsg } from "./say";
+import { updateTagStatus } from "./tags";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -30,9 +30,8 @@ function changeMsg(
   newVal: number,
   delta: number,
 ): void {
-  const displayKey = key === "brain-damage"
-    ? "core damage"
-    : key.replace(/-/g, " ");
+  const displayKey =
+    key === "brain-damage" ? "core damage" : key.replace(/-/g, " ");
   systemMsg(
     state,
     side,
@@ -72,9 +71,8 @@ function changeMap(
   // base-mod-size equivalent: read current value from state
   const sideObj: Record<string, unknown> =
     side === CORP_SIDE ? state.corp : state.runner;
-  const current = typeof sideObj[key] === "number"
-    ? sideObj[key] as number
-    : 0;
+  const current =
+    typeof sideObj[key] === "number" ? (sideObj[key] as number) : 0;
   changeMsg(state, side, key, current, delta);
 }
 
@@ -140,7 +138,11 @@ function changeBadPub(state: GameState, delta: number): void {
  * Change a player's agenda points using a lingering effect.
  * Mirrors: change-agenda-points in change-vals.clj
  */
-function changeAgendaPoints(state: GameState, side: string, delta: number): void {
+function changeAgendaPoints(
+  state: GameState,
+  side: string,
+  delta: number,
+): void {
   const userSide = side;
   const reqFn: ReqFn = (_s, targetSide) => targetSide === userSide;
   const valueFn: ValueFn = () => delta;
@@ -220,7 +222,7 @@ function changeGeneric(
   delta: number,
 ): void {
   const sideObj: Record<string, number> =
-    side === CORP_SIDE ? state.corp as any : state.runner as any;
+    side === CORP_SIDE ? (state.corp as any) : (state.runner as any);
 
   if (delta < 0) {
     lose(state, side, toResourceKey(key), Math.abs(delta));

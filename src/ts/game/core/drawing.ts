@@ -1,29 +1,38 @@
 // Card drawing mechanics.
 // Mirrors: src/clj/game/core/drawing.clj
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import type { EID } from "./eid.js";
-import type { Ability } from "./types.js";
-import { getPlayer } from "./state.js";
-import { getTitle } from "./card.js";
-import { cardDef } from "./card_defs.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import type { EID } from "./eid";
+import type { Ability } from "./types.ts";
+import { getPlayer } from "./state";
+import { getTitle } from "./card";
+import { cardDef } from "./card_defs";
 import {
-  effectCompleted, makeEID, makeEIDFrom, makeResult, registerEIDCallback,
-} from "./eid.js";
+  effectCompleted,
+  makeEID,
+  makeEIDFrom,
+  makeResult,
+  registerEIDCallback,
+} from "./eid";
 import {
-  checkpoint, queueEvent, registerPendingEvent, resolveAbility,
-  triggerEvent, triggerEventSimult, triggerEventSync,
-} from "./engine.js";
-import { firstEvent } from "./events.js";
-import { preventDraw } from "./flags.js";
-import { move } from "./moving.js";
-import { systemMsg } from "./say.js";
-import { setAsideForMe, getSetAside } from "./set_aside.js";
-import { winDecked } from "./winning.js";
-import { continue_ability, msg, req } from "../macros.js";
-import { quantify, safeZero } from "../utils.js";
-import { otherSide } from "../../jinteki/utils.js";
+  checkpoint,
+  queueEvent,
+  registerPendingEvent,
+  resolveAbility,
+  triggerEvent,
+  triggerEventSimult,
+  triggerEventSync,
+} from "./engine";
+import { firstEvent } from "./events";
+import { preventDraw } from "./flags";
+import { move } from "./moving";
+import { systemMsg } from "./say";
+import { setAsideForMe, getSetAside } from "./set_aside";
+import { winDecked } from "./winning";
+import { continue_ability, msg, req } from "../macros";
+import { quantify, safeZero } from "../utils";
+import { otherSide } from "../../jinteki/utils";
 
 interface DrawOpts {
   suppressEvent?: boolean;
@@ -59,7 +68,7 @@ function getRegister(state: GameState, side: string): Record<string, any> {
 }
 
 function getBonus(state: GameState): Record<string, any> {
-  const b = ((state.bonus ?? {}) as Record<string, any>);
+  const b = (state.bonus ?? {}) as Record<string, any>;
   state.bonus = b;
   return b;
 }
@@ -74,7 +83,10 @@ export function maxDraw(state: GameState, side: string, n: number): void {
 }
 
 /** Calculate remaining number of cards that can be drawn this turn if a max exists. */
-export function remainingDraws(state: GameState, side: string): number | undefined {
+export function remainingDraws(
+  state: GameState,
+  side: string,
+): number | undefined {
   const reg = getRegister(state, side);
   const max = reg["max-draw"] as number | undefined;
   if (max == null) return undefined;
@@ -89,7 +101,11 @@ export function drawBonus(state: GameState, _side: string, n: number): void {
 }
 
 /** Registers a bonus of n draws to the next click-draw (Laguna Velasco District). */
-export function clickDrawBonus(state: GameState, _side: string, n: number): void {
+export function clickDrawBonus(
+  state: GameState,
+  _side: string,
+  n: number,
+): void {
   const b = getBonus(state);
   b["click-draw"] = ((b["click-draw"] as number | undefined) ?? 0) + n;
 }
@@ -135,10 +151,10 @@ export function draw(
   const preEvent = side === "corp" ? "pre-corp-draw" : "pre-runner-draw";
 
   waitFor(
-    state, eid,
-    (inner) => triggerEventSimult(
-      state, side, inner, preEvent, {}, { count: n },
-    ),
+    state,
+    eid,
+    (inner) =>
+      triggerEventSimult(state, side, inner, preEvent, {}, { count: n }),
     () => {
       const bonusDraw = ((state.bonus as any)?.draw as number | undefined) ?? 0;
       const totalN = n + bonusDraw;
@@ -146,9 +162,10 @@ export function draw(
       const activePlayer = state.activePlayer;
       const reg = getRegister(state, side);
       const activeReg = getRegister(state, activePlayer);
-      const drawsAfterPrevent = (side === activePlayer && activeReg["max-draw"] != null)
-        ? Math.min(totalN, remainingDraws(state, side) ?? 0)
-        : totalN;
+      const drawsAfterPrevent =
+        side === activePlayer && activeReg["max-draw"] != null
+          ? Math.min(totalN, remainingDraws(state, side) ?? 0)
+          : totalN;
       const player = getPlayer(state, side) as any;
       const deckCount = (player.deck as Card[]).length;
 
@@ -166,7 +183,8 @@ export function draw(
       if (drawsAfterPrevent < drawsWanted) {
         const prevented = drawsWanted - drawsAfterPrevent;
         systemMsg(
-          state, otherSide(side) ?? "",
+          state,
+          otherSide(side) ?? "",
           `prevents ${quantify(prevented, "card")} from being drawn`,
         );
       }
@@ -182,7 +200,8 @@ export function draw(
       const drawn = setAsideForMe(state, side, setAsideEid, toDraw);
       const drawnCount = drawn.length;
 
-      reg["drawn-this-turn"] = ((reg["drawn-this-turn"] as number | undefined) ?? 0) + drawnCount;
+      reg["drawn-this-turn"] =
+        ((reg["drawn-this-turn"] as number | undefined) ?? 0) + drawnCount;
 
       if (!opts.noUpdateDrawStats) {
         const stats = state.stats as any;
@@ -207,29 +226,39 @@ export function draw(
       }
 
       const drawEvent = side === "corp" ? "corp-draw" : "runner-draw";
-      if (!Array.isArray(reg["currently-drawing"])) reg["currently-drawing"] = [];
+      if (!Array.isArray(reg["currently-drawing"]))
+        reg["currently-drawing"] = [];
       (reg["currently-drawing"] as Card[][]).push(drawn);
 
       for (const c of drawn) {
         const onDraw = (cardDef(c) as any)?.["on-draw"];
         if (onDraw) {
-          registerPendingEvent(state, drawEvent, c, { ...onDraw, location: "set-aside" });
+          registerPendingEvent(state, drawEvent, c, {
+            ...onDraw,
+            location: "set-aside",
+          });
         }
       }
 
       queueEvent(state, drawEvent, { cards: drawn, count: drawnCount });
 
       waitFor(
-        state, eid,
+        state,
+        eid,
         (inner) => checkpoint(state, null, inner, null),
         () => {
           for (const c of getSetAside(state, side, setAsideEid)) {
             move(state, side, c, "hand");
           }
-          const postEvent = side === "corp" ? "post-corp-draw" : "post-runner-draw";
+          const postEvent =
+            side === "corp" ? "post-corp-draw" : "post-runner-draw";
           waitFor(
-            state, eid,
-            (inner) => triggerEventSync(state, side, inner, postEvent, { count: drawnCount }),
+            state,
+            eid,
+            (inner) =>
+              triggerEventSync(state, side, inner, postEvent, {
+                count: drawnCount,
+              }),
             () => {
               const arr = reg["currently-drawing"] as Card[][];
               const top = arr[arr.length - 1];
@@ -263,7 +292,8 @@ export function maybeDraw(
     return;
   }
   continue_ability(
-    state, side,
+    state,
+    side,
     {
       optional: {
         prompt: `Draw ${quantify(n, "card")}?`,
@@ -274,12 +304,17 @@ export function maybeDraw(
         },
         "no-ability": {
           effect: req((s: GameState) =>
-            systemMsg(s, side, `declines to use ${getTitle(card)} to draw cards`),
+            systemMsg(
+              s,
+              side,
+              `declines to use ${getTitle(card)} to draw cards`,
+            ),
           ),
         },
       },
     } as unknown as Ability,
-    card as unknown as Card, [],
+    card as unknown as Card,
+    [],
   );
 }
 
@@ -298,7 +333,8 @@ export function drawUpTo(
   }
   const allowZero = args.allowZeroDraws;
   continue_ability(
-    state, side,
+    state,
+    side,
     {
       prompt: `Draw how many cards?${allowZero ? "" : " (minimum 1)"}`,
       choices: {
@@ -308,19 +344,34 @@ export function drawUpTo(
       },
       "waiting-prompt": true,
       async: true,
-      msg: msg((_s: GameState, _sd: string, _e: EID, _c: Card | null, targets: any[]) =>
-        `draw ${quantify((targets?.[0] as number) ?? 0, "card")}`,
+      msg: msg(
+        (
+          _s: GameState,
+          _sd: string,
+          _e: EID,
+          _c: Card | null,
+          targets: any[],
+        ) => `draw ${quantify((targets?.[0] as number) ?? 0, "card")}`,
       ),
-      effect: req((s: GameState, _sd: string, _e: EID, _c: Card | null, targets: any[]) => {
-        const target = targets?.[0] as number | undefined;
-        if (!target && !allowZero) {
-          drawUpTo(s, side, makeEID(s), card, n, args);
-        } else {
-          draw(s, side, eid, target ?? 0, args);
-        }
-      }),
+      effect: req(
+        (
+          s: GameState,
+          _sd: string,
+          _e: EID,
+          _c: Card | null,
+          targets: any[],
+        ) => {
+          const target = targets?.[0] as number | undefined;
+          if (!target && !allowZero) {
+            drawUpTo(s, side, makeEID(s), card, n, args);
+          } else {
+            draw(s, side, eid, target ?? 0, args);
+          }
+        },
+      ),
     } as unknown as Ability,
-    card as unknown as Card, [],
+    card as unknown as Card,
+    [],
   );
 }
 

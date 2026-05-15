@@ -1,12 +1,12 @@
 // Subtype computation and update helpers.
 // Mirrors: src/clj/game/core/subtypes.clj
 
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import { getEffects } from "./effects.js";
-import { updateCard } from "./update.js";
-import { getCard, getAllCards } from "./finding.js";
-import { serverCard, toKeyword } from "../utils.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import { getEffects } from "./effects";
+import { updateCard } from "./update";
+import { getCard, getAllCards } from "./finding";
+import { serverCard, toKeyword } from "../utils";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -38,7 +38,8 @@ function flatten<T>(arr: unknown[]): T[] {
 export function subtypesForCard(state: GameState, card: Card): string[] | null {
   if (!card.title) return null;
 
-  const printedSubtypes: string[] = (serverCard(card.title)?.subtypes as string[]) ?? [];
+  const printedSubtypes: string[] =
+    (serverCard(card.title)?.subtypes as string[]) ?? [];
   const rawGained = getEffects(state, null as any, "gain-subtype", card, []);
   const rawLost = getEffects(state, null as any, "lose-subtype", card, []);
 
@@ -81,7 +82,11 @@ export function subtypesForCard(state: GameState, card: Card): string[] | null {
  *
  * Mirrors: game.core.subtypes/update-subtypes-for-card
  */
-export function updateSubtypesForCard(state: GameState, _side: unknown, card: Card): boolean {
+export function updateSubtypesForCard(
+  state: GameState,
+  _side: unknown,
+  card: Card,
+): boolean {
   const current = getCard(state, card);
   if (!current) return false;
 

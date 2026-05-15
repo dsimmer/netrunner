@@ -1,15 +1,17 @@
-import type { GameState } from "./state.js";
-import type { Card } from "./card.js";
-import { allActiveInstalled, getAllInstalled, allInstalled } from "./board.js";
-import { virusProgram, getCounters } from "./card.js";
-import { RUNNER_SIDE } from "./state.js";
+import type { GameState } from "./state";
+import type { Card } from "./card";
+import { allActiveInstalled, getAllInstalled, allInstalled } from "./board";
+import { virusProgram, getCounters } from "./card";
+import { RUNNER_SIDE } from "./state";
 
 /**
  * Calculate the number of virus counters on the given card, taking Hivemind into account.
  */
 export function getVirusCounters(state: GameState, card: Card): number {
   const hiveminds = virusProgram(card)
-    ? allActiveInstalled(state, RUNNER_SIDE).filter((c) => c.title === "Hivemind")
+    ? allActiveInstalled(state, RUNNER_SIDE).filter(
+        (c) => c.title === "Hivemind",
+      )
     : [];
   const cards = [card, ...hiveminds];
   return cards.reduce((sum, c) => sum + getCounters(c, "virus"), 0);
@@ -28,7 +30,7 @@ export function countVirusPrograms(state: GameState): number {
 export function numberOfVirusCounters(state: GameState): number {
   return getAllInstalled(state).reduce(
     (sum, c) => sum + getCounters(c, "virus"),
-    0
+    0,
   );
 }
 
@@ -38,6 +40,6 @@ export function numberOfVirusCounters(state: GameState): number {
 export function numberOfRunnerVirusCounters(state: GameState): number {
   return allInstalled(state, RUNNER_SIDE).reduce(
     (sum, c) => sum + getCounters(c, "virus"),
-    0
+    0,
   );
 }

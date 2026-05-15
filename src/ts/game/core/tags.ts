@@ -1,17 +1,17 @@
 // Tag management: summing effects, updating tag status, gaining/losing tags.
 // Mirrors: src/clj/game/core/tags.clj
 
-import type { GameState } from "./state.js";
-import type { EID } from "./eid.js";
-import { RUNNER_SIDE } from "./state.js";
-import { anyEffects, sumEffects } from "./effects.js";
-import { effectCompleted } from "./eid.js";
-import { triggerEvent, queueEvent, checkpoint } from "./engine.js";
-import { gain, deduct } from "./gaining.js";
-import { resolveTagPrevention } from "./prevention.js";
-import { toast } from "./toasts.js";
-import { quantify } from "../utils.js";
-import { req } from "../macros.js";
+import type { GameState } from "./state";
+import type { EID } from "./eid";
+import { RUNNER_SIDE } from "./state";
+import { anyEffects, sumEffects } from "./effects";
+import { effectCompleted } from "./eid";
+import { triggerEvent, queueEvent, checkpoint } from "./engine";
+import { gain, deduct } from "./gaining";
+import { resolveTagPrevention } from "./prevention";
+import { toast } from "./toasts";
+import { quantify } from "../utils";
+import { req } from "../macros";
 
 // ---------------------------------------------------------------------------
 // Tag effect summation
@@ -22,9 +22,11 @@ import { req } from "../macros.js";
  * Mirrors: sum-tag-effects in tags.clj
  */
 export function sumTagEffects(state: GameState): number {
-  return (state.runner.tag.base ?? 0)
-    + sumEffects(state, RUNNER_SIDE, "user-tags", null, [])
-    + sumEffects(state, RUNNER_SIDE, "tags", null, []);
+  return (
+    (state.runner.tag.base ?? 0) +
+    sumEffects(state, RUNNER_SIDE, "user-tags", null, []) +
+    sumEffects(state, RUNNER_SIDE, "tags", null, [])
+  );
 }
 
 /**
@@ -34,13 +36,18 @@ export function sumTagEffects(state: GameState): number {
 export function updateTagStatus(state: GameState): boolean {
   const oldTotal = state.runner.tag.total ?? 0;
   const newTotal = sumTagEffects(state);
-  const isTagged = anyEffects(state, RUNNER_SIDE, "is-tagged", () => true, null, [])
-    || newTotal > 0;
+  const isTagged =
+    anyEffects(state, RUNNER_SIDE, "is-tagged", () => true, null, []) ||
+    newTotal > 0;
 
-  const oldTags = { total: oldTotal, isTagged: state.runner.tag.isTagged ?? false };
+  const oldTags = {
+    total: oldTotal,
+    isTagged: state.runner.tag.isTagged ?? false,
+  };
   const newTags = { total: newTotal, isTagged };
 
-  const changed = oldTags.total !== newTags.total || oldTags.isTagged !== newTags.isTagged;
+  const changed =
+    oldTags.total !== newTags.total || oldTags.isTagged !== newTags.isTagged;
 
   if (changed) {
     state.runner.tag.total = newTotal;
@@ -119,9 +126,16 @@ export function gainTags(
 
   // Use wait_for pattern to chain prevention → resolve
   // Mirrors: (wait-for (resolve-tag-prevention ...) (resolve-tag ... async-result))
-  resolveTagPrevention(state, side, eid, n, { unpreventable, card }, (remaining) => {
-    resolveTag(state, side, eid, card ?? null, remaining, suppressCheckpoint);
-  });
+  resolveTagPrevention(
+    state,
+    side,
+    eid,
+    n,
+    { unpreventable, card },
+    (remaining) => {
+      resolveTag(state, side, eid, card ?? null, remaining, suppressCheckpoint);
+    },
+  );
 }
 
 /**
@@ -131,12 +145,18 @@ export function gainTags(
 export function gainTagsAbility(n: number): {
   msg: string;
   async: boolean;
-  effect: (state: GameState, side: string, eid: EID, card: unknown, targets: unknown[]) => void;
+  effect: (
+    state: GameState,
+    side: string,
+    eid: EID,
+    card: unknown,
+    targets: unknown[],
+  ) => void;
 } {
   return {
     msg: `take ${quantify(n, "tag")}`,
     async: true,
-    effect: req(function(this: unknown, s: GameState, sid: string, e: EID) {
+    effect: req(function (this: unknown, s: GameState, sid: string, e: EID) {
       gainTags(s, sid, e, n);
     }),
   };

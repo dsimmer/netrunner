@@ -1,18 +1,14 @@
 // Memory unit (MU) tracking and effect helpers.
 // Mirrors: src/clj/game/core/memory.clj
 
-import type { GameState, Effect, MemoryBucket } from "./state.js";
-import type { Card } from "./card.js";
-import type { ReqFn, StaticAbility, ValueFn } from "./types.js";
-import { hasSubtype, isProgram } from "./card.js";
-import { cardDef } from "./card_defs.js";
-import { makeEID } from "./eid.js";
-import {
-  getEffectMaps,
-  getEffects,
-  registerLingeringEffect,
-} from "./effects.js";
-import { toast } from "./toasts.js";
+import type { GameState, Effect, MemoryBucket } from "./state";
+import type { Card } from "./card";
+import type { ReqFn, StaticAbility, ValueFn } from "./types.ts";
+import { hasSubtype, isProgram } from "./card";
+import { cardDef } from "./card_defs";
+import { makeEID } from "./eid";
+import { getEffectMaps, getEffects, registerLingeringEffect } from "./effects";
+import { toast } from "./toasts";
 
 // ---------------------------------------------------------------------------
 // MU types
@@ -25,7 +21,13 @@ export type MuPair = [string, number];
 export type MuValue =
   | MuPair
   | number
-  | ((state: GameState, side: string, eid: ReturnType<typeof makeEID>, card: Card | null, targets: Card[]) => MuPair);
+  | ((
+      state: GameState,
+      side: string,
+      eid: ReturnType<typeof makeEID>,
+      card: Card | null,
+      targets: Card[],
+    ) => MuPair);
 
 const REGULAR: string = "regular";
 const CAISSA: string = "caissa";
@@ -54,7 +56,10 @@ function isMuPair(v: unknown): v is MuPair {
  */
 export function muPlus(value: MuValue): StaticAbility;
 export function muPlus(req: ReqFn, value: MuValue): StaticAbility;
-export function muPlus(reqOrValue: ReqFn | MuValue, maybeValue?: MuValue): StaticAbility {
+export function muPlus(
+  reqOrValue: ReqFn | MuValue,
+  maybeValue?: MuValue,
+): StaticAbility {
   let req: ReqFn;
   let value: MuValue;
   if (maybeValue === undefined) {
@@ -75,7 +80,9 @@ export function muPlus(reqOrValue: ReqFn | MuValue, maybeValue?: MuValue): Stati
     const n = value;
     resolved = () => [REGULAR, n] as MuPair;
   } else {
-    throw new Error(`muPlus needs a tuple, number, or function: ${JSON.stringify(value)}`);
+    throw new Error(
+      `muPlus needs a tuple, number, or function: ${JSON.stringify(value)}`,
+    );
   }
 
   return {
@@ -91,7 +98,10 @@ export function muPlus(reqOrValue: ReqFn | MuValue, maybeValue?: MuValue): Stati
  */
 export function virusMuPlus(amount: number): StaticAbility;
 export function virusMuPlus(req: ReqFn, amount: number): StaticAbility;
-export function virusMuPlus(reqOrAmount: ReqFn | number, maybeAmount?: number): StaticAbility {
+export function virusMuPlus(
+  reqOrAmount: ReqFn | number,
+  maybeAmount?: number,
+): StaticAbility {
   if (maybeAmount === undefined) {
     return muPlus([VIRUS, reqOrAmount as number]);
   }
@@ -104,7 +114,10 @@ export function virusMuPlus(reqOrAmount: ReqFn | number, maybeAmount?: number): 
  */
 export function caissaMuPlus(amount: number): StaticAbility;
 export function caissaMuPlus(req: ReqFn, amount: number): StaticAbility;
-export function caissaMuPlus(reqOrAmount: ReqFn | number, maybeAmount?: number): StaticAbility {
+export function caissaMuPlus(
+  reqOrAmount: ReqFn | number,
+  maybeAmount?: number,
+): StaticAbility {
   if (maybeAmount === undefined) {
     return muPlus([CAISSA, reqOrAmount as number]);
   }
@@ -178,7 +191,10 @@ function mergeAvailableMemory(muList: MuPair[]): Record<string, number> {
  * its card matches, falling back to :regular.
  * Mirrors: merge-used-memory (private) in memory.clj
  */
-function mergeUsedMemory(state: GameState, usedMuEffects: Effect[]): Record<string, number> {
+function mergeUsedMemory(
+  state: GameState,
+  usedMuEffects: Effect[],
+): Record<string, number> {
   const acc = zeroedTypeMap();
   const eid = makeEID(state);
   const targets: Card[] = [];
@@ -186,13 +202,15 @@ function mergeUsedMemory(state: GameState, usedMuEffects: Effect[]): Record<stri
     let attributed = false;
     for (const [muType, pred] of Object.entries(typePreds)) {
       if (pred(eff.card)) {
-        acc[muType] = (acc[muType] ?? 0) + readEffectValue(state, eid, targets, eff);
+        acc[muType] =
+          (acc[muType] ?? 0) + readEffectValue(state, eid, targets, eff);
         attributed = true;
         break;
       }
     }
     if (!attributed) {
-      acc[REGULAR] = (acc[REGULAR] ?? 0) + readEffectValue(state, eid, targets, eff);
+      acc[REGULAR] =
+        (acc[REGULAR] ?? 0) + readEffectValue(state, eid, targets, eff);
     }
   }
   return acc;
@@ -340,7 +358,10 @@ export const expectedMU = expectedMu;
  * Returns undefined for non-program cards (mirrors Clojure's nil).
  * Mirrors: sufficient-mu? in memory.clj
  */
-export function sufficientMu(state: GameState, card: Card): boolean | undefined {
+export function sufficientMu(
+  state: GameState,
+  card: Card,
+): boolean | undefined {
   if (!isProgram(card)) return undefined;
   const muCost = expectedMu(state, card);
   const muList = getAvailableMu(state);

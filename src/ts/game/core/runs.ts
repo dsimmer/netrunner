@@ -1,8 +1,8 @@
 // Run mechanics.
 // Mirrors: src/clj/game/core/runs.clj
 
-import type { GameState } from "./state.js";
-import type { EID } from "./eid.js";
+import type { GameState } from "./state";
+import type { EID } from "./eid";
 
 // ---------------------------------------------------------------------------
 // check-for-empty-server
@@ -18,7 +18,11 @@ export function checkForEmptyServer(state: GameState): boolean {
 // handle-end-run
 // Mirrors: handle-end-run in runs.clj
 // ---------------------------------------------------------------------------
-export function handleEndRun(state: GameState, side: string, eid: EID | null): void {
+export function handleEndRun(
+  state: GameState,
+  side: string,
+  eid: EID | null,
+): void {
   // Stub: full implementation pending run machinery port
 }
 
@@ -26,7 +30,11 @@ export function handleEndRun(state: GameState, side: string, eid: EID | null): v
 // start-next-phase
 // Mirrors: start-next-phase in runs.clj (defmulti)
 // ---------------------------------------------------------------------------
-export function startNextPhase(state: GameState, side: string, eid: EID | null): void {
+export function startNextPhase(
+  state: GameState,
+  side: string,
+  eid: EID | null,
+): void {
   // Stub: full implementation pending run machinery port
 }
 
@@ -35,7 +43,11 @@ export function startNextPhase(state: GameState, side: string, eid: EID | null):
 // Press continue for the current run phase.
 // Mirrors: continue in runs.clj (defmulti)
 // ---------------------------------------------------------------------------
-export function runContinue(state: GameState, side: string, eid: EID | null): void {
+export function runContinue(
+  state: GameState,
+  side: string,
+  eid: EID | null,
+): void {
   // Stub: full implementation pending run machinery port
 }
 
@@ -43,7 +55,11 @@ export function runContinue(state: GameState, side: string, eid: EID | null): vo
 // toggle-auto-no-action
 // Mirrors: toggle-auto-no-action in runs.clj
 // ---------------------------------------------------------------------------
-export function toggleAutoNoAction(state: GameState, side: string, eid: EID | null): void {
+export function toggleAutoNoAction(
+  state: GameState,
+  side: string,
+  eid: EID | null,
+): void {
   // Stub: full implementation pending run machinery port
 }
 
@@ -51,7 +67,12 @@ export function toggleAutoNoAction(state: GameState, side: string, eid: EID | nu
 // end-run
 // Mirrors: end-run in runs.clj (defmulti)
 // ---------------------------------------------------------------------------
-export function endRun(state: GameState, side: string, eid: EID, opts: unknown): void {
+export function endRun(
+  state: GameState,
+  side: string,
+  eid: EID,
+  opts: unknown,
+): void {
   // Stub: full implementation pending run machinery port
 }
 
@@ -59,7 +80,9 @@ export function endRun(state: GameState, side: string, eid: EID, opts: unknown):
 // get-current-encounter
 // Mirrors: get-current-encounter in runs.clj
 // ---------------------------------------------------------------------------
-export function getCurrentEncounter(state: GameState): unknown { return null; }
+export function getCurrentEncounter(state: GameState): unknown {
+  return null;
+}
 
 // ---------------------------------------------------------------------------
 // jack-out

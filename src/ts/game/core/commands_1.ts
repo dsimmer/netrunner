@@ -2,60 +2,77 @@
 // Mirrors: src/clj/game/core/commands.clj
 
 import { randomUUID } from "crypto";
-import type { GameState, Prompt } from "./state.js";
-import { CORP_SIDE, RUNNER_SIDE } from "./state.js";
-import type { Card, Zone } from "./card.js";
+import type { GameState, Prompt } from "./state";
+import { CORP_SIDE, RUNNER_SIDE } from "./state";
+import type { Card, Zone } from "./card";
 import {
-  isCorp, isRunner, isAgenda, isICE, isRezzed, inHand, isInstalled,
-  hasSubtype, getTitle,
-} from "./card.js";
-import type { EID } from "./eid.js";
-import { makeEID, effectCompleted } from "./eid.js";
-import type { Ability, AbilityFn, ReqFn, ValueFn } from "./types.js";
-import { resolveAbility, triggerEvent } from "./engine.js";
-import { allInstalled, serverToZone } from "./board.js";
-import { getCard } from "./finding.js";
-import { systemMsg, systemSay } from "./say.js";
-import { toast } from "./toasts.js";
-import { update } from "./update.js";
-import { registerLingeringEffect } from "./effects.js";
-import { chargeCard } from "./charge.js";
-import { damage } from "./damage.js";
-import { draw } from "./drawing.js";
-import { runnerInstall, corpInstall } from "./installing.js";
-import { rez, derez } from "./rezzing.js";
-import { move, trash, swapICE, swapInstalled } from "./moving.js";
-import { endRun, getCurrentEncounter, jackOut } from "./runs.js";
-import { score } from "./actions.js";
-import { host } from "./hosting.js";
-import { disableIdentity, disableCard, enableCard } from "./identities.js";
-import { cardInit, deactivate, makeCard } from "./initializing.js";
-import { setProp } from "./props.js";
-import { isScored } from "./flags.js";
-import { canBeAdvanced } from "./card.js";
-import { psiGame } from "./psi.js";
-import { initTrace } from "./trace.js";
-import { sabotageAbility } from "./sabotage.js";
-import { identifyMark, setMark } from "./mark.js";
-import { isCentral, unknownToKW } from "./servers.js";
-import { buildCard } from "./set_up.js";
-import { clearWin } from "./winning.js";
-import { removeFromPromptQueue } from "./prompt_state.js";
-import { showPrompt } from "./prompts.js";
-import { change } from "./change_vals.js";
+  isCorp,
+  isRunner,
+  isAgenda,
+  isICE,
+  isRezzed,
+  inHand,
+  isInstalled,
+  hasSubtype,
+  getTitle,
+} from "./card";
+import type { EID } from "./eid";
+import { makeEID, effectCompleted } from "./eid";
+import type { Ability, AbilityFn, ReqFn, ValueFn } from "./types.ts";
+import { resolveAbility, triggerEvent } from "./engine";
+import { allInstalled, serverToZone } from "./board";
+import { getCard } from "./finding";
+import { systemMsg, systemSay } from "./say";
+import { toast } from "./toasts";
+import { update } from "./update";
+import { registerLingeringEffect } from "./effects";
+import { chargeCard } from "./charge";
+import { damage } from "./damage";
+import { draw } from "./drawing";
+import { runnerInstall, corpInstall } from "./installing";
+import { rez, derez } from "./rezzing";
+import { move, trash, swapICE, swapInstalled } from "./moving";
+import { endRun, getCurrentEncounter, jackOut } from "./runs";
+import { score } from "./actions";
+import { host } from "./hosting";
+import { disableIdentity, disableCard, enableCard } from "./identities";
+import { cardInit, deactivate, makeCard } from "./initializing";
+import { setProp } from "./props";
+import { isScored } from "./flags";
+import { canBeAdvanced } from "./card";
+import { psiGame } from "./psi";
+import { initTrace } from "./trace";
+import { sabotageAbility } from "./sabotage";
+import { identifyMark, setMark } from "./mark";
+import { isCentral, unknownToKW } from "./servers";
+import { buildCard } from "./set_up";
+import { clearWin } from "./winning";
+import { removeFromPromptQueue } from "./prompt_state";
+import { showPrompt } from "./prompts";
+import { change } from "./change_vals";
 import {
-  sameSide, sameCard, quantify, enumerateStr, serverCard, stringToNum, safeSplit,
-} from "../utils.js";
-import { otherSide, strToInt } from "../../jinteki/utils.js";
-import { req, effect, msg, wait_for, continue_ability } from "../macros.js";
-import { cardStr } from "./to_string.js";
+  sameSide,
+  sameCard,
+  quantify,
+  enumerateStr,
+  serverCard,
+  stringToNum,
+  safeSplit,
+} from "../utils";
+import { otherSide, strToInt } from "../../jinteki/utils";
+import { req, effect, msg, wait_for, continue_ability } from "../macros";
+import { cardStr } from "./to_string";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 /** Constrain value to [minValue, maxValue]. Mirrors `constrain-value`. */
-export function constrainValue(value: number, min: number, max: number): number {
+export function constrainValue(
+  value: number,
+  min: number,
+  max: number,
+): number {
   return Math.min(max, Math.max(min, value));
 }
 
@@ -63,9 +80,18 @@ export function constrainValue(value: number, min: number, max: number): number 
  * Sets advancement counters on a card and triggers the advancement-placed event.
  * Mirrors `set-adv-counter`.
  */
-function setAdvCounter(state: GameState, side: string, target: Card, value: number): void {
+function setAdvCounter(
+  state: GameState,
+  side: string,
+  target: Card,
+  value: number,
+): void {
   setProp(state, side, target, "advance-counter", value);
-  systemMsg(state, side, `sets advancement counters to ${value} on ${cardStr(state, target)}`);
+  systemMsg(
+    state,
+    side,
+    `sets advancement counters to ${value} on ${cardStr(state, target)}`,
+  );
   triggerEvent(state, side, "advancement-placed", { card: target });
 }
 
@@ -98,15 +124,26 @@ export function lobbyCommand(cmd: Record<string, unknown>): void {
  * `/adv-counter <value>` — Set advancement counters on a card.
  * Mirrors `command-adv-counter`.
  */
-export function commandAdvCounter(state: GameState, side: string, value: number): void {
+export function commandAdvCounter(
+  state: GameState,
+  side: string,
+  value: number,
+): void {
   const clamped = constrainValue(value, 0, 1000);
   resolveAbility(
-    state, side,
+    state,
+    side,
     {
       effect: effect(
-        (state: GameState, _side: string, _eid: EID, target: Card, _targets: unknown[]): void => {
+        (
+          state: GameState,
+          _side: string,
+          _eid: EID,
+          target: Card,
+          _targets: unknown[],
+        ): void => {
           setAdvCounter(state, _side, target, clamped);
-        }
+        },
       ),
       choices: { card: (t: Card) => sameSide(t.side, side) },
     },
@@ -138,20 +175,35 @@ export function commandBugReport(state: GameState, side: string): void {
   const url = `https://github.com/mtgred/netrunner/issues/new?title=${encodedTitle}&body=${encodedBody}`;
 
   // Log the bug report message
-  systemMsg(state, side, `[!bug] Thanks for helping us make the game better! The replay was saved. Please report a bug following this link to GitHub: ${url}`);
+  systemMsg(
+    state,
+    side,
+    `[!bug] Thanks for helping us make the game better! The replay was saved. Please report a bug following this link to GitHub: ${url}`,
+  );
 }
 
 /**
  * Smart counter: infer counter type from card properties.
  * Mirrors `command-counter-smart`.
  */
-function commandCounterSmart(state: GameState, side: string, args: string[]): void {
+function commandCounterSmart(
+  state: GameState,
+  side: string,
+  args: string[],
+): void {
   resolveAbility(
-    state, side,
+    state,
+    side,
     {
       choices: { card: (t: Card) => sameSide(t.side, side) },
       effect: req(
-        (s: GameState, sid: string, _eid: EID, target: Card, _targets: unknown[]): void => {
+        (
+          s: GameState,
+          sid: string,
+          _eid: EID,
+          target: Card,
+          _targets: unknown[],
+        ): void => {
           const existing = (target.counter as Record<string, number>) ?? {};
           const firstArg = args[0];
           const n = stringToNum(firstArg);
@@ -176,20 +228,36 @@ function commandCounterSmart(state: GameState, side: string, args: string[]): vo
             if (advance) {
               setAdvCounter(s, sid, target, value);
             } else if (!counterType) {
-              toast(s, sid,
+              toast(
+                s,
+                sid,
                 "Could not infer what counter type you mean. Please specify one manually, by typing " +
-                "'/counter TYPE " + value + "', where TYPE is advance, agenda, credit, power, bad publicity, or virus.",
-                "error", { timeOut: 0, closeButton: true });
+                  "'/counter TYPE " +
+                  value +
+                  "', where TYPE is advance, agenda, credit, power, bad publicity, or virus.",
+                "error",
+                { timeOut: 0, closeButton: true },
+              );
             } else {
-              update(s, sid, (card: Card) => {
-                if (!card.counter) card.counter = {};
-                (card.counter as Record<string, number>)[counterType!] = value;
-                return card;
-              }, target);
-              systemMsg(s, sid, `sets ${counterType} counters to ${value} on ${cardStr(s, target)}`);
+              update(
+                s,
+                sid,
+                (card: Card) => {
+                  if (!card.counter) card.counter = {};
+                  (card.counter as Record<string, number>)[counterType!] =
+                    value;
+                  return card;
+                },
+                target,
+              );
+              systemMsg(
+                s,
+                sid,
+                `sets ${counterType} counters to ${value} on ${cardStr(s, target)}`,
+              );
             }
           }
-        }
+        },
       ),
     },
     makeCard({ title: "/counter command", side }),
@@ -211,16 +279,23 @@ export function commandEnableApiAccess(state: GameState, _side: string): void {
  */
 export function commandFacedown(state: GameState, side: string): void {
   resolveAbility(
-    state, side,
+    state,
+    side,
     {
       prompt: "Choose a card to install facedown",
       waiting: "true",
       choices: { card: (c: Card) => isRunner(c) && inHand(c) },
       async: true,
       effect: effect(
-        (state: GameState, _side: string, eid: EID, target: Card, _targets: unknown[]): void => {
+        (
+          state: GameState,
+          _side: string,
+          eid: EID,
+          target: Card,
+          _targets: unknown[],
+        ): void => {
           runnerInstall(state, _side, eid, target, { facedown: true });
-        }
+        },
       ),
     },
     makeCard({ title: "/facedown command", side }),
@@ -232,7 +307,11 @@ export function commandFacedown(state: GameState, side: string): void {
  * `/counter [type] value` — Set counters on a card.
  * Mirrors `command-counter`.
  */
-export function commandCounter(state: GameState, side: string, args: string[]): void {
+export function commandCounter(
+  state: GameState,
+  side: string,
+  args: string[],
+): void {
   if (args.length === 0) {
     commandCounterSmart(state, side, ["1"]);
     return;
@@ -247,7 +326,8 @@ export function commandCounter(state: GameState, side: string, args: string[]): 
   const typeStr = args[0].toLowerCase();
   const value = constrainValue(
     stringToNum(args[1]) !== null ? stringToNum(args[1])! : 1,
-    0, 1000
+    0,
+    1000,
   );
 
   const oneLetter = typeStr.length >= 1 ? typeStr.substring(0, 1) : "";
@@ -267,17 +347,33 @@ export function commandCounter(state: GameState, side: string, args: string[]): 
     commandAdvCounter(state, side, value);
   } else {
     resolveAbility(
-      state, side,
+      state,
+      side,
       {
         effect: effect(
-          (state: GameState, _side: string, _eid: EID, target: Card, _targets: unknown[]): void => {
-            update(state, _side, (card: Card) => {
-              if (!card.counter) card.counter = {};
-              (card.counter as Record<string, number>)[counterType] = value;
-              return card;
-            }, target);
-            systemMsg(state, _side, `sets ${counterType} counters to ${value} on ${cardStr(state, target)}`);
-          }
+          (
+            state: GameState,
+            _side: string,
+            _eid: EID,
+            target: Card,
+            _targets: unknown[],
+          ): void => {
+            update(
+              state,
+              _side,
+              (card: Card) => {
+                if (!card.counter) card.counter = {};
+                (card.counter as Record<string, number>)[counterType] = value;
+                return card;
+              },
+              target,
+            );
+            systemMsg(
+              state,
+              _side,
+              `sets ${counterType} counters to ${value} on ${cardStr(state, target)}`,
+            );
+          },
         ),
         choices: { card: (t: Card) => sameSide(t.side, side) },
       },
@@ -299,10 +395,14 @@ function rezAll(state: GameState, side: string, eid: EID, cards: Card[]): void {
   const [c, ...rest] = cards;
   wait_for(
     state,
+    [() => rezAll(state, side, eid, rest)],
     [
-      () => rezAll(state, side, eid, rest),
+      rez,
+      state,
+      side,
+      c,
+      { ignoreCost: "all-costs", force: true, silent: rest.length > 0 },
     ],
-    [rez, state, side, c, { ignoreCost: "all-costs", force: true, silent: rest.length > 0 }],
     { eid },
   );
 }
@@ -312,7 +412,7 @@ function rezAll(state: GameState, side: string, eid: EID, cards: Card[]): void {
  * Mirrors `rez-all-turn-agendas-faceup`.
  */
 function rezAllTurnAgendasFaceup(cards: Card[]): Ability | null {
-  const agendas = cards.filter(c => isAgenda(c) && !c.seen);
+  const agendas = cards.filter((c) => isAgenda(c) && !c.seen);
   if (agendas.length === 0) return null;
 
   return {
@@ -320,11 +420,25 @@ function rezAllTurnAgendasFaceup(cards: Card[]): Ability | null {
       prompt: "Turn all agendas faceup?",
       yesAbility: {
         effect: req(
-          (state: GameState, side: string, _eid: EID, _card: Card, _targets: unknown[]): void => {
+          (
+            state: GameState,
+            side: string,
+            _eid: EID,
+            _card: Card,
+            _targets: unknown[],
+          ): void => {
             for (const c of agendas) {
-              update(state, side, (card: Card) => { card.seen = true; return card; }, c);
+              update(
+                state,
+                side,
+                (card: Card) => {
+                  card.seen = true;
+                  return card;
+                },
+                c,
+              );
             }
-          }
+          },
         ),
         msg: msg("turns all agendas faceup"),
       },
@@ -338,7 +452,8 @@ function rezAllTurnAgendasFaceup(cards: Card[]): Ability | null {
  */
 export function commandRezAll(state: GameState, side: string): void {
   resolveAbility(
-    state, side,
+    state,
+    side,
     {
       optional: {
         prompt: "Rez all cards and turn cards in archives faceup?",
@@ -346,26 +461,38 @@ export function commandRezAll(state: GameState, side: string): void {
         yesAbility: {
           async: true,
           effect: req(
-            (state: GameState, side: string, eid: EID, _card: Card, _targets: unknown[]): void => {
+            (
+              state: GameState,
+              side: string,
+              eid: EID,
+              _card: Card,
+              _targets: unknown[],
+            ): void => {
               // Mark all discard pile agendas as seen
-              state.corp.discard = state.corp.discard.map(c => ({ ...c, seen: true }));
+              state.corp.discard = state.corp.discard.map((c) => ({
+                ...c,
+                seen: true,
+              }));
 
               const installed = allInstalled(state, side);
-              const toRez = installed.filter(c => !isRezzed(c));
+              const toRez = installed.filter((c) => !isRezzed(c));
 
               wait_for(
                 state,
                 [
-                  () => continue_ability(
-                    state, side,
-                    rezAllTurnAgendasFaceup(allInstalled(state, side)) ?? {},
-                    null, [],
-                  ),
+                  () =>
+                    continue_ability(
+                      state,
+                      side,
+                      rezAllTurnAgendasFaceup(allInstalled(state, side)) ?? {},
+                      null,
+                      [],
+                    ),
                 ],
                 [rezAll, state, side, eid, toRez],
                 { eid },
               );
-            }
+            },
           ),
         },
       },
@@ -379,7 +506,11 @@ export function commandRezAll(state: GameState, side: string): void {
  * `/roll <sides>` — Roll a die.
  * Mirrors `command-roll`.
  */
-export function commandRoll(state: GameState, side: string, value: number): void {
+export function commandRoll(
+  state: GameState,
+  side: string,
+  value: number,
+): void {
   const clamped = constrainValue(value, 1, 1000);
   const result = 1 + Math.floor(Math.random() * clamped);
   systemMsg(state, side, `rolls a ${clamped} sided die and rolls a ${result}`);
@@ -389,7 +520,11 @@ export function commandRoll(state: GameState, side: string, value: number): void
  * `/set-mark <server>` — Set the central server mark for the turn.
  * Mirrors `command-set-mark`.
  */
-export function commandSetMark(state: GameState, side: string, server: string): void {
+export function commandSetMark(
+  state: GameState,
+  side: string,
+  server: string,
+): void {
   if (side !== RUNNER_SIDE) return;
   const serverKW = unknownToKW(server);
   if (!isCentral(serverKW)) return;
@@ -511,18 +646,31 @@ export function commandUndoTurn(state: GameState, side: string): void {
  */
 export function commandUnique(state: GameState, side: string): void {
   resolveAbility(
-    state, side,
+    state,
+    side,
     {
       effect: effect(
-        (state: GameState, _side: string, _eid: EID, target: Card, _targets: unknown[]): void => {
+        (
+          state: GameState,
+          _side: string,
+          _eid: EID,
+          target: Card,
+          _targets: unknown[],
+        ): void => {
           setProp(state, _side, target, "uniqueness", !target.uniqueness);
-        }
+        },
       ),
       msg: msg(
-        (s: GameState, _sid: string, _eid: EID, target: Card, _tgts: unknown[]): string => {
+        (
+          s: GameState,
+          _sid: string,
+          _eid: EID,
+          target: Card,
+          _tgts: unknown[],
+        ): string => {
           const wasUnique = target.uniqueness;
           return `make ${cardStr(s, target)}${wasUnique ? " not" : ""} unique`;
-        }
+        },
       ),
       choices: { card: (t: Card) => sameSide(t.side, side) },
     },
@@ -536,7 +684,8 @@ export function commandUnique(state: GameState, side: string): void {
  * Mirrors `command-close-prompt`.
  */
 export function commandClosePrompt(state: GameState, side: string): void {
-  const promptQueue = side === CORP_SIDE ? state.corpPrompt : state.runnerPrompt;
+  const promptQueue =
+    side === CORP_SIDE ? state.corpPrompt : state.runnerPrompt;
   if (promptQueue.length === 0) return;
 
   const prompt = promptQueue[0];
@@ -559,42 +708,66 @@ export function commandClosePrompt(state: GameState, side: string): void {
  * `/install` — Install a card (optionally ignoring all costs).
  * Mirrors `command-install`.
  */
-export function commandInstall(state: GameState, side: string, args?: { ignoreAllCost?: boolean }): void {
+export function commandInstall(
+  state: GameState,
+  side: string,
+  args?: { ignoreAllCost?: boolean },
+): void {
   const ignoreAllCost = args?.ignoreAllCost ?? false;
   const promptSuffix = ignoreAllCost ? " (ignoring all costs)" : "";
 
   if (side === CORP_SIDE) {
     resolveAbility(
-      state, side,
+      state,
+      side,
       {
         prompt: `Choose a card to install${promptSuffix}`,
         waiting: "true",
         choices: { card: (c: Card) => isCorp(c) && !isInstalled(c) },
         async: true,
         effect: req(
-          (state: GameState, side: string, eid: EID, target: Card, _targets: unknown[]): void => {
+          (
+            state: GameState,
+            side: string,
+            eid: EID,
+            target: Card,
+            _targets: unknown[],
+          ): void => {
             corpInstall(state, side, eid, target, null, { ignoreAllCost });
-          }
+          },
         ),
       },
-      makeCard({ title: ignoreAllCost ? "/install-free command" : "/install command", side }),
+      makeCard({
+        title: ignoreAllCost ? "/install-free command" : "/install command",
+        side,
+      }),
       [],
     );
   } else {
     resolveAbility(
-      state, side,
+      state,
+      side,
       {
         prompt: `Choose a card to install${promptSuffix}`,
         waiting: "true",
         choices: { card: (c: Card) => isRunner(c) && !isInstalled(c) },
         async: true,
         effect: req(
-          (state: GameState, side: string, eid: EID, target: Card, _targets: unknown[]): void => {
+          (
+            state: GameState,
+            side: string,
+            eid: EID,
+            target: Card,
+            _targets: unknown[],
+          ): void => {
             runnerInstall(state, side, eid, target, { ignoreAllCost });
-          }
+          },
         ),
       },
-      makeCard({ title: ignoreAllCost ? "/install-free command" : "/install command", side }),
+      makeCard({
+        title: ignoreAllCost ? "/install-free command" : "/install command",
+        side,
+      }),
       [],
     );
   }
@@ -616,60 +789,104 @@ export function commandInstallIce(state: GameState, side: string): void {
   if (side !== CORP_SIDE) return;
 
   resolveAbility(
-    state, side,
+    state,
+    side,
     {
       prompt: "Choose a piece of ice to install",
       waiting: "true",
       choices: { card: (c: Card) => isICE(c) && inHand(c) },
       async: true,
       effect: effect(
-        (state: GameState, _side: string, _eid: EID, target: Card, _targets: unknown[]): void => {
+        (
+          state: GameState,
+          _side: string,
+          _eid: EID,
+          target: Card,
+          _targets: unknown[],
+        ): void => {
           const chosenIce = target;
           continue_ability(
-            state, _side,
+            state,
+            _side,
             {
               prompt: "Choose a server",
               choices: req(
-                (s: GameState, sid: string, eid: EID, card: Card, targets: unknown[]): string[] => {
+                (
+                  s: GameState,
+                  sid: string,
+                  eid: EID,
+                  card: Card,
+                  targets: unknown[],
+                ): string[] => {
                   // Return available server names
-                  const zones = ["hq", "rd", "archives", ...Object.keys(s.corp.servers.remote)];
+                  const zones = [
+                    "hq",
+                    "rd",
+                    "archives",
+                    ...Object.keys(s.corp.servers.remote),
+                  ];
                   return zones;
-                }
+                },
               ),
               async: true,
               effect: effect(
-                (state: GameState, _side: string, _eid: EID, target: Card, _targets: unknown[]): void => {
-                  const chosenServer = typeof target === "string" ? target : (target as any)?.value;
+                (
+                  state: GameState,
+                  _side: string,
+                  _eid: EID,
+                  target: Card,
+                  _targets: unknown[],
+                ): void => {
+                  const chosenServer =
+                    typeof target === "string"
+                      ? target
+                      : (target as any)?.value;
                   const zone = serverToZone(state, chosenServer as string);
                   const serverZone = zone.length >= 2 ? zone[1] : "";
-                  const iceCount = (state.corp.servers as any)[serverZone]?.ices?.length ?? 0;
-                  const positions = Array.from({ length: iceCount + 1 }, (_, i) => String(iceCount - i));
+                  const iceCount =
+                    (state.corp.servers as any)[serverZone]?.ices?.length ?? 0;
+                  const positions = Array.from(
+                    { length: iceCount + 1 },
+                    (_, i) => String(iceCount - i),
+                  );
 
                   continue_ability(
-                    state, _side,
+                    state,
+                    _side,
                     {
                       prompt: "Which position to install in? (0 is innermost)",
                       choices: positions,
                       async: true,
                       effect: effect(
-                        (state: GameState, _side: string, _eid: EID, target: Card, _targets: unknown[]): void => {
+                        (
+                          state: GameState,
+                          _side: string,
+                          _eid: EID,
+                          target: Card,
+                          _targets: unknown[],
+                        ): void => {
                           const index = strToInt(String(target));
                           corpInstall(
-                            state, _side, makeEID(state),
-                            chosenIce, chosenServer as unknown as Card,
+                            state,
+                            _side,
+                            makeEID(state),
+                            chosenIce,
+                            chosenServer as unknown as Card,
                             { noInstallCost: true, index },
                           );
-                        }
+                        },
                       ),
                     },
-                    null, [],
+                    null,
+                    [],
                   );
-                }
+                },
               ),
             },
-            null, [],
+            null,
+            [],
           );
-        }
+        },
       ),
     },
     makeCard({ title: "/install-ice command", side }),
@@ -684,11 +901,13 @@ export function commandInstallIce(state: GameState, side: string): void {
 export function commandPeek(state: GameState, side: string, n: number): void {
   const deck = side === CORP_SIDE ? state.corp.deck : state.runner.deck;
   const topCards = deck.slice(0, n);
-  const titles = topCards.map(c => getTitle(c));
+  const titles = topCards.map((c) => getTitle(c));
   const isPlural = n > 1;
 
   showPrompt(
-    state, side, null,
+    state,
+    side,
+    null,
     `The top ${quantify(n, "card")} of your deck ${isPlural ? "are" : "is"} (top->bottom): ${enumerateStr(titles)}`,
     ["Done"],
     null,
@@ -703,26 +922,45 @@ export function commandScore(state: GameState, side: string): void {
   if (side !== CORP_SIDE) return;
 
   resolveAbility(
-    state, side,
+    state,
+    side,
     {
       prompt: "Choose an agenda to score",
       waiting: "true",
       choices: {
         req: req(
-          (s: GameState, sid: string, _eid: EID, target: Card, _targets: unknown[]): boolean => {
+          (
+            s: GameState,
+            sid: string,
+            _eid: EID,
+            target: Card,
+            _targets: unknown[],
+          ): boolean => {
             return isAgenda(target) && (isInstalled(target) || inHand(target));
-          }
+          },
         ),
       },
       msg: msg(
-        (s: GameState, _sid: string, _eid: EID, target: Card, _tgts: unknown[]): string =>
-          `score ${cardStr(s, target, { visible: true })}, ignoring all restrictions`
+        (
+          s: GameState,
+          _sid: string,
+          _eid: EID,
+          target: Card,
+          _tgts: unknown[],
+        ): string =>
+          `score ${cardStr(s, target, { visible: true })}, ignoring all restrictions`,
       ),
       async: true,
       effect: effect(
-        (state: GameState, _side: string, eid: EID, target: Card, _targets: unknown[]): void => {
+        (
+          state: GameState,
+          _side: string,
+          eid: EID,
+          target: Card,
+          _targets: unknown[],
+        ): void => {
           score(state, _side, eid, target, { noReq: true, ignoreTurn: true });
-        }
+        },
       ),
     },
     makeCard({ title: "the '/score' command", side }),
@@ -734,7 +972,11 @@ export function commandScore(state: GameState, side: string): void {
  * `/summon <card name>` — Add a card to hand by name.
  * Mirrors `command-summon`.
  */
-export function commandSummon(state: GameState, side: string, cardName: string): void {
+export function commandSummon(
+  state: GameState,
+  side: string,
+  cardName: string,
+): void {
   try {
     const sCard = serverCard(cardName, false);
     if (!sCard || !sameSide((sCard as any).side, side)) {
@@ -760,7 +1002,8 @@ export function commandSummon(state: GameState, side: string, cardName: string):
  * Mirrors `command-reload-id`.
  */
 export function commandReloadId(state: GameState, side: string): void {
-  const identity = side === CORP_SIDE ? state.corp.identity : state.runner.identity;
+  const identity =
+    side === CORP_SIDE ? state.corp.identity : state.runner.identity;
   const cardName = identity?.title ?? "";
 
   try {
@@ -775,7 +1018,12 @@ export function commandReloadId(state: GameState, side: string): void {
       return;
     }
 
-    const newId = makeCard({ ...card, title: cardName, zone: ["identity"], type: "Identity" });
+    const newId = makeCard({
+      ...card,
+      title: cardName,
+      zone: ["identity"],
+      type: "Identity",
+    });
     disableIdentity(state, side);
     if (side === CORP_SIDE) {
       state.corp.identity = newId;
@@ -792,7 +1040,11 @@ export function commandReloadId(state: GameState, side: string): void {
  * `/replace-id <card name>` — Replace identity with a different card.
  * Mirrors `command-replace-id`.
  */
-export function commandReplaceId(state: GameState, side: string, cardName: string): void {
+export function commandReplaceId(
+  state: GameState,
+  side: string,
+  cardName: string,
+): void {
   try {
     const sCard = serverCard(cardName, false);
     if (!sCard || !sameSide((sCard as any).side, side)) {
@@ -805,7 +1057,12 @@ export function commandReplaceId(state: GameState, side: string, cardName: strin
       return;
     }
 
-    const newId = makeCard({ ...card, title: cardName, zone: ["identity"], type: "Identity" });
+    const newId = makeCard({
+      ...card,
+      title: cardName,
+      zone: ["identity"],
+      type: "Identity",
+    });
     disableIdentity(state, side);
     if (side === CORP_SIDE) {
       state.corp.identity = newId;

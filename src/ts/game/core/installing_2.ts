@@ -1,10 +1,10 @@
 // Card installation mechanics.
 // Mirrors: src/clj/game/core/installing.clj
 
-import type { GameState, ServerZone } from "./state.js";
-import type { Card, Zone } from "./card.js";
-import type { EID } from "./eid.js";
-import type { Ability } from "./types.js";
+import type { GameState, ServerZone } from "./state";
+import type { Card, Zone } from "./card";
+import type { EID } from "./eid";
+import type { Ability } from "./types.ts";
 
 import {
   isAgenda,
@@ -22,80 +22,55 @@ import {
   getTitle,
   getType,
   hasSubtype,
-} from "./card.js";
-import { cardDef, getCardDef } from "./types.js";
+} from "./card";
+import { cardDef, getCardDef } from "./types.ts";
 import {
   ignoreInstallCost,
   installAdditionalCostBonus,
   installCost,
-} from "./cost_fns.js";
-import { totalAvailableCredits, canPay, mergeCosts } from "./costs.js";
+} from "./cost_fns";
+import { totalAvailableCredits, canPay, mergeCosts } from "./costs";
 import {
   makeEID,
   effectCompleted,
   completeWithResult,
   registerEIDCallback,
-} from "./eid.js";
+} from "./eid";
 import {
   queueEvent,
   registerEvents,
   unregisterEvents,
   registerPendingEvent,
-} from "./engine.js";
+} from "./engine";
 import {
   isDisabledReg,
   updateDisabledCards,
   registerStaticAbilities,
   unregisterStaticAbilities,
-} from "./effects.js";
-import {
-  turnFlag,
-  zoneLocked,
-} from "./flags.js";
-import {
-  hasAncestor,
-  host,
-} from "./hosting.js";
-import { updateBreakerStrength } from "./ice.js";
+} from "./effects";
+import { turnFlag, zoneLocked } from "./flags";
+import { hasAncestor, host } from "./hosting";
+import { updateBreakerStrength } from "./ice";
 import {
   abilityInit,
   cardInit,
   corpAbilityInit,
   runnerAbilityInit,
-} from "./initializing.js";
-import {
-  availableMU,
-  expectedMU,
-  sufficientMU,
-  updateMU,
-} from "./memory.js";
-import {
-  move,
-  trash,
-  trashCards,
-  swapCards,
-  swapInstalled,
-} from "./moving.js";
-import {
-  createCreditCost,
-  mergeCosts as mergeCostsPayment,
-} from "./payment.js";
-import type { CostData } from "./payment.js";
-import { addProp } from "./props.js";
-import { reveal } from "./revealing.js";
-import { rez } from "./rezzing.js";
-import {
-  multiMsg,
-  playSfx,
-  systemMsg,
-  implementationMsg,
-} from "./say.js";
-import { nameZone, remoteNumToName } from "./servers.js";
-import { makeRID } from "./state.js";
-import { cardStr } from "./to_string.js";
-import { toast } from "./toasts.js";
-import { updateCard } from "./update.js";
-import { updateAdvancementRequirement } from "./agendas.js";
+} from "./initializing";
+import { availableMU, expectedMU, sufficientMU, updateMU } from "./memory";
+import { move, trash, trashCards, swapCards, swapInstalled } from "./moving";
+import { createCreditCost, mergeCosts as mergeCostsPayment } from "./payment";
+import type { CostData } from "./payment";
+import { addProp } from "./props";
+import { reveal } from "./revealing";
+import { rez } from "./rezzing";
+import { multiMsg, playSfx, systemMsg, implementationMsg } from "./say";
+import { nameZone, remoteNumToName } from "./servers";
+import { makeRID } from "./state";
+import { cardStr } from "./to_string";
+import { toast } from "./toasts";
+import { updateCard } from "./update";
+import { updateAdvancementRequirement } from "./agendas";
 import {
   allInstalled,
   getRemotes,
@@ -103,12 +78,8 @@ import {
   allInstalledRunnerType,
   installableServers,
   getRemoteNames,
-} from "./board.js";
-import {
-  continue_ability,
-  req,
-  wait_for,
-} from "../macros.js";
+} from "./board";
+import { continue_ability, req, wait_for } from "../macros";
 import {
   dissocIn,
   enumerateStr,
@@ -116,11 +87,16 @@ import {
   sameCard,
   toKeyword,
   quantify,
-} from "../utils.js";
-import { CORP_SIDE, RUNNER_SIDE } from "./state.js";
-import { getCard } from "./finding.js";
+} from "../utils";
+import { CORP_SIDE, RUNNER_SIDE } from "./state";
+import { getCard } from "./finding";
 
-import { corpInstall, runnerCanInstall, runnerInstallMessage, toC } from './installing_1';
+import {
+  corpInstall,
+  runnerCanInstall,
+  runnerInstallMessage,
+  toC,
+} from "./installing_1";
 
 /**
  * Mirrors: runner-install-continue
@@ -165,7 +141,13 @@ export function runnerInstallContinue(
       });
 
   if (!opts.noMsg) {
-    runnerInstallMessage(state, RUNNER_SIDE, installedCard, opts.paymentStr ?? "", opts);
+    runnerInstallMessage(
+      state,
+      RUNNER_SIDE,
+      installedCard,
+      opts.paymentStr ?? "",
+      opts,
+    );
   }
 
   if (!opts.facedown) {
@@ -230,7 +212,13 @@ function runnerInstallCost(
   if (opts.cachedCosts) return opts.cachedCosts;
   if (opts.ignoreAllCost || opts.facedown) return [toC("credit", 0)];
 
-  const cost = installCost(state, RUNNER_SIDE, card, { costBonus: opts.costBonus }, []);
+  const cost = installCost(
+    state,
+    RUNNER_SIDE,
+    card,
+    { costBonus: opts.costBonus },
+    [],
+  );
   const additionalCosts = installAdditionalCostBonus(state, RUNNER_SIDE, card);
 
   return mergeCostsPayment([
@@ -264,7 +252,9 @@ function runnerCanHost(
 ): Card[] | null {
   if (opts.hostCard || opts.facedown) return null;
 
-  const allHosts = allInstalled(state, RUNNER_SIDE).filter((c) => someHostingEffect(state, c));
+  const allHosts = allInstalled(state, RUNNER_SIDE).filter((c) =>
+    someHostingEffect(state, c),
+  );
   const relevant = allHosts.filter((h) => {
     const ab = someHostingEffect(state, h);
     return !ab || !ab.req || ab.req(state, RUNNER_SIDE, eid, h, [card]);
@@ -291,21 +281,29 @@ export function runnerCanPayAndInstall(
 ): boolean {
   const args = opts ?? {};
   const eidWithSource = { ...eid, sourceType: "runner-install" };
-  const hostAbi = args.hostCard ? someHostingEffect(state, args.hostCard) : null;
+  const hostAbi = args.hostCard
+    ? someHostingEffect(state, args.hostCard)
+    : null;
   const oldCostBonus = args.costBonus ?? 0;
   const newCostBonus = hostAbi?.costBonus ?? 0;
   const combinedCostBonus = oldCostBonus + newCostBonus;
   const costBonus = combinedCostBonus === 0 ? undefined : combinedCostBonus;
 
-  const costs = runnerInstallCost(state, RUNNER_SIDE, { ...card, facedown: args.facedown }, {
-    ...args,
-    costBonus,
-  });
+  const costs = runnerInstallCost(
+    state,
+    RUNNER_SIDE,
+    { ...card, facedown: args.facedown },
+    {
+      ...args,
+      costBonus,
+    },
+  );
 
-  const canInstallDirectly = runnerCanInstall(state, RUNNER_SIDE, eid, card, {
-    ...args,
-    noToast: true,
-  }) && canPay(state, RUNNER_SIDE, eidWithSource, card, null, costs);
+  const canInstallDirectly =
+    runnerCanInstall(state, RUNNER_SIDE, eid, card, {
+      ...args,
+      noToast: true,
+    }) && canPay(state, RUNNER_SIDE, eidWithSource, card, null, costs);
 
   if (canInstallDirectly) return true;
 
@@ -315,7 +313,10 @@ export function runnerCanPayAndInstall(
     const potentialHosts = runnerCanHost(state, RUNNER_SIDE, eid, card, args);
     if (potentialHosts) {
       return potentialHosts.some((h) =>
-        runnerCanPayAndInstall(state, RUNNER_SIDE, eid, card, { ...args, hostCard: h }),
+        runnerCanPayAndInstall(state, RUNNER_SIDE, eid, card, {
+          ...args,
+          hostCard: h,
+        }),
       );
     }
   }
@@ -339,14 +340,24 @@ function runnerInstallPay(
     resolvedOptionalTrash?: boolean;
   },
 ): void {
-  const costs = runnerInstallCost(state, RUNNER_SIDE, { ...card, facedown: opts.facedown }, opts);
+  const costs = runnerInstallCost(
+    state,
+    RUNNER_SIDE,
+    { ...card, facedown: opts.facedown },
+    opts,
+  );
   const availableMem = availableMU(state);
   const runnerWantsToTrash = !!(
     (state.runner.properties as any)?.trashLikeCards &&
     !opts.resolvedOptionalTrash
   );
 
-  if (!runnerCanPayAndInstall(state, RUNNER_SIDE, eid, card, { ...opts, cachedCosts: costs })) {
+  if (
+    !runnerCanPayAndInstall(state, RUNNER_SIDE, eid, card, {
+      ...opts,
+      cachedCosts: costs,
+    })
+  ) {
     effectCompleted(state, RUNNER_SIDE, eid);
     return;
   }
@@ -358,7 +369,13 @@ function runnerInstallPay(
     !runnerWantsToTrash
   ) {
     // Enough MU and no trash needed
-    const playedCard = move(state, RUNNER_SIDE, { ...card, facedown: opts.facedown }, "play-area", { suppressEvent: true });
+    const playedCard = move(
+      state,
+      RUNNER_SIDE,
+      { ...card, facedown: opts.facedown },
+      "play-area",
+      { suppressEvent: true },
+    );
 
     wait_for(
       state,
@@ -374,7 +391,13 @@ function runnerInstallPay(
               paymentStr,
             });
           } else {
-            const returnedCard = move(s, RUNNER_SIDE, playedCard, card.zone ?? [], { suppressEvent: true });
+            const returnedCard = move(
+              s,
+              RUNNER_SIDE,
+              playedCard,
+              card.zone ?? [],
+              { suppressEvent: true },
+            );
             updateCard(s, RUNNER_SIDE, {
               ...returnedCard,
               cid: card.cid,
@@ -386,7 +409,13 @@ function runnerInstallPay(
       ],
       [
         // pay handler
-        function (s: GameState, side: string, newEid: EID, c: Card, csts: CostData[]) {},
+        function (
+          s: GameState,
+          side: string,
+          newEid: EID,
+          c: Card,
+          csts: CostData[],
+        ) {},
         state,
         RUNNER_SIDE,
         makeEID(state),
@@ -399,19 +428,27 @@ function runnerInstallPay(
   }
 
   // Need to trash programs or not enough MU
-  if (isProgram(card) && !opts.facedown && (!opts.noMU || sufficientMU(state, card) || runnerWantsToTrash)) {
+  if (
+    isProgram(card) &&
+    !opts.facedown &&
+    (!opts.noMU || sufficientMU(state, card) || runnerWantsToTrash)
+  ) {
     const allInstalledRunner = allInstalled(state, RUNNER_SIDE);
     const trashablePrograms = allInstalledRunner.filter(
-      (c) => isProgram(c) && isInstalled(c) && !(opts.hostCard && hasAncestor(c, opts.hostCard)),
+      (c) =>
+        isProgram(c) &&
+        isInstalled(c) &&
+        !(opts.hostCard && hasAncestor(c, opts.hostCard)),
     );
 
     continue_ability(
       state,
       RUNNER_SIDE,
       {
-        prompt: runnerWantsToTrash && (opts.noMU || sufficientMU(state, card))
-          ? `Trash installed programs before installing ${card.title ?? ""}?`
-          : `Insufficient MU to install ${card.title ?? ""}. Trash installed programs?`,
+        prompt:
+          runnerWantsToTrash && (opts.noMU || sufficientMU(state, card))
+            ? `Trash installed programs before installing ${card.title ?? ""}?`
+            : `Insufficient MU to install ${card.title ?? ""}. Trash installed programs?`,
         choices: {
           max: trashablePrograms.length,
           card: (c: Card) =>
@@ -427,10 +464,20 @@ function runnerInstallPay(
               [{ asyncResult: "result" }],
               function (s: GameState, _e: EID, _binds: any) {
                 updateMU(s);
-                runnerInstallPay(s, RUNNER_SIDE, eid, card, { ...opts, resolvedOptionalTrash: true });
+                runnerInstallPay(s, RUNNER_SIDE, eid, card, {
+                  ...opts,
+                  resolvedOptionalTrash: true,
+                });
               },
             ],
-            [trashCards, state, RUNNER_SIDE, makeEID(state), [], { unpreventable: true, suppressCheckpoint: true }],
+            [
+              trashCards,
+              state,
+              RUNNER_SIDE,
+              makeEID(state),
+              [],
+              { unpreventable: true, suppressCheckpoint: true },
+            ],
             { eid },
           );
         }),
@@ -438,10 +485,17 @@ function runnerInstallPay(
           async: true,
           effect: req(() => {
             updateMU(state);
-            if (availableMem === availableMU(state) && !opts.noMU && !sufficientMU(state, card)) {
+            if (
+              availableMem === availableMU(state) &&
+              !opts.noMU &&
+              !sufficientMU(state, card)
+            ) {
               effectCompleted(state, RUNNER_SIDE, eid);
             } else {
-              runnerInstallPay(state, RUNNER_SIDE, eid, card, { ...opts, resolvedOptionalTrash: true });
+              runnerInstallPay(state, RUNNER_SIDE, eid, card, {
+                ...opts,
+                resolvedOptionalTrash: true,
+              });
             }
           }),
         },
@@ -471,16 +525,23 @@ function runnerHostEnforceSpecificMemory(
   const hostAbi = someHostingEffect(state, potentialHost);
   const maxMU = hostAbi?.maxMU;
   if (!maxMU || !isProgram(card)) {
-    runnerInstallPay(state, RUNNER_SIDE, eid, card, { ...opts, hostCard: potentialHost });
+    runnerInstallPay(state, RUNNER_SIDE, eid, card, {
+      ...opts,
+      hostCard: potentialHost,
+    });
     return;
   }
 
-  const resolvedMaxMU = typeof maxMU === "function"
-    ? maxMU(state, RUNNER_SIDE, eid, potentialHost, null)
-    : maxMU;
+  const resolvedMaxMU =
+    typeof maxMU === "function"
+      ? maxMU(state, RUNNER_SIDE, eid, potentialHost, null)
+      : maxMU;
 
   const relevantCards = (potentialHost.hosted ?? []).filter(isProgram);
-  const currentMUHost = relevantCards.reduce((sum: number, c: Card) => sum + expectedMU(state, c), 0);
+  const currentMUHost = relevantCards.reduce(
+    (sum: number, c: Card) => sum + expectedMU(state, c),
+    0,
+  );
   const cardMU = expectedMU(state, card);
   const newMU = cardMU + currentMUHost;
   const toEliminate = newMU - resolvedMaxMU;
@@ -504,10 +565,24 @@ function runnerHostEnforceSpecificMemory(
               [{ asyncResult: "result" }],
               function (s: GameState, _e: EID, _binds: any) {
                 updateMU(s);
-                runnerHostEnforceSpecificMemory(s, RUNNER_SIDE, eid, card, getCard(s, potentialHost), opts);
+                runnerHostEnforceSpecificMemory(
+                  s,
+                  RUNNER_SIDE,
+                  eid,
+                  card,
+                  getCard(s, potentialHost),
+                  opts,
+                );
               },
             ],
-            [trashCards, state, RUNNER_SIDE, makeEID(state), [], { unpreventable: true, suppressCheckpoint: true }],
+            [
+              trashCards,
+              state,
+              RUNNER_SIDE,
+              makeEID(state),
+              [],
+              { unpreventable: true, suppressCheckpoint: true },
+            ],
             { eid },
           );
         }),
@@ -516,7 +591,10 @@ function runnerHostEnforceSpecificMemory(
       [],
     );
   } else {
-    runnerInstallPay(state, RUNNER_SIDE, eid, card, { ...opts, hostCard: potentialHost });
+    runnerInstallPay(state, RUNNER_SIDE, eid, card, {
+      ...opts,
+      hostCard: potentialHost,
+    });
   }
 }
 
@@ -535,16 +613,26 @@ function runnerHostEnforceCardLimits(
   const hostAbi = someHostingEffect(state, potentialHost);
   const maxCards = hostAbi?.maxCards;
   if (!maxCards) {
-    runnerHostEnforceSpecificMemory(state, RUNNER_SIDE, eid, card, potentialHost, opts);
+    runnerHostEnforceSpecificMemory(
+      state,
+      RUNNER_SIDE,
+      eid,
+      card,
+      potentialHost,
+      opts,
+    );
     return;
   }
 
-  const resolvedMaxCards = typeof maxCards === "function"
-    ? maxCards(state, RUNNER_SIDE, eid, potentialHost, null)
-    : maxCards;
+  const resolvedMaxCards =
+    typeof maxCards === "function"
+      ? maxCards(state, RUNNER_SIDE, eid, potentialHost, null)
+      : maxCards;
 
   const isConditionCounter = (c: Card): boolean => c.type === "Counter";
-  const relevantCards = (potentialHost.hosted ?? []).filter((c) => !isConditionCounter(c));
+  const relevantCards = (potentialHost.hosted ?? []).filter(
+    (c) => !isConditionCounter(c),
+  );
   const newTotal = 1 + relevantCards.length;
   const toDestroy = newTotal - resolvedMaxCards;
 
@@ -567,10 +655,24 @@ function runnerHostEnforceCardLimits(
               [{ asyncResult: "result" }],
               function (s: GameState, _e: EID, _binds: any) {
                 updateMU(s);
-                runnerHostEnforceSpecificMemory(s, RUNNER_SIDE, eid, card, getCard(s, potentialHost), opts);
+                runnerHostEnforceSpecificMemory(
+                  s,
+                  RUNNER_SIDE,
+                  eid,
+                  card,
+                  getCard(s, potentialHost),
+                  opts,
+                );
               },
             ],
-            [trashCards, state, RUNNER_SIDE, makeEID(state), [], { unpreventable: true, suppressCheckpoint: true }],
+            [
+              trashCards,
+              state,
+              RUNNER_SIDE,
+              makeEID(state),
+              [],
+              { unpreventable: true, suppressCheckpoint: true },
+            ],
             { eid },
           );
         }),
@@ -579,7 +681,14 @@ function runnerHostEnforceCardLimits(
       [],
     );
   } else {
-    runnerHostEnforceSpecificMemory(state, RUNNER_SIDE, eid, card, potentialHost, opts);
+    runnerHostEnforceSpecificMemory(
+      state,
+      RUNNER_SIDE,
+      eid,
+      card,
+      potentialHost,
+      opts,
+    );
   }
 }
 
@@ -642,7 +751,10 @@ export function runnerInstall(
         prompt: `Choose a card to host ${card.title ?? ""} on`,
         async: true,
         effect: req(() => {
-          runnerInstallPay(state, RUNNER_SIDE, eid, card, { ...args, hostCard: (args as any).target as Card });
+          runnerInstallPay(state, RUNNER_SIDE, eid, card, {
+            ...args,
+            hostCard: (args as any).target as Card,
+          });
         }),
       },
       card,
@@ -683,7 +795,9 @@ export function installAsConditionCounter(
   const runnerAbilities = runnerAbilityInit(cdef);
   const convertedCard = convertToConditionCounter(card);
 
-  const events = ((cdef as any).events ?? []).filter((e: any) => e.condition === "hosted");
+  const events = ((cdef as any).events ?? []).filter(
+    (e: any) => e.condition === "hosted",
+  );
 
   if (isCorp(card)) {
     wait_for(
@@ -806,7 +920,12 @@ export function swapCardsAsync(
     const installedCount = (aInstalled ? 1 : 0) + (bInstalled ? 1 : 0);
 
     if (installedCount === 0) {
-      completeWithResult(state, RUNNER_SIDE, eid, swapCards(state, RUNNER_SIDE, a, b));
+      completeWithResult(
+        state,
+        RUNNER_SIDE,
+        eid,
+        swapCards(state, RUNNER_SIDE, a, b),
+      );
     } else if (installedCount === 1) {
       const oldInstalled = aInstalled ? a : b;
       const toInstall = aInstalled ? b : a;
@@ -820,9 +939,12 @@ export function swapCardsAsync(
 
       const installArgs = {
         previousZone: toInstall.zone,
-        hostCard: oldInstalled.host ? getCard(state, oldInstalled.host) : undefined,
+        hostCard: oldInstalled.host
+          ? getCard(state, oldInstalled.host)
+          : undefined,
         noMU: oldInstalled.host
-          ? (someHostingEffect(state, getCard(state, oldInstalled.host)) as any)?.noMU
+          ? (someHostingEffect(state, getCard(state, oldInstalled.host)) as any)
+              ?.noMU
           : undefined,
         noMsg: true,
       };

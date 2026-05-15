@@ -4,34 +4,42 @@
 // This module implements the full prevention infrastructure used by damage, tags,
 // trash, expose, end-run, jack-out, encounter and other interrupt-style mechanics.
 
-import type { GameState, Effect } from "./state.js";
-import type { Card } from "./card.js";
-import type { EID } from "./eid.js";
-import type { Ability } from "../../jinteki/utils.js";
-import { allActive, allActiveInstalled } from "./board.js";
-import { getCard } from "./finding.js";
-import { installed, resource, rezzed, sameCard } from "./card.js";
-import { cardDef } from "./card_defs.js";
-import { chooseOneHelper } from "./choose_one.js";
-import type { ChoiceOption } from "./choose_one.js";
-import { cardAbilityCost } from "./cost_fns.js";
-import { completeWithResult, effectCompleted } from "./eid.js";
-import { anyEffects, getEffectMaps } from "./effects.js";
-import { resolveAbility, triggerEventSimult, triggerEventSync } from "./engine.js";
+import type { GameState, Effect } from "./state";
+import type { Card } from "./card";
+import type { EID } from "./eid";
+import type { Ability } from "../../jinteki/utils";
+import { allActive, allActiveInstalled } from "./board";
+import { getCard } from "./finding";
+import { installed, resource, rezzed, sameCard } from "./card";
+import { cardDef } from "./card_defs";
+import { chooseOneHelper } from "./choose_one";
+import type { ChoiceOption } from "./choose_one";
+import { cardAbilityCost } from "./cost_fns";
+import { completeWithResult, effectCompleted } from "./eid";
+import { anyEffects, getEffectMaps } from "./effects";
+import { resolveAbility, triggerEventSimult, triggerEventSync } from "./engine";
 import {
   canTrash,
   untrashableWhileResources,
   untrashableWhileRezzed,
-} from "./flags.js";
-import { canPay, toC } from "./payment.js";
-import { enforceMsg, nLastLogs } from "./say.js";
-import { cardStr } from "./to_string.js";
-import { dissocIn, enumerateStr, quantify } from "../utils.js";
-import { otherSide } from "../../jinteki/utils.js";
-import { req, msg, wait_for } from "../macros.js";
+} from "./flags";
+import { canPay, toC } from "./payment";
+import { enforceMsg, nLastLogs } from "./say";
+import { cardStr } from "./to_string";
+import { dissocIn, enumerateStr, quantify } from "../utils";
+import { otherSide } from "../../jinteki/utils";
+import { req, msg, wait_for } from "../macros";
 
-import { damageName, damagePending, fetchAndClear, preventNumeric, pushPrevention, resolveKeyedPreventionForSide, resolvePreventEffectsWithPriority } from './prevention_1';
-import type { PreventionContext } from './prevention_1';
+import {
+  damageName,
+  damagePending,
+  fetchAndClear,
+  preventNumeric,
+  pushPrevention,
+  resolveKeyedPreventionForSide,
+  resolvePreventEffectsWithPriority,
+} from "./prevention_1";
+import type { PreventionContext } from "./prevention_1";
 
 function resolvePreDamageForSide(
   state: GameState,
@@ -51,11 +59,7 @@ function resolvePreDamageForSide(
   });
 }
 
-function resolveDamageForSide(
-  state: GameState,
-  side: string,
-  eid: EID,
-): void {
+function resolveDamageForSide(state: GameState, side: string, eid: EID): void {
   const pending = damagePending(state);
   const promptStr =
     side === "runner"
@@ -104,10 +108,20 @@ export function resolveDamagePrevention(
     state,
     [
       { asyncResult: true },
-      () => triggerEventSimult(state, side, eid, "pre-damage-flag", {}, { card, type, count: n }),
+      () =>
+        triggerEventSimult(
+          state,
+          side,
+          eid,
+          "pre-damage-flag",
+          {},
+          { card, type, count: n },
+        ),
       () => {
         // After pre-damage resolves, copy remaining into damage prevention
-        const preCtx = (state as any).prevent?.["pre-damage"] as PreventionContext;
+        const preCtx = (state as any).prevent?.[
+          "pre-damage"
+        ] as PreventionContext;
         (state as any).prevent.damage = {
           count: preCtx?.count ?? n,
           remaining: preCtx?.remaining ?? n,
@@ -121,10 +135,24 @@ export function resolveDamagePrevention(
           uses: {},
         };
       },
-      () => resolvePreventEffectsWithPriority(state, state.activePlayer, eid, "damage", resolveDamageForSide),
+      () =>
+        resolvePreventEffectsWithPriority(
+          state,
+          state.activePlayer,
+          eid,
+          "damage",
+          resolveDamageForSide,
+        ),
     ],
     [
-      () => resolvePreventEffectsWithPriority(state, state.activePlayer, eid, "pre-damage", resolvePreDamageForSide),
+      () =>
+        resolvePreventEffectsWithPriority(
+          state,
+          state.activePlayer,
+          eid,
+          "pre-damage",
+          resolvePreDamageForSide,
+        ),
     ],
   );
 }
@@ -258,15 +286,29 @@ export function resolveEndRunPrevention(
     [
       { asyncResult: true },
       () => {
-        const remaining = ((state as any).prevent?.["end-run"] as PreventionContext)?.remaining;
+        const remaining = (
+          (state as any).prevent?.["end-run"] as PreventionContext
+        )?.remaining;
         if (remaining === 0) {
           completeWithResult(state, side, eid, fetchAndClear(state, "end-run"));
         } else {
           // Trigger end-run-interrupt event
-          triggerEventSimult(state, side, eid, "end-run-interrupt", {}, { card, sourceEid: eid });
+          triggerEventSimult(
+            state,
+            side,
+            eid,
+            "end-run-interrupt",
+            {},
+            { card, sourceEid: eid },
+          );
 
           if (unpreventable) {
-            completeWithResult(state, side, eid, fetchAndClear(state, "end-run"));
+            completeWithResult(
+              state,
+              side,
+              eid,
+              fetchAndClear(state, "end-run"),
+            );
           } else {
             resolvePreventEffectsWithPriority(
               state,
@@ -279,7 +321,17 @@ export function resolveEndRunPrevention(
         }
       },
     ],
-    [() => triggerEventSimult(state, side, eid, "can-run-be-ended?", {}, { card, sourceEid: eid })],
+    [
+      () =>
+        triggerEventSimult(
+          state,
+          side,
+          eid,
+          "can-run-be-ended?",
+          {},
+          { card, sourceEid: eid },
+        ),
+    ],
   );
 }
 
@@ -342,7 +394,13 @@ export function resolveJackOutPrevention(
       state,
       [
         { asyncResult: true },
-        () => completeWithResult(state, side, eid, fetchAndClear(state, "jack-out")),
+        () =>
+          completeWithResult(
+            state,
+            side,
+            eid,
+            fetchAndClear(state, "jack-out"),
+          ),
       ],
       [() => resolveJackOutPreventionForSide(state, "corp", eid)],
     );
@@ -377,7 +435,10 @@ export function preventExpose(
     ctx.prevented = "all";
     ctx.remaining = [];
     const preventEvent = side === "corp" ? "corp-prevent" : "runner-prevent";
-    triggerEventSync(state, side, eid, preventEvent, { type: "expose", amount: 1 });
+    triggerEventSync(state, side, eid, preventEvent, {
+      type: "expose",
+      amount: 1,
+    });
   } else {
     // Choose which card to prevent
     resolveAbility(
@@ -413,7 +474,9 @@ export function preventExpose(
               (r: Card) => !sameCard(r, target),
             );
             ctx.prevented =
-              typeof ctx.prevented === "number" ? (ctx.prevented as number) + 1 : 1;
+              typeof ctx.prevented === "number"
+                ? (ctx.prevented as number) + 1
+                : 1;
           }
         }),
       },
@@ -430,7 +493,10 @@ function resolveExposePreventionForSide(
 ): void {
   const remaining = ((state as any).prevent?.expose?.remaining as Card[]) ?? [];
 
-  const promptStr = `Prevent ${enumerateStr(remaining.map((c) => cardStr(state, c, { visible: side === "corp" })), "or")} from being exposed?`;
+  const promptStr = `Prevent ${enumerateStr(
+    remaining.map((c) => cardStr(state, c, { visible: side === "corp" })),
+    "or",
+  )} from being exposed?`;
   const optionStr = `Allow ${quantify(remaining.length, "card")} to be exposed`;
 
   resolveKeyedPreventionForSide(state, side, eid, "expose", {
@@ -466,7 +532,14 @@ export function resolveExposePrevention(
     uses: {},
   });
 
-  triggerEventSimult(state, side, eid, "expose-interrupt", {}, { cards: targets });
+  triggerEventSimult(
+    state,
+    side,
+    eid,
+    "expose-interrupt",
+    {},
+    { cards: targets },
+  );
 
   // Filter out rezzed or nil cards
   const newTargets = targets
@@ -491,7 +564,8 @@ export function resolveExposePrevention(
             resolveExposePreventionForSide(state, respondingSide, eid);
           }
         },
-        () => completeWithResult(state, side, eid, fetchAndClear(state, "expose")),
+        () =>
+          completeWithResult(state, side, eid, fetchAndClear(state, "expose")),
       ],
       [() => resolveExposePreventionForSide(state, activeSide, eid)],
     );
@@ -617,7 +691,8 @@ export function preventUpToNTags(n: number | "all"): Ability {
         c: Card,
         t: unknown[],
       ) {
-        const remaining = ((s as any).prevent?.tag as PreventionContext)?.remaining as number;
+        const remaining = ((s as any).prevent?.tag as PreventionContext)
+          ?.remaining as number;
         if (n === "all") return remaining;
         return Math.min(remaining, n as number);
       }),
@@ -629,7 +704,8 @@ export function preventUpToNTags(n: number | "all"): Ability {
         c: Card,
         t: unknown[],
       ) {
-        const remaining = ((s as any).prevent?.tag as PreventionContext)?.remaining as number;
+        const remaining = ((s as any).prevent?.tag as PreventionContext)
+          ?.remaining as number;
         if (n === "all") return remaining;
         return Math.min(remaining, n as number);
       }),

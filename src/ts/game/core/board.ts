@@ -1,10 +1,19 @@
 // Board queries: installed cards, servers, zone helpers.
 // Mirrors: src/clj/game/core/board.clj + src/go/game/core/board.go
 
-import type { Corp, GameState, Runner, ServerZone } from "./state.js";
-import type { Card, Zone } from "./card.js";
-import { CORP_SIDE, RUNNER_SIDE } from "./state.js";
-import { isCorp, isRunner, isInstalled, isType, isFacedown, isRezzed, isOperation, isEvent } from "./card.js";
+import type { Corp, GameState, Runner, ServerZone } from "./state";
+import type { Card, Zone } from "./card";
+import { CORP_SIDE, RUNNER_SIDE } from "./state";
+import {
+  isCorp,
+  isRunner,
+  isInstalled,
+  isType,
+  isFacedown,
+  isRezzed,
+  isOperation,
+  isEvent,
+} from "./card";
 
 // ---------------------------------------------------------------------------
 // Server / rig card collections
@@ -61,7 +70,14 @@ export function getAllCards(state: GameState): Card[] {
   const corp = state.corp;
   const runner = state.runner;
   const zones: (keyof Corp | keyof Runner)[] = [
-    "deck", "hand", "discard", "current", "scored", "playArea", "rfg", "setAside",
+    "deck",
+    "hand",
+    "discard",
+    "current",
+    "scored",
+    "playArea",
+    "rfg",
+    "setAside",
   ];
   const cardsInZones: Card[] = [];
   for (const player of [corp, runner]) {
@@ -72,7 +88,9 @@ export function getAllCards(state: GameState): Card[] {
   }
   const installedCorp = corpServerCards(state);
   const installedRunner = runnerRigCards(state);
-  const identities = [corp.identity, runner.identity].filter((c): c is Card => c != null);
+  const identities = [corp.identity, runner.identity].filter(
+    (c): c is Card => c != null,
+  );
   const unchecked: Card[] = [
     ...installedCorp,
     ...installedRunner,
@@ -100,7 +118,10 @@ export function getAllCards(state: GameState): Card[] {
  */
 export function allInstalledRunner(state: GameState): Card[] {
   const installed: Card[] = [];
-  const unchecked: Card[] = [...runnerRigCards(state), ...hostedOnAll(corpServerCards(state))];
+  const unchecked: Card[] = [
+    ...runnerRigCards(state),
+    ...hostedOnAll(corpServerCards(state)),
+  ];
   while (unchecked.length) {
     const card = unchecked.shift()!;
     if (isRunner(card) && isInstalled(card)) installed.push(card);
@@ -115,7 +136,10 @@ export function allInstalledRunner(state: GameState): Card[] {
  */
 export function allInstalledCorp(state: GameState): Card[] {
   const installed: Card[] = [];
-  const unchecked: Card[] = [...corpServerCards(state), ...hostedOnAll(runnerRigCards(state))];
+  const unchecked: Card[] = [
+    ...corpServerCards(state),
+    ...hostedOnAll(runnerRigCards(state)),
+  ];
   while (unchecked.length) {
     const card = unchecked.shift()!;
     if (isCorp(card) && isInstalled(card)) installed.push(card);
@@ -148,7 +172,10 @@ export function allInstalledAndScored(state: GameState, side: string): Card[] {
  */
 export function getAllInstalled(state: GameState): Card[] {
   const installed: Card[] = [];
-  const unchecked: Card[] = [...runnerRigCards(state), ...corpServerCards(state)];
+  const unchecked: Card[] = [
+    ...runnerRigCards(state),
+    ...corpServerCards(state),
+  ];
   while (unchecked.length) {
     const card = unchecked.shift()!;
     if (isInstalled(card)) installed.push(card);
@@ -160,7 +187,10 @@ export function getAllInstalled(state: GameState): Card[] {
 /**
  * Returns all installed, non-facedown Runner cards of a given type.
  */
-export function allInstalledRunnerType(state: GameState, cardType: string): Card[] {
+export function allInstalledRunnerType(
+  state: GameState,
+  cardType: string,
+): Card[] {
   return allInstalled(state, RUNNER_SIDE).filter(
     (c) => isType(c, cardType) && !isFacedown(c),
   );
@@ -215,7 +245,11 @@ export function allActive(state: GameState, side: string): Card[] {
 /**
  * Returns a card matching title from the active-installed cards on the given side.
  */
-export function installedByName(state: GameState, side: string, title: string): Card | null {
+export function installedByName(
+  state: GameState,
+  side: string,
+  title: string,
+): Card | null {
   return allActiveInstalled(state, side).find((c) => c.title === title) ?? null;
 }
 
@@ -241,9 +275,12 @@ function remoteKey(rid: number): string {
  */
 export function serverToZone(state: GameState, server: string): Zone {
   switch (server) {
-    case "HQ": return ["servers", "hq"];
-    case "R&D": return ["servers", "rd"];
-    case "Archives": return ["servers", "archives"];
+    case "HQ":
+      return ["servers", "hq"];
+    case "R&D":
+      return ["servers", "rd"];
+    case "Archives":
+      return ["servers", "archives"];
     case "New remote": {
       const rid = state.makeRID();
       return ["servers", remoteKey(rid)];
@@ -271,12 +308,19 @@ export function cardToServer(state: GameState, card: Card): ServerZone | null {
 /**
  * Returns the ServerZone for a server key (hq, rd, archives, remoteN).
  */
-export function getServerZone(state: GameState, key: string): ServerZone | undefined {
+export function getServerZone(
+  state: GameState,
+  key: string,
+): ServerZone | undefined {
   switch (key) {
-    case "hq": return state.corp.servers.hq;
-    case "rd": return state.corp.servers.rd;
-    case "archives": return state.corp.servers.archives;
-    default: return state.corp.servers.remote[key];
+    case "hq":
+      return state.corp.servers.hq;
+    case "rd":
+      return state.corp.servers.rd;
+    case "archives":
+      return state.corp.servers.archives;
+    default:
+      return state.corp.servers.remote[key];
   }
 }
 

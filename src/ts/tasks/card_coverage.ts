@@ -10,7 +10,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { slugify } from "../jinteki/utils.js";
+import { slugify } from "../jinteki/utils";
 
 // ──────────────────────────────────────────────────────────────────
 // ANSI helpers
@@ -84,7 +84,9 @@ function getTests(filePath: string): string[] {
     const lookback = lines.slice(Math.max(0, i - 3), i);
     if (lookback.some((l) => SKIP_PATTERN.test(l))) continue;
 
-    const titleOverride = lookback.map((l) => TITLE_PATTERN.exec(l)).find(Boolean);
+    const titleOverride = lookback
+      .map((l) => TITLE_PATTERN.exec(l))
+      .find(Boolean);
     const name = titleOverride ? titleOverride[2] : match[2];
     const slug = slugify(name);
     if (slug) results.push(slug);
@@ -120,7 +122,11 @@ function compareTests(
 ): void {
   const cardSlugs = new Set(getCardsByType(cards, cardType));
   const testSlugs = new Set(testFiles.flatMap((f) => getTests(f)));
-  const { onlyA: cardsWo, onlyB: testsWo, both } = setDiff(cardSlugs, testSlugs);
+  const {
+    onlyA: cardsWo,
+    onlyB: testsWo,
+    both,
+  } = setDiff(cardSlugs, testSlugs);
 
   console.log(`${ESC}${BLUE}${cardType}${RESET}`);
   console.log(`\tUnique cards in db: ${cardSlugs.size}`);
@@ -145,9 +151,14 @@ function compareAllTests(
 ): void {
   const allCardSlugs = new Set(getCards(cards));
   const allTestSlugs = new Set(
-    Object.values(namespaces).flat().flatMap((f) => getTests(f)),
+    Object.values(namespaces)
+      .flat()
+      .flatMap((f) => getTests(f)),
   );
-  const { onlyA: cardsWo, onlyB: testsWo } = setDiff(allCardSlugs, allTestSlugs);
+  const { onlyA: cardsWo, onlyB: testsWo } = setDiff(
+    allCardSlugs,
+    allTestSlugs,
+  );
 
   console.log(`${ESC}${BLUE}All${RESET}`);
   console.log(`\tUnique cards in db: ${allCardSlugs.size}`);
@@ -181,9 +192,7 @@ export function testCoverage(...args: string[]): void {
   const showAll = args.includes("--show-all");
   const showNone = args.includes("--show-none");
   const onlyTotal = args.includes("--only-total");
-  const cardType = args.find(
-    (a) => !a.startsWith("--") && a !== cardsFile,
-  );
+  const cardType = args.find((a) => !a.startsWith("--") && a !== cardsFile);
 
   console.log("Loading all tests and cards");
   let cards: CardRecord[];
