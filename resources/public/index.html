@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=0.6, minimal-ui" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://jinteki.net" />
+    <meta property="og:image" content="https://www.jinteki.net/img/icons/jinteki_167.png" />
+    <meta property="og:title" content="Play Netrunner in your browser" />
+    <meta property="og:site_name" content="jinteki.net" />
+    <meta property="og:description" content="Build Netrunner decks and test them online against other players." />
+    <link rel="apple-touch-icon" href="/img/icons/jinteki_167.png" />
+    <title>Jinteki</title>
+    <link rel="stylesheet" href="/lib/css/toastr.min.css" />
+    <link rel="stylesheet" href="/css/netrunner.css" />
+  </head>
+  <body>
+    <!-- CSRF token injected by Go server via template (mirrors Clojure anti-forgery token) -->
+    <div id="sente-csrf-token" style="display:none" data-csrf-token="{{.CSRFToken}}"></div>
+    <!-- Server-originated data (version, etc.) -->
+    <div id="server-originated-data" style="display:none"
+         data-version="{{.Version}}"></div>
+    <!-- User data injected by Go server -->
+    <script>var user = {{.UserJSON}};</script>
+    <!-- React app mount point -->
+    <div id="root"></div>
+    <!-- Audio -->
+    <audio id="ting">
+      <source src="/sound/ting.mp3" type="audio/mp3" />
+      <source src="/sound/ting.ogg" type="audio/ogg" />
+    </audio>
+    <!-- Legacy libs (Bootstrap 3 for existing CSS compatibility) -->
+    <script src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
+    <script src="/lib/js/toastr.min.js"></script>
+    <!-- React app bundle (built by Vite) -->
+    <script type="module" src="/js/main.js"></script>
+  </body>
+</html>

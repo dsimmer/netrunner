@@ -1,0 +1,38 @@
+# Go backend configuration. Mirrors resources/dev.edn (Clojure).
+# MONGO_CONNECTION_URI env var overrides mongodb.connection_string.
+server:
+  mode: dev
+  port: 1042
+
+mongodb:
+  address: localhost
+  port: 27017
+  name: netrunner
+  connection_string: ""  # override with MONGO_CONNECTION_URI env var
+
+auth:
+  expiration: 60
+  secret: "Dev salt"
+  cookie:
+    http_only: true
+    same_site: lax
+    secure: true
+    max_age: 5184000  # 60 days
+
+lobby:
+  interval: 1000      # milliseconds
+  time_inactive: 600  # seconds
+
+chat:
+  max_length: 144
+  rate_window: 60     # sliding window in seconds
+  rate_cnt: 10        # messages allowed per window
+
+email:
+  host: ""
+  user: ""
+  pass: ""
+  ssl: false
+  from: "support@jinteki.net"
+  reset_subject: "Jinteki Password Reset"
+  confirm_reset_subject: "Your password has been changed"

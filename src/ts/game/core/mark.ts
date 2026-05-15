@@ -1,0 +1,62 @@
+// Runner mark (the randomly-identified central server each turn).
+// Mirrors: src/clj/game/core/mark.clj
+
+import type { GameState } from "./state.js";
+import type { Card } from "./card.js";
+import type { Ability } from "./types.js";
+import { RUNNER_SIDE } from "./state.js";
+import { getCard } from "./finding.js";
+import { registerEvents, triggerEvent } from "./engine.js";
+import { systemMsg } from "./say.js";
+import { centralToName } from "./servers.js";
+import { update } from "./update.js";
+
+const CENTRAL_SERVERS = ["hq", "rd", "archives"] as const;
+
+export function setMark(state: GameState, newMark: string): void {
+  state.mark = newMark;
+  triggerEvent(state, RUNNER_SIDE, "mark-changed");
+}
+
+export function isMark(state: GameState, s: string): boolean {
+  return s === state.mark;
+}
+
+export function identifyMark(state: GameState): void {
+  const newMark = CENTRAL_SERVERS[Math.floor(Math.random() * CENTRAL_SERVERS.length)];
+  setMark(state, newMark);
+  systemMsg(state, RUNNER_SIDE, `identifies [their] mark to be ${centralToName(newMark)}`);
+}
+
+export const identifyMarkAbility: Ability = {
+  effect: (state) => {
+    if (state.mark == null) identifyMark(state);
+  },
+};
+
+export const markChangedEvent: Ability = {
+  event: "mark-changed",
+  silent: true,
+  interactive: () => false,
+  effect: (state, side, _eid, card) => {
+    if (!card) return;
+    update(state, RUNNER_SIDE, (c: Card) => {
+      (c as any).cardTarget = centralToName(state.mark);
+      return c;
+    }, card);
+    registerEvents(state, side, card, [{
+      event: "post-runner-turn-ends",
+      silent: true,
+      unregisterOnceResolved: true,
+      effect: (state2) => {
+        const fresh = getCard(state2, card);
+        if (fresh) {
+          update(state2, RUNNER_SIDE, (c: Card) => {
+            delete (c as any).cardTarget;
+            return c;
+          }, fresh);
+        }
+      },
+    } as Ability]);
+  },
+} as Ability;
