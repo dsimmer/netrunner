@@ -489,12 +489,12 @@ export function lobbySummary(lobby: Lobby, includeMessages = false): Record<stri
     spectators: preparePlayers(lobby, lobby.spectators),
     "corp-spectators": preparePlayers(lobby, lobby["corp-spectators"]),
     "runner-spectators": preparePlayers(lobby, lobby["runner-spectators"]),
-    "original-players": prepareOriginalPlayers(lobby["original-players"]),
+    "original-players": prepareOriginalPlayers(lobby["original-players"] as Record<string, unknown>[] | undefined),
     messages: includeMessages ? messages : undefined,
     "round-end-time": maybeRoundEndTime(lobby),
   };
 
-  return selectNonNilKeys(processed, lobbyKeys as string[]);
+  return selectNonNilKeys(processed, lobbyKeys as unknown as (keyof typeof processed)[]) as Record<string, unknown>;
 }
 
 // ---- Blocked list / lobby filtering ----
@@ -572,7 +572,7 @@ function categorizeLobby(lobby: Lobby): string {
  */
 function sortedLobbies(lobbies: Lobby[]): Lobby[] {
   const withSummaries = lobbies
-    .map(lobbySummary)
+    .map((l) => lobbySummary(l))
     .sort((a, b) => {
       const dateA = (a.date as Date)?.getTime() ?? 0;
       const dateB = (b.date as Date)?.getTime() ?? 0;
@@ -618,7 +618,7 @@ export function prepareLobbyList(
  * Get list of uids that receive lobby updates.
  * Mirrors: (lobby-update-uids)
  */
-function lobbyUpdateUids(): string[] {
+export function lobbyUpdateUids(): string[] {
   return connectedUids().filter((uid) => receiveLobbyUpdatesCheck(uid));
 }
 

@@ -1,7 +1,7 @@
 // Centralized localStorage management with proper serialization.
 // Mirrors: src/cljs/nr/local_storage.cljs
 
-import { ALL_SETTINGS } from "jinteki/settings";
+import { ALL_SETTINGS } from "../jinteki/settings";
 
 /**
  * Serialize a value for localStorage storage.

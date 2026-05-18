@@ -39,7 +39,7 @@ import {
   isResource,
   isRezzed,
   isRunner,
-  isActive,
+  active as isActive,
 } from "./card";
 import { getCardDef } from "./types.ts";
 import { damage } from "./damage";
@@ -205,7 +205,7 @@ export function waitFor(
   next: (asyncResult: any, innerEid: EID) => void,
 ): void {
   const inner = makeEIDFrom(state, parentEid);
-  registerEIDCallback(state, inner, (_s, _side, completed) => {
+  registerEIDCallback(state, inner, (_s: any, _side: any, completed: any) => {
     next((completed as EID).result, completed as EID);
   });
   start(inner);
@@ -934,3 +934,5 @@ handlerDispatch.set(
     continue_ability(state, side, chosen, card, []);
   },
 );
+
+// canPay is re-exported via ./costs from ./payment (the real implementation).

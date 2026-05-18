@@ -4,12 +4,19 @@
 // Protocol (server → client): { id: "event/name", data: {...} }
 // Protocol (client → server): { id: "event/name", data: {...} }
 import * as ws from "ws";
+import * as crypto from "crypto";
 import type { IncomingMessage } from "http";
 import type { Server } from "http";
-import { registerUser, deregisterUser } from "./app_state";
+import { registerUserInAppState as registerUser, deregisterUserFromAppState as deregisterUser } from "./app_state";
 import { activeUser } from "./user";
 
 // ---- Types ----
+
+export interface WSRingReq {
+  system?: any;
+  user?: any;
+  [key: string]: any;
+}
 
 export interface WSMessage {
   id: string;
@@ -17,6 +24,8 @@ export interface WSMessage {
   uid?: string;
   replyFn?: (data: unknown) => void;
   timestamp?: number;
+  "ring-req"?: WSRingReq;
+  ringReq?: WSRingReq;
 }
 
 export type WSMsgHandler = (msg: WSMessage) => void;
@@ -39,6 +48,20 @@ function logError(...args: unknown[]): void {
 // Mirrors: sente/make-channel-socket-server! with http-kit adapter
 
 let wss: ws.WebSocketServer | null = null;
+
+// System reference used to populate `ring-req` on every dispatched message.
+// Mirrors sente's :ring-req field which carries the original ring request
+// (including :system, :user, etc.) into every WS event handler.
+let attachedSystem: Record<string, unknown> | null = null;
+
+export function setSystem(system: Record<string, unknown> | null): void {
+  attachedSystem = system;
+}
+
+// Per-connection user maps, keyed by uid. Populated at connection time
+// from the upgrade request's session (mirrors ring-anti-forgery's user
+// being available on the ring-req).
+const connectionUsers = new Map<string, Record<string, unknown>>();
 
 // Connected sockets: Map<uid, Set<ws.WebSocket>>
 export const connectedSockets = new Map<string, Set<ws.WebSocket>>();
@@ -91,10 +114,25 @@ export function initWebSocketServer(server: Server): ws.WebSocketServer {
     connectedSockets.set(uid, uidSockets);
     connections_.set(client, { uid });
 
+    // Capture session user from the upgrade request so it is available on
+    // every subsequent message (mirrors :user on :ring-req in Clojure).
+    const sessionUser = ((req as any).session as Record<string, unknown> | undefined)?.user as
+      | Record<string, unknown>
+      | undefined;
+    if (sessionUser) {
+      connectionUsers.set(uid, sessionUser);
+    }
+
     client.on("message", (data: ws.Data) => {
       try {
         const msg: WSMessage = JSON.parse(data.toString());
         msg.uid = uid;
+        const ringReq: WSRingReq = {
+          system: attachedSystem ?? undefined,
+          user: connectionUsers.get(uid),
+        };
+        msg["ring-req"] = ringReq;
+        msg.ringReq = ringReq;
         handleEventMsg(msg);
       } catch (e) {
         logError(e, "Failed to parse WS message from", uid);
@@ -105,6 +143,7 @@ export function initWebSocketServer(server: Server): ws.WebSocketServer {
       uidSockets.delete(client);
       if (uidSockets.size === 0) {
         connectedSockets.delete(uid);
+        connectionUsers.delete(uid);
         deregisterUser(uid);
       }
       connections_.delete(client);
@@ -300,7 +339,7 @@ registerMsgHandler("chsk/uidport-open", (msg) => {
   // Since we don't have ring-req here, we rely on connection-time registration
   const user = (connections_ as any)?.__user ?? undefined;
   if (user && activeUser(user)) {
-    registerUser(uid, user);
+    registerUser(uid, user as unknown as Record<string, unknown>);
   }
 });
 

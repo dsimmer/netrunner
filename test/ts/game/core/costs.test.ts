@@ -13,12 +13,14 @@ import {
   autoPump,
   autoPumpAndBreak,
   cardAbility,
+  expend,
   getIce,
   getContent,
   getProgram,
   getRunner,
   getCorp,
   getStrength,
+  getPromptMap,
   refresh,
   lastLogContains,
   secondLastLogContains,
@@ -45,7 +47,7 @@ describe("merge-costs", () => {
     });
 
     it("Default type is only element", () => {
-      expect(mergeCosts([[toC("credit")]]))).toEqual([toC("credit", 1)]);
+      expect(mergeCosts([[toC("credit")]])).toEqual([toC("credit", 1)]);
     });
 
     it("Default plus explicit", () => {
@@ -56,14 +58,14 @@ describe("merge-costs", () => {
     });
 
     it("Costs ending with defaults expand", () => {
-      expect(mergeCosts([[toC("credit", 1), toC("click")]]))).toEqual([
+      expect(mergeCosts([[toC("credit", 1), toC("click")]])).toEqual([
         toC("click", 1),
         toC("credit", 1),
       ]);
     });
 
     it("Non-damage costs aren't reordered", () => {
-      expect(mergeCosts([[toC("click", 1), toC("credit", 1)]]))).not.toEqual([
+      expect(mergeCosts([[toC("click", 1), toC("credit", 1)]])).not.toEqual([
         toC("credit", 1),
         toC("click", 1),
       ]);
@@ -124,7 +126,7 @@ describe("merge-costs", () => {
     });
 
     it("Damage is combined", () => {
-      expect(mergeCosts([[toC("net", 1), toC("net", 1)]]))).toEqual([
+      expect(mergeCosts([[toC("net", 1), toC("net", 1)]])).toEqual([
         toC("net", 2),
       ]);
     });
@@ -174,7 +176,7 @@ describe("pay-credits", () => {
           state,
           "Corp spends [Click] and pays 0 [Credits] to install ice protecting HQ.",
         ),
-      ).toBe(true); // Install ice, zero cost
+      ).toBe(true);
 
       playFromHand(state, "corp", "Ice Wall", "HQ");
       expect(
@@ -182,7 +184,7 @@ describe("pay-credits", () => {
           state,
           "Corp spends [Click] and pays 1 [Credits] to install ice protecting HQ.",
         ),
-      ).toBe(true); // Install ice, one cost
+      ).toBe(true);
 
       playFromHand(state, "corp", "Turtlebacks", "New remote");
       expect(
@@ -190,7 +192,7 @@ describe("pay-credits", () => {
           state,
           "Corp spends [Click] to install a card in the root of Server 1.",
         ),
-      ).toBe(true); // Install asset, zero cost
+      ).toBe(true);
 
       playFromHand(state, "corp", "Ben Musashi", "Server 1");
       expect(
@@ -198,7 +200,7 @@ describe("pay-credits", () => {
           state,
           "Corp spends [Click] to install a card in the root of Server 1.",
         ),
-      ).toBe(true); // Install upgrade, zero cost
+      ).toBe(true);
 
       playFromHand(state, "corp", "Project Beale", "New remote");
       expect(
@@ -206,7 +208,7 @@ describe("pay-credits", () => {
           state,
           "Corp spends [Click] to install a card in the root of Server 2.",
         ),
-      ).toBe(true); // Install agenda, zero cost
+      ).toBe(true);
 
       playFromHand(state, "corp", "Beanstalk Royalties");
       expect(
@@ -214,7 +216,7 @@ describe("pay-credits", () => {
           state,
           "Corp spends [Click] and pays 0 [Credits] to play Beanstalk Royalties.",
         ),
-      ).toBe(true); // Play operation, zero cost
+      ).toBe(true);
 
       playFromHand(state, "corp", "Hedge Fund");
       expect(
@@ -222,7 +224,7 @@ describe("pay-credits", () => {
           state,
           "Corp spends [Click] and pays 5 [Credits] to play Hedge Fund.",
         ),
-      ).toBe(true); // Play operation, five cost
+      ).toBe(true);
 
       takeCredits(state, "corp");
       core.gain(state, "runner", "click", 10);
@@ -232,7 +234,7 @@ describe("pay-credits", () => {
           state,
           "Runner spends [Click] and pays 0 [Credits] to play Diesel.",
         ),
-      ).toBe(true); // Play event, zero cost
+      ).toBe(true);
 
       playFromHand(state, "runner", "Sure Gamble");
       expect(
@@ -240,7 +242,7 @@ describe("pay-credits", () => {
           state,
           "Runner spends [Click] and pays 5 [Credits] to play Sure Gamble.",
         ),
-      ).toBe(true); // Play event, five cost
+      ).toBe(true);
 
       playFromHand(state, "runner", "Clot");
       expect(
@@ -248,7 +250,7 @@ describe("pay-credits", () => {
           state,
           "Runner spends [Click] and pays 2 [Credits] to install Clot.",
         ),
-      ).toBe(true); // Install program, two cost
+      ).toBe(true);
 
       playFromHand(state, "runner", "Misdirection");
       expect(
@@ -256,7 +258,7 @@ describe("pay-credits", () => {
           state,
           "Runner spends [Click] and pays 0 [Credits] to install Misdirection.",
         ),
-      ).toBe(true); // Install program, zero cost
+      ).toBe(true);
 
       playFromHand(state, "runner", "Career Fair");
       expect(
@@ -264,7 +266,7 @@ describe("pay-credits", () => {
           state,
           "Runner spends [Click] and pays 0 [Credits] to play Career Fair.",
         ),
-      ).toBe(true); // Play Career Fair, zero cost
+      ).toBe(true);
 
       clickCard(state, "runner", "Daily Casts");
       expect(
@@ -272,7 +274,7 @@ describe("pay-credits", () => {
           state,
           "Runner pays 0 [Credits] to use Career Fair to install Daily Casts from the Grip",
         ),
-      ).toBe(true); // Choose Daily cast, zero cost install
+      ).toBe(true);
 
       playFromHand(state, "runner", "Daily Casts");
       expect(
@@ -280,12 +282,16 @@ describe("pay-credits", () => {
           state,
           "Runner spends [Click] and pays 3 [Credits] to install Daily Casts.",
         ),
-      ).toBe(true); // Install resource, three cost
+      ).toBe(true);
 
       runOn(state, "archives");
       expect(
-        lastNLogContains(state, 1, "Runner spends [Click] to make a run on Archives."),
-      ).toBe(true); // Initiate run, zero cost
+        lastNLogContains(
+          state,
+          1,
+          "Runner spends [Click] to make a run on Archives.",
+        ),
+      ).toBe(true);
     });
   });
 
@@ -310,13 +316,13 @@ describe("pay-credits", () => {
       const cor = getProgram(state, 0);
       const clo = getProgram(state, 1);
 
-      expect(getStrength(refresh(state, cor))).toBe(2); // Corroder starts at 2 strength
+      expect(getStrength(refresh(state, cor))).toBe(2);
       autoPump(state, refresh(state, cor));
       clickCard(state, "runner", clo);
       clickPrompt(state, "runner", "Place 1 [Credits] on Net Mercur");
 
-      expect(getStrength(refresh(state, cor))).toBe(5); // Corroder is at 5 strength
-      expect(getRunner(state).credit).toBe(cre - 2); // Spent 2 (+1 from Cloak) to pump
+      expect(getStrength(refresh(state, cor))).toBe(5);
+      expect(getRunner(state).credit).toBe(cre - 2);
     });
   });
 });
@@ -342,20 +348,20 @@ describe("pump-and-break", () => {
 
       rez(state, "corp", hive);
       runContinue(state);
-      expect(getStrength(refresh(state, cor))).toBe(2); // Corroder starts at 2 strength
+      expect(getStrength(refresh(state, cor))).toBe(2);
       autoPumpAndBreak(state, refresh(state, cor));
-      expect(getStrength(refresh(state, cor))).toBe(3); // Corroder now at 3 strength
+      expect(getStrength(refresh(state, cor))).toBe(3);
       expect(
         (refresh(state, hive).subroutines ?? []).every(
           (sub: any) => sub.broken,
         ),
-      ).toBe(true); // Hive is now fully broken
+      ).toBe(true);
       expect(
         secondLastLogContains(
           state,
           "Runner pays 6 [Credits] to increase the strength of Corroder to 3 and break all 5 subroutines on Hive.",
         ),
-      ).toBe(true); // Should write correct pump & break price to log
+      ).toBe(true);
     });
   });
 
@@ -380,25 +386,25 @@ describe("pump-and-break", () => {
       rez(state, "corp", hive);
       runContinue(state);
       autoPump(state, refresh(state, cor));
-      expect(getStrength(refresh(state, cor))).toBe(3); // Corroder now at 3 strength
+      expect(getStrength(refresh(state, cor))).toBe(3);
       expect(
         lastLogContains(
           state,
           "Runner pays 1 [Credits] to increase the strength of Corroder to 3.",
         ),
-      ).toBe(true); // Should write correct pump price to log
+      ).toBe(true);
       autoPumpAndBreak(state, refresh(state, cor));
       expect(
         (refresh(state, hive).subroutines ?? []).every(
           (sub: any) => sub.broken,
         ),
-      ).toBe(true); // Hive is now fully broken
+      ).toBe(true);
       expect(
         secondLastLogContains(
           state,
           "Runner pays 5 [Credits] to use Corroder to break all 5 subroutines on Hive.",
         ),
-      ).toBe(true); // Should write correct break price to log
+      ).toBe(true);
     });
   });
 
@@ -423,7 +429,7 @@ describe("pump-and-break", () => {
       rez(state, "corp", hive);
       runContinue(state);
       autoPump(state, refresh(state, cor));
-      expect(getStrength(refresh(state, cor))).toBe(2); // Corroder still at 2 strength
+      expect(getStrength(refresh(state, cor))).toBe(2);
     });
   });
 
@@ -455,16 +461,16 @@ describe("pump-and-break", () => {
       expect(
         (getPromptMap(state, "runner") as any)?.msg?.includes("2 stealth") ??
           false,
-      ).toBe(true); // The prompt tells us how many stealth credits we need
+      ).toBe(true);
       clickCard(state, "runner", mantle1);
       clickCard(state, "runner", mantle2);
-      expect(getStrength(refresh(state, hou))).toBe(10); // Houdini is at 10 strength
+      expect(getStrength(refresh(state, hou))).toBe(10);
       autoPumpAndBreak(state, refresh(state, hou));
       expect(
         (refresh(state, engine).subroutines ?? []).every(
           (sub: any) => sub.broken,
         ),
-      ).toBe(true); // Engine is now fully broken
+      ).toBe(true);
     });
   });
 
@@ -489,28 +495,28 @@ describe("pump-and-break", () => {
       rez(state, "corp", hive);
       runContinue(state);
       autoPump(state, refresh(state, cor));
-      expect(getStrength(refresh(state, cor))).toBe(3); // Corroder is now at 3 strength
+      expect(getStrength(refresh(state, cor))).toBe(3);
       cardAbility(state, "runner", refresh(state, cor), 0);
       clickPrompt(state, "runner", "End the run");
       clickPrompt(state, "runner", "Done");
 
-      const unbroken1 = (refresh(state, hive).subroutines ?? []).filter(
+      const unbroken = (refresh(state, hive).subroutines ?? []).filter(
         (sub: any) => !sub.broken,
       );
-      expect(unbroken1.length).toBe(4); // Only broken 1 sub
+      expect(unbroken.length).toBe(4);
 
       autoPumpAndBreak(state, refresh(state, cor));
       expect(
         (refresh(state, hive).subroutines ?? []).every(
           (sub: any) => sub.broken,
         ),
-      ).toBe(true); // Hive is now fully broken
+      ).toBe(true);
       expect(
         secondLastLogContains(
           state,
           "Runner pays 4 [Credits] to use Corroder to break the remaining 4 subroutines on Hive.",
         ),
-      ).toBe(true); // Should write correct price to log
+      ).toBe(true);
     });
   });
 });
@@ -533,8 +539,8 @@ describe("run-additional-costs", () => {
       expect(getRunner(state).click).toBe(1);
       playFromHand(state, "runner", "Dirty Laundry");
       const choices = (getRunner(state).prompt?.[0] as any)?.choices ?? [];
-      expect(choices.length).toBe(2); // Runner should only get choice of Archives or R&D
-      expect(choices).not.toContainEqual("HQ"); // Runner should only get choice of Archives or R&D
+      expect(choices.length).toBe(2);
+      expect(choices).not.toContainEqual("HQ");
     });
   });
 });
@@ -557,159 +563,7 @@ describe("expend-costs-reveal-the-discarded-card", () => {
 
       expend(state, "corp", agri);
       clickCard(state, "corp", iw);
-      expect(getCorp(state).credit).toBe(5); // Expend triggered Hyoubu
+      expect(getCorp(state).credit).toBe(5);
     });
   });
 });
-
-// Helper imported from test framework
-function getPromptMap(state: any, side: string): any {
-  return state[side]?.prompt?.[0];
-}
-
-function getRunner(state: any): any {
-  return state.runner;
-}
-
-function getCorp(state: any): any {
-  return state.corp;
-}
-
-function getIce(state: any, server: string, pos?: number): any {
-  const ices = state.corp?.servers?.[server]?.ices ?? [];
-  return pos === undefined ? ices : ices[pos];
-}
-
-function getContent(state: any, server: string, pos?: number): any {
-  const content = state.corp?.servers?.[server]?.content ?? [];
-  return pos === undefined ? content : content[pos];
-}
-
-function getProgram(state: any, pos?: number): any {
-  const programs = state.runner?.rig?.program ?? [];
-  return pos === undefined ? programs : programs[pos];
-}
-
-function refresh(state: any, card: any): any {
-  return core.getCard(state, card);
-}
-
-function getStrength(card: any): number {
-  return card?.currentStrength ?? card?.strength ?? 0;
-}
-
-function lastLogContains(state: any, content: string, side = "public"): boolean {
-  const log = (state.log ?? []).filter(
-    (entry: any) => entry?.[side] ?? entry?.public,
-  );
-  const lastEntry = log[log.length - 1]?.text ?? "";
-  const escaped = content.replace(/\[/g, "\\[").replace(/\]/g, "\\]");
-  return new RegExp(escaped).test(lastEntry);
-}
-
-function secondLastLogContains(
-  state: any,
-  content: string,
-  side = "public",
-): boolean {
-  const log = (state.log ?? []).filter(
-    (entry: any) => entry?.[side] ?? entry?.public,
-  );
-  const entry = log[log.length - 2]?.text ?? "";
-  const escaped = content.replace(/\[/g, "\\[").replace(/\]/g, "\\]");
-  return new RegExp(escaped).test(entry);
-}
-
-function lastNLogContains(
-  state: any,
-  n: number,
-  content: string,
-  side = "public",
-): boolean {
-  const log = (state.log ?? []).filter(
-    (entry: any) => entry?.[side] ?? entry?.public,
-  );
-  const entry = log[log.length - 1 - n]?.text ?? "";
-  const escaped = content.replace(/\[/g, "\\[").replace(/\]/g, "\\]");
-  return new RegExp(escaped).test(entry);
-}
-
-function newGame(config: any, state?: any): any {
-  const st = state ?? {};
-  // Use the test framework's newGame
-  const tf = require("../test_framework/index");
-  const result = tf.newGame(config, st);
-  return result;
-}
-
-function takeCredits(state: any, side: string, n?: number): void {
-  core.takeCredits(state, side, n);
-}
-
-function playFromHand(
-  state: any,
-  side: string,
-  title: string,
-  server?: string,
-): boolean {
-  return core.playFromHand(state, side, title, server);
-}
-
-function runOn(state: any, server: string, args?: any): boolean {
-  return core.runOn(state, server, args ?? {});
-}
-
-function rez(state: any, side: string, card: any, opts?: any): void {
-  core.rez(state, side, card, opts);
-}
-
-function runContinue(state: any, phase?: string): void {
-  core.runContinue(state, phase);
-}
-
-function clickCard(state: any, side: string, card: any): void {
-  core.clickCard(state, side, card);
-}
-
-function clickPrompt(state: any, side: string, choice: string | number, args?: any): void {
-  core.clickPrompt(state, side, choice, args);
-}
-
-function autoPump(state: any, card: any): void {
-  core.processAction("dynamic-ability", state, "runner", {
-    dynamic: "auto-pump",
-    card: core.getCard(state, card),
-  });
-}
-
-function autoPumpAndBreak(state: any, card: any): void {
-  core.processAction("dynamic-ability", state, "runner", {
-    dynamic: "auto-pump-and-break",
-    card: core.getCard(state, card),
-  });
-}
-
-function cardAbility(
-  state: any,
-  side: string,
-  card: any,
-  ability: number | string,
-  targets?: any,
-): boolean {
-  return core.cardAbility(state, side, card, ability, targets);
-}
-
-function expend(state: any, side: string, card: any): boolean {
-  return core.processAction("expend", state, side, {
-    card: core.getCard(state, card),
-  });
-}
-
-function doGame(fn: (state: any) => void): void {
-  const state: any = {};
-  fn(state);
-}
-
-function qty(card: string, amount: number): string[] {
-  return Array.from({ length: amount }, () => card);
-}

@@ -30,7 +30,7 @@ function waitFor(
   next: (asyncResult: unknown, innerEid: EID) => void,
 ): void {
   const inner = makeEIDFrom(state, parentEid);
-  registerEIDCallback(state, inner, (_s, _side, completed) => {
+  registerEIDCallback(state, inner, (_s: any, _side: any, completed: any) => {
     next((completed as EID).result, completed as EID);
   });
   start(inner);
@@ -163,12 +163,11 @@ export function optionalAbility(
   showPrompt(
     state,
     side,
-    eid as any,
     card as any,
     message as any,
     choices as any,
     promptFn as any,
-    { ...(ability as any), targets } as any,
+    { eid, ...(ability as any), targets } as any,
   );
 }
 
@@ -237,7 +236,7 @@ export function isNever(x: unknown): boolean {
 
 type AutoresolvePred =
   | Record<string, string | undefined>
-  | ((value: unknown) => string | undefined);
+  | ((value: any) => any);
 
 /**
  * Makes a card ability which lets the user toggle auto-resolve on an ability.
@@ -267,7 +266,7 @@ export function setAutoresolve(toggleKw: string, abilityName: string): Ability {
       const target = (targets?.[0] as unknown as string) ?? "";
       const newSetting = target.toLowerCase();
       if (card) {
-        update(
+        (update as any)(
           state,
           side,
           (c: Card) => {
@@ -323,4 +322,9 @@ export function getAutoresolve(
     if (value == null) return undefined;
     return pred[value as string];
   };
+}
+
+/** Returns true when the argument is `:never`. Mirrors `never?` in clj. */
+export function never(x: unknown): boolean {
+  return x === ":never" || x === "never";
 }

@@ -39,7 +39,6 @@ import {
   isResource,
   isRezzed,
   isRunner,
-  isActive,
 } from "./card";
 import { getCardDef } from "./types.ts";
 import { damage } from "./damage";
@@ -338,7 +337,7 @@ handlerDispatch.set("shuffle-installed-to-stack", (c, state, side, eid) => {
         const moved = targets
           .map((t) => move(s, sd, t, "deck", { shuffled: true }))
           .filter((x): x is Card => !!x);
-        shuffleDeck(s, sd, "deck");
+        shuffleDeck(s, sd);
         completeWithResult(s, sd, ei, {
           "paid/msg": `shuffles ${quantify(moved.length, "card")} (${enumerateCards(moved, "sorted")}) into ${side === "corp" ? "R&D" : "the stack"}`,
           "paid/type": "shuffle-installed-to-stack",

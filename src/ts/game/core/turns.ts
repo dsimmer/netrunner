@@ -60,7 +60,7 @@ function resolveDurations(
   ...durations: string[]
 ): void {
   for (const duration of durations) {
-    unregisterLingeringEffects(state, _side, duration);
+    unregisterLingeringEffects(state, duration);
     unregisterFloatingEvents(state, _side, duration);
   }
 }
@@ -80,7 +80,7 @@ function waitFor(
   next: (innerEid: EID) => void,
 ): void {
   const inner = makeEIDFrom(state, parentEid);
-  registerEIDCallback(state, inner, (_s, _side, completed) => {
+  registerEIDCallback(state, inner, (_s: any, _side: any, completed: any) => {
     next(completed as EID);
   });
   start(inner);
@@ -184,7 +184,7 @@ export function endPhase12(
         // draw then trigger corp-mandatory-draw
         draw(state, side, innerEid, 1, {});
         // After draw completes, trigger the mandatory draw event
-        registerEIDCallback(state, innerEid, (s, s2, completed) => {
+        registerEIDCallback(state, innerEid, (s: any, s2: any, completed: any) => {
           triggerEventSimult(
             s,
             s2,
@@ -272,7 +272,7 @@ export function startTurn(
 
   // Don't clear :turn-events until the player clicks "Start Turn"
   // Fix for Hayley triggers
-  state.turnEvents = null;
+  state.turnEvents = [] as any;
   (player as any).turnStarted = true;
 
   // clear out last-revealed so cards don't stick around all game
@@ -554,7 +554,7 @@ export function endTurnContinue(
           (actualCard as any).installed = true;
           update(state, side, actualCard);
         }
-        if ((actualCard as any).rezzed === "this-turn") {
+        if (actualCard && (actualCard as any).rezzed === "this-turn") {
           (actualCard as any).rezzed = true;
           update(state, side, actualCard);
         }

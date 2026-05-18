@@ -17,7 +17,7 @@ import { getRemoteAnnotations, loadNotes } from './replay_2';
 // Implements RFC 6902 JSON Patch operations
 // ---------------------------------------------------------------------------
 
-interface JsonPatchOp {
+export interface JsonPatchOp {
   op: string;
   path: string;
   value?: unknown;
@@ -285,7 +285,7 @@ export function ignoreDiff(): boolean {
   if (!gs.gameState) return false;
   const log = gs.gameState.log as Array<{ text: string }> | undefined;
   const text = log?.[log.length - 1]?.text;
-  return text === "typing" || (text && text.includes("joined the game"));
+  return text === "typing" || (text != null && text.includes("joined the game"));
 }
 
 /** Get the last log entry text */

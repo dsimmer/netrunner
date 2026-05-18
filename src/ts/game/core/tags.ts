@@ -12,6 +12,7 @@ import { resolveTagPrevention } from "./prevention";
 import { toast } from "./toasts";
 import { quantify } from "../utils";
 import { req } from "../macros";
+import { makeEID, registerEffectCompleted } from "./eid";
 
 // ---------------------------------------------------------------------------
 // Tag effect summation
@@ -115,44 +116,48 @@ interface GainTagsOpts {
  * Attempts to give the runner n tags, allowing for boosting/prevention effects.
  * Mirrors: gain-tags in tags.clj
  */
-export function gainTags(
-  state: GameState,
-  side: string,
-  eid: EID,
-  n: number,
-  opts: GainTagsOpts = {},
-): void {
+export function gainTags(state: GameState, side: string, eid: EID, n: number, opts?: GainTagsOpts | null): void;
+export function gainTags(...rawArgs: any[]): void;
+export function gainTags(...rawArgs: any[]): void {
+  let state: GameState, side: string, eid: EID, n: number;
+  let opts: GainTagsOpts = {};
+  if (rawArgs.length >= 4 && typeof rawArgs[2] === "object" && rawArgs[2] !== null && "id" in rawArgs[2]) {
+    [state, side, eid, n] = rawArgs as any;
+    opts = rawArgs[4] ?? {};
+  } else {
+    // (state, side, n, opts?) — legacy short form
+    state = rawArgs[0]; side = rawArgs[1]; n = rawArgs[2];
+    opts = rawArgs[3] ?? {};
+    eid = { id: 0, source: null } as unknown as EID;
+  }
+  opts = opts ?? {};
   const { unpreventable, card, suppressCheckpoint } = opts;
 
-  // Use wait_for pattern to chain prevention → resolve
   // Mirrors: (wait-for (resolve-tag-prevention ...) (resolve-tag ... async-result))
-  resolveTagPrevention(
-    state,
-    side,
-    eid,
-    n,
-    { unpreventable, card },
-    (remaining) => {
-      resolveTag(state, side, eid, card ?? null, remaining, suppressCheckpoint);
-    },
-  );
+  // resolveTagPrevention signals completion on its eid via completeWithResult.
+  // We register an effect-completed handler on a fresh inner eid so we can
+  // capture the `remaining` count, then resolve the actual tag gain.
+  const innerEid = makeEID(state);
+  registerEffectCompleted(state, innerEid, ((
+    _s: GameState,
+    _sd: string,
+    completedEid: EID,
+  ) => {
+    const result: any = (completedEid as any).result;
+    const remaining: number =
+      typeof result === "number"
+        ? result
+        : (result?.remaining ?? result?.["paid/value"] ?? n);
+    resolveTag(state, side, eid, card ?? null, remaining, suppressCheckpoint);
+  }) as any);
+  resolveTagPrevention(state, side, innerEid, n, { unpreventable, card: card as any });
 }
 
 /**
  * Take n tags (ability-returning helper).
  * Mirrors: gain-tags-ability in tags.clj
  */
-export function gainTagsAbility(n: number): {
-  msg: string;
-  async: boolean;
-  effect: (
-    state: GameState,
-    side: string,
-    eid: EID,
-    card: unknown,
-    targets: unknown[],
-  ) => void;
-} {
+export function gainTagsAbility(n: number): any {
   return {
     msg: `take ${quantify(n, "tag")}`,
     async: true,
@@ -166,13 +171,20 @@ export function gainTagsAbility(n: number): {
  * Always removes `:base` tags.
  * Mirrors: lose-tags in tags.clj
  */
-export function loseTags(
-  state: GameState,
-  side: string,
-  eid: EID,
-  n: number | "all",
-  opts: { suppressCheckpoint?: boolean } = {},
-): void {
+export function loseTags(state: GameState, side: string, eid: EID, n: number | "all", opts?: { suppressCheckpoint?: boolean } | null): void;
+export function loseTags(...rawArgs: any[]): void;
+export function loseTags(...rawArgs: any[]): void {
+  let state: GameState, side: string, eid: EID, n: number | "all";
+  let opts: { suppressCheckpoint?: boolean } = {};
+  if (rawArgs.length >= 4 && typeof rawArgs[2] === "object" && rawArgs[2] !== null && "id" in rawArgs[2]) {
+    [state, side, eid, n] = rawArgs as any;
+    opts = rawArgs[4] ?? {};
+  } else {
+    state = rawArgs[0]; side = rawArgs[1]; n = rawArgs[2];
+    opts = rawArgs[3] ?? {};
+    eid = { id: 0, source: null } as unknown as EID;
+  }
+  opts = opts ?? {};
   if (n === "all") {
     loseTags(state, side, eid, state.runner.tag.base ?? 0, opts);
     return;
@@ -197,3 +209,11 @@ export function loseTags(
     checkpoint(state, null, eid);
   }
 }
+
+export { countTags, isTagged } from "../../jinteki/utils";
+export { removeTag } from "./actions_2";
+export { sameSide, sideStr } from "../utils";
+export { otherSide } from "../../jinteki/utils";
+
+/** Alias for gainTags — clj-style `add-tag` API. */
+export const addTag = gainTags;

@@ -17,10 +17,10 @@ export function factionLabel(card: { faction?: string }): string {
   return card.faction.toLowerCase().replace(/ /g, "-");
 }
 
-export function otherSide(side: string): string | null {
-  if (side === "corp") return "runner";
-  if (side === "runner") return "corp";
-  return null;
+export function otherSide(side: string): string {
+  if (side === "corp" || side === ":corp") return "runner";
+  if (side === "runner" || side === ":runner") return "corp";
+  return "";
 }
 
 export function superuser(user: { isadmin?: boolean; ismoderator?: boolean }): boolean {
@@ -59,8 +59,9 @@ export function decapitalize(s: string): string {
 
 export interface Ability {
   label?: string;
-  msg?: string;
+  msg?: unknown;
   "cost-label"?: string;
+  costLabel?: string;
 }
 
 export function makeLabel(ability: Ability): string {
@@ -73,7 +74,7 @@ export function makeLabel(ability: Ability): string {
 
 export function addCostToLabel(ability: Ability): string {
   const label = makeLabel(ability);
-  const costLabel = ability["cost-label"];
+  const costLabel = ability["cost-label"] ?? ability.costLabel;
   // Clojure uses str/blank? which treats "" and whitespace-only as blank
   const costLabelBlank = !costLabel || costLabel.trim().length === 0;
   const labelBlank = !label || label.trim().length === 0;
@@ -97,35 +98,28 @@ export function selectNonNilKeys<T extends Record<string, unknown>>(
   return ret;
 }
 
-interface BadPublicity { base?: number; additional?: number }
-interface TagState { total?: number; base?: number; "is-tagged"?: boolean }
-interface GameState {
-  corp?: { "bad-publicity"?: BadPublicity };
-  runner?: { tag?: TagState };
-}
-
 /** Counts bad publicity corp has (base + additional). */
-export function countBadPub(state: GameState): number {
-  return (state.corp?.["bad-publicity"]?.base ?? 0) +
-         (state.corp?.["bad-publicity"]?.additional ?? 0);
+export function countBadPub(state: any): number {
+  return (state?.corp?.badPublicity?.base ?? state?.corp?.["bad-publicity"]?.base ?? 0) +
+         (state?.corp?.badPublicity?.additional ?? state?.corp?.["bad-publicity"]?.additional ?? 0);
 }
 
-export function hasBadPub(state: GameState): boolean {
+export function hasBadPub(state: any): boolean {
   return countBadPub(state) > 0;
 }
 
 /** Counts total tags runner has. */
-export function countTags(state: GameState): number {
-  return state.runner?.tag?.total ?? 0;
+export function countTags(state: any): number {
+  return state?.runner?.tag?.total ?? 0;
 }
 
 /** Counts non-additional (base) tags runner has. */
-export function countRealTags(state: GameState): number {
-  return state.runner?.tag?.base ?? 0;
+export function countRealTags(state: any): number {
+  return state?.runner?.tag?.base ?? 0;
 }
 
-export function isTagged(state: GameState): boolean {
-  return !!(state.runner?.tag?.["is-tagged"] || countTags(state) > 0);
+export function isTagged(state: any): boolean {
+  return !!(state?.runner?.tag?.["is-tagged"] || countTags(state) > 0);
 }
 
 export interface CommandInfo {

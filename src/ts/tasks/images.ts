@@ -3,7 +3,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { Db, MongoClient, WithId } from "mongodb";
+import { Db, MongoClient } from "mongodb";
 
 // ──────────────────────────────────────────────────────────────────
 // Constants
@@ -276,14 +276,14 @@ const CARDS_TO_SKIP = new Set([
 // add-flip-card-image (mirrors add-flip-card-image)
 // ──────────────────────────────────────────────────────────────────
 
-function addFlipCardImage(
+async function addFlipCardImage(
   db: Db,
   basePath: string,
   lang: string,
   resolution: string,
   artSet: string,
   filename: string,
-): void {
+): Promise<void> {
   const codeFace = filename.split(IMAGE_SELECT_REGEX)[0];
   const codeFaceSplit = codeFace.split("-");
   const code = codeFaceSplit[0];
@@ -293,21 +293,13 @@ function addFlipCardImage(
   const prevK = ["faces", face, "images", lang, resolution, prevKRoot].join(".");
   const filePath = [basePath, lang, resolution, artSet, filename].join("/");
 
-  // Use $addToSet to avoid duplicates
-  const filter = { code };
-  const updateSet = { [k]: filePath };
-  const updateAddToSet = { [k]: filePath };
-
-  // For the current card
-  db.collection(CARD_COLLECTION).updateMany(
-    filter,
-    { $addToSet: updateAddToSet },
+  await db.collection(CARD_COLLECTION).updateMany(
+    { code },
+    { $addToSet: { [k]: filePath } },
   );
 
-  // For previous versions
-  const prevFilter = { "previous-versions": { $elemMatch: { code } } };
-  db.collection(CARD_COLLECTION).updateMany(
-    prevFilter,
+  await db.collection(CARD_COLLECTION).updateMany(
+    { "previous-versions": { $elemMatch: { code } } },
     { $set: { [prevK]: filePath } },
   );
 }
@@ -316,18 +308,18 @@ function addFlipCardImage(
 // add-card-image (mirrors add-card-image)
 // ──────────────────────────────────────────────────────────────────
 
-function addCardImage(
+async function addCardImage(
   db: Db,
   basePath: string,
   lang: string,
   resolution: string,
   artSet: string,
   file: fs.Dirent,
-): void {
+): Promise<void> {
   const filename = file.name;
 
   if (filename.includes("-")) {
-    addFlipCardImage(db, basePath, lang, resolution, artSet, filename);
+    await addFlipCardImage(db, basePath, lang, resolution, artSet, filename);
   } else {
     const code = filename.split(IMAGE_SELECT_REGEX)[0];
     const k = ["images", lang, resolution, artSet].join(".");
@@ -336,14 +328,12 @@ function addCardImage(
     const filePath = [basePath, lang, resolution, artSet, filename].join("/");
 
     if (!CARDS_TO_SKIP.has(code)) {
-      // Add to current card
-      db.collection(CARD_COLLECTION).updateMany(
+      await db.collection(CARD_COLLECTION).updateMany(
         { code },
         { $addToSet: { [k]: filePath } },
       );
 
-      // Add to previous versions
-      db.collection(CARD_COLLECTION).updateMany(
+      await db.collection(CARD_COLLECTION).updateMany(
         { "previous-versions": { $elemMatch: { code } } },
         { $addToSet: { [prevK]: filePath } },
       );
@@ -413,46 +403,46 @@ function filterDups(cards: fs.Dirent[]): fs.Dirent[] {
 // Recursive directory processing (mirrors add-alt-images, add-resolution-images, add-language-images)
 // ──────────────────────────────────────────────────────────────────
 
-function addAltImages(
+async function addAltImages(
   db: Db,
   basePath: string,
   lang: string,
   resolution: string,
   altDir: fs.Dirent,
-): void {
+): Promise<void> {
   const altName = altDir.name;
   const altDirPath = path.join(altDir.parentPath ?? "", altDir.name);
   const images = filterDups(findFiles(altDirPath));
 
   for (const img of images) {
-    addCardImage(db, basePath, lang, resolution, altName, img);
+    await addCardImage(db, basePath, lang, resolution, altName, img);
   }
 
   console.log(`Added ${images.length} images to ${lang} ${resolution} ${altName}`);
 }
 
-function addResolutionImages(
+async function addResolutionImages(
   db: Db,
   basePath: string,
   lang: string,
   resDir: fs.Dirent,
-): void {
+): Promise<void> {
   const resolution = resDir.name;
   const resDirPath = path.join(resDir.parentPath ?? "", resDir.name);
   const altDirs = findDirs(resDirPath);
 
   for (const altDir of altDirs) {
-    addAltImages(db, basePath, lang, resolution, altDir);
+    await addAltImages(db, basePath, lang, resolution, altDir);
   }
 }
 
-function addLanguageImages(db: Db, basePath: string, langDir: fs.Dirent): void {
+async function addLanguageImages(db: Db, basePath: string, langDir: fs.Dirent): Promise<void> {
   const lang = langDir.name;
   const langDirPath = path.join(langDir.parentPath ?? "", langDir.name);
   const resDirs = findDirs(langDirPath);
 
   for (const resDir of resDirs) {
-    addResolutionImages(db, basePath, lang, resDir);
+    await addResolutionImages(db, basePath, lang, resDir);
   }
 }
 
@@ -497,7 +487,7 @@ export async function addImages(dbOrString?: Db | string): Promise<void> {
     await removeOldImages(db);
 
     for (const langDir of langs) {
-      addLanguageImages(db, "/img/cards", langDir);
+      await addLanguageImages(db, "/img/cards", langDir);
     }
 
     console.log("Adding override images...");
@@ -511,7 +501,7 @@ export async function addImages(dbOrString?: Db | string): Promise<void> {
           );
           const baseOverridePath = `/img/cards/overrides/${o.name}`;
           for (const ol of overridesLangs) {
-            addLanguageImages(db, baseOverridePath, ol);
+            await addLanguageImages(db, baseOverridePath, ol);
           }
         }
       }

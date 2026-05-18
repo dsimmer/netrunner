@@ -9,7 +9,7 @@ import {
   iSOIshFormatter,
   renderIcons,
 } from "./utils";
-import { wsSend } from "./ws";
+import { wsSend, wsSendWithCb } from "./ws";
 
 interface NewsItem {
   _id: string;
@@ -39,23 +39,8 @@ function refreshVersion(cb: (v: string) => void): void {
   });
 }
 
-// wsSend wrapper that registers a one-shot callback for the server reply.
-// Mirrors (ws/ws-send! [:event/data] timeout callback)
-// The TS ws layer doesn't support sente-style round-trip callbacks,
-// so we send via wsSend and handle the reply through the event handler
-// registered on the response channel.
-function wsSendWithCb(
-  eventId: string,
-  data: Record<string, unknown> | boolean,
-  _timeout: number,
-  _cb: (response: unknown) => void,
-): void {
-  wsSend(eventId, data);
-  // TODO: wire up round-trip callback support in ws.ts (sente send-msg!)
-  // For now the fire-and-forget message is sent; the callback is
-  // invoked when the server dispatches a reply event that this module
-  // handles via onWSEvent.
-}
+// Round-trip request/reply now provided by ws.ts via wsSendWithCb (mirrors
+// sente's ws-send! timeout+callback form).
 
 /* ------------------------------------------------------------------ */
 /*  Main component                                                     */
@@ -67,6 +52,7 @@ export default function AdminPage(): React.ReactElement {
 
   const [news, setNews] = useState<NewsItem[]>([]);
   const [version, setVersion] = useState("");
+  const [bannedMessage, setBannedMessage] = useState<unknown>(null);
   const [pauseGameCreation, setPauseGameCreation] = useState(blockGameCreationInit);
   const [newsMsg, setNewsMsg] = useState("");
   const [versionMsg, setVersionMsg] = useState("");
@@ -129,12 +115,10 @@ export default function AdminPage(): React.ReactElement {
   async function updateBannedItem(msg: string): Promise<void> {
     const response = await PUT("/admin/banned", JSON.stringify({ banned: msg }), "json");
     if (response.status === 200) {
-      GET("/admin/banned").then(r => {
-        if (r.status === 200) {
-          // store the full JSON response (mirrors CLJS assoc :banned :json)
-          // not displayed in the UI but kept for parity
-        }
-      });
+      const r = await GET("/admin/banned");
+      if (r.status === 200) {
+        setBannedMessage(r.json);
+      }
       nonGameToast("Updated banned message", "success", undefined);
     } else {
       nonGameToast("Failed to update banned message", "error", undefined);
@@ -250,7 +234,7 @@ export default function AdminPage(): React.ReactElement {
                   {formatDateTime(iSOIshFormatter, d.date)}
                 </span>
                 <span className="title">
-                  {renderIcons(d.item || "")}
+                  {renderIcons(d.item || "") as React.ReactNode}
                 </span>
               </li>
             ))}

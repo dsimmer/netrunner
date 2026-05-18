@@ -139,6 +139,31 @@ async function downloadPrizeData(
 	throw new Error(`Failed to download file, status ${res.status}`);
 }
 
+function escapeEdnString(s: string): string {
+	return s
+		.replace(/\\/g, "\\\\")
+		.replace(/"/g, '\\"')
+		.replace(/\n/g, "\\n")
+		.replace(/\t/g, "\\t")
+		.replace(/\r/g, "\\r");
+}
+
+function toEdn(val: EdnValue): string {
+	if (val === null || val === undefined) return "nil";
+	if (typeof val === "boolean") return val ? "true" : "false";
+	if (typeof val === "number") return String(val);
+	if (typeof val === "string") return `"${escapeEdnString(val)}"`;
+	if (Array.isArray(val)) {
+		return "[" + val.map(toEdn).join(" ") + "]";
+	}
+	if (typeof val === "object") {
+		const entries = Object.entries(val);
+		if (entries.length === 0) return "{}";
+		return "{" + entries.map(([k, v]) => `:${k} ${toEdn(v)}`).join(" ") + "}";
+	}
+	return String(val);
+}
+
 /**
  * Write EDN data to a .edn file.
  * Mirrors: (write-to-file filename data)
@@ -148,7 +173,7 @@ function writeToFile(filename: string, data: EdnValue): void {
 	if (!existsSync(dir)) {
 		mkdirSync(dir, { recursive: true });
 	}
-	writeFileSync(filename, JSON.stringify(data, null, 2));
+	writeFileSync(filename, toEdn(data), "utf-8");
 }
 
 // Card back info type
@@ -170,7 +195,11 @@ export async function fetchPrizes(opts: {
 	const { cardImages = true, local } = opts;
 
 	const cardBackData = await downloadPrizeData(local, "/data/card-backs.edn");
-	if (!cardBackData || !Array.isArray(cardBackData)) {
+	if (
+		!cardBackData ||
+		typeof cardBackData !== "object" ||
+		Array.isArray(cardBackData)
+	) {
 		console.log("Unable to fetch card-back prize data");
 		return;
 	}
@@ -178,15 +207,19 @@ export async function fetchPrizes(opts: {
 	writeToFile("data/card-backs.edn", cardBackData);
 
 	if (cardImages) {
-		for (const entry of cardBackData) {
-			const { name, side, file } = entry as Record<string, string>;
+		for (const entry of Object.values(cardBackData)) {
+			const { name, side, file } = entry as {
+				name: string;
+				side: string;
+				file: string;
+			};
 			const ext = `${side}/${file}.png`;
 			const url = BASE_CARD_BACK_URL + ext;
 			console.log("Downloading:", name, "\t\t(", url, ")");
 
 			const res = await fetch(url, {
 				headers: { "Accept": "image/png" },
-				signal: AbortSignal.timeout(120000), // 120s timeout, mirroring :timeout 120000
+				signal: AbortSignal.timeout(120000),
 			});
 
 			if (res.status === 404) {
@@ -293,6 +326,6 @@ export function command(args: string[]): void {
 }
 
 // Allow running from command line: bun src/ts/tasks/update_prizes.ts ...
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (require.main === module) {
 	command(process.argv.slice(2));
 }

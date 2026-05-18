@@ -208,7 +208,7 @@ function selectState(
   const corpSpectators = (lobby["corp-spectators"] ?? []) as Record<string, unknown>[];
   const runnerSpectators = (lobby["runner-spectators"] ?? []) as Record<string, unknown>[];
 
-  let selected: Record<string, unknown>;
+  let selected: Record<string, unknown> | undefined;
   if (side === "Corp") {
     selected = diffs["corp-state"];
   } else if (side === "Runner") {
@@ -542,6 +542,7 @@ registerMsgHandler("game/leave", (msg: WSMessage) => {
     if (!lobby || !inLobby(uid, lobby) || !lobby.started || !(lobby as any).state) return;
 
     // The game will not exist if this is the last player to leave.
+    if (!db) return;
     const lobbyAfter = leaveLobby(db, user, uid, replyFn, lobby);
     if (lobbyAfter) {
       handleMessageAndSendDiffs(

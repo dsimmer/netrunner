@@ -1,144 +1,156 @@
 // Chat page with channel list, message panel, and news sidebar.
 // Mirrors: src/cljs/nr/chat.cljs
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useAppState, type ChatChannel, type ChatMessage } from "./appstate";
 import { GET, POST } from "./ajax";
 import { onWSEvent, wsSend } from "./ws";
 import { authenticated } from "./auth";
+import { tr, trSpan, trElement, trPronouns } from "./translations";
+import {
+  renderMessage,
+  formatDateTime,
+  dayWordWithTimeFormatter,
+  nonGameToast,
+  trNonGameToast,
+} from "./utils";
+import Avatar from "./avatar";
+import News from "./news";
+import {
+  cardPreviewMouseOver,
+  cardPreviewMouseOut,
+} from "./gameboard/card_preview";
 
 // ──────────────────────────────────────────────────────────────────
-// News (inline — mirrors news.cljs)
+// Helpers (mirrors current-block-list, filter-blocked-messages)
 // ──────────────────────────────────────────────────────────────────
 
-interface NewsItem {
-  date: string;
-  item: string;
-}
-
-function News(): React.ReactElement {
-  const [news, setNews] = useState<NewsItem[]>([]);
-
-  useEffect(() => {
-    GET("/data/news").then(r => {
-      if (r.status === 200 && Array.isArray(r.json)) {
-        setNews(r.json as NewsItem[]);
-      }
-    });
-  }, []);
-
-  function formatDate(dateStr: string): string {
-    try {
-      return new Date(dateStr).toLocaleDateString(undefined, {
-        weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
-      });
-    } catch {
-      return dateStr;
-    }
-  }
-
-  return (
-    <div id="news" className="news-box panel blue-shade">
-      <ul className="list">
-        {news.map(d => (
-          <li className="news-item" key={d.date}>
-            <span className="date">{formatDate(d.date)}</span>
-            <span className="title">{d.item}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
+function currentBlockList(options: Record<string, unknown>): string[] {
+  return (options["blocked-users"] as string[] | undefined) ?? [];
 }
 
 // ──────────────────────────────────────────────────────────────────
-// Avatar
-// ──────────────────────────────────────────────────────────────────
-
-function Avatar({ emailhash, size = 38 }: { emailhash: string; size?: number }): React.ReactElement {
-  return (
-    <img
-      className="avatar"
-      src={`https://www.gravatar.com/avatar/${emailhash}?d=retro&s=${size}`}
-      width={size}
-      height={size}
-      alt=""
-    />
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────
-// Individual message
+// Individual message (mirrors message-view)
 // ──────────────────────────────────────────────────────────────────
 
 interface MessageViewProps {
-  message: ChatMessage & { emailhash?: string; pronouns?: string; _id?: string };
+  message: ChatMessage & {
+    emailhash?: string;
+    pronouns?: string;
+    _id?: string;
+    msg?: string;
+  };
   onDelete: (msg: ChatMessage) => void;
   onDeleteAll: (username: string) => void;
   onBlock: (username: string) => void;
 }
 
-function MessageView({ message, onDelete, onDeleteAll, onBlock }: MessageViewProps): React.ReactElement {
-  const user = useAppState(s => s.user);
+function MessageView({
+  message,
+  onDelete,
+  onDeleteAll,
+  onBlock,
+}: MessageViewProps): React.ReactElement {
+  const user = useAppState((s) => s.user);
   const [menuOpen, setMenuOpen] = useState(false);
   const myMsg = user && (user.username as string) === message.username;
-  const isAdmin = user?.isadmin;
-  const isModerator = user?.ismoderator;
+  const isAdmin = !!user?.isadmin;
+  const isModerator = !!user?.ismoderator;
 
-  function formatDate(dateStr: string): string {
-    try {
-      return new Date(dateStr).toLocaleString();
-    } catch {
-      return dateStr;
-    }
-  }
+  // Mirrors (when-let [pronouns (:pronouns message)]) — show pronouns block in
+  // lowercase unless explicitly "blank".
+  const pronouns = message.pronouns;
+  const pronounStr =
+    pronouns && pronouns !== "blank"
+      ? `(${trPronouns(pronouns)})`.toLowerCase()
+      : null;
 
   return (
     <div className="message">
-      <Avatar emailhash={(message as { emailhash?: string }).emailhash ?? ""} />
+      <Avatar
+        user={{ emailhash: message.emailhash ?? "", username: message.username }}
+        opts={{ size: 38 }}
+      />
       <div className="content">
         <div className="name-menu">
           <span
             className={`username${myMsg ? "" : " clickable"}`}
-            onClick={() => { if (!myMsg) setMenuOpen(o => !o); }}
+            onClick={() => {
+              if (!myMsg) setMenuOpen((o) => !o);
+            }}
           >
             {message.username}
           </span>
-          {message.pronouns && message.pronouns !== "blank" && (
-            <span className="pronouns">({message.pronouns.toLowerCase()})</span>
-          )}
+          {pronounStr && <span className="pronouns">{pronounStr}</span>}
           {user && !myMsg && menuOpen && (
             <div className="panel blue-shade block-menu">
               {(isAdmin || isModerator) && (
-                <div onClick={() => { onDelete(message); setMenuOpen(false); }}>
-                  Delete Message
+                <div
+                  onClick={() => {
+                    onDelete(message);
+                    setMenuOpen(false);
+                  }}
+                >
+                  {trSpan(["chat_delete", "Delete Message"])}
                 </div>
               )}
               {(isAdmin || isModerator) && (
-                <div onClick={() => { onDeleteAll(message.username); setMenuOpen(false); }}>
-                  Delete All Messages From User
+                <div
+                  onClick={() => {
+                    onDeleteAll(message.username);
+                    setMenuOpen(false);
+                  }}
+                >
+                  {trSpan([
+                    "chat_delete-all",
+                    "Delete All Messages From User",
+                  ])}
                 </div>
               )}
-              <div onClick={() => { onBlock(message.username); setMenuOpen(false); }}>
-                Block User
+              <div
+                onClick={() => {
+                  onBlock(message.username);
+                  setMenuOpen(false);
+                }}
+              >
+                {trSpan(["chat_block", "Block User"])}
               </div>
-              <div onClick={() => setMenuOpen(false)}>Cancel</div>
+              <div onClick={() => setMenuOpen(false)}>
+                {trSpan(["chat_cancel", "Cancel"])}
+              </div>
             </div>
           )}
-          <span className="date">{formatDate(message.date)}</span>
+          <span className="date">
+            {formatDateTime(dayWordWithTimeFormatter, message.date)}
+          </span>
         </div>
-        <div>{message.text}</div>
+        <div
+          onMouseOver={(e) => cardPreviewMouseOver(e)}
+          onMouseOut={(e) => cardPreviewMouseOut(e)}
+        >
+          {renderMessage(message.msg ?? message.text ?? "") as React.ReactNode}
+        </div>
       </div>
     </div>
   );
 }
 
 // ──────────────────────────────────────────────────────────────────
-// Channel tab
+// Channel list (mirrors :channels in app-state + channel-view)
 // ──────────────────────────────────────────────────────────────────
 
 const CHANNELS: ChatChannel[] = [
-  "general", "america", "europe", "asia-pacific", "united-kingdom",
-  "français", "español", "italia", "polska", "português", "sverige", "русский",
+  "general",
+  "america",
+  "europe",
+  "asia-pacific",
+  "united-kingdom",
+  "français",
+  "español",
+  "italia",
+  "polska",
+  "português",
+  "sverige",
+  "русский",
 ];
 
 // ──────────────────────────────────────────────────────────────────
@@ -146,10 +158,10 @@ const CHANNELS: ChatChannel[] = [
 // ──────────────────────────────────────────────────────────────────
 
 export default function ChatPage(): React.ReactElement {
-  const user = useAppState(s => s.user);
-  const channels = useAppState(s => s.channels);
-  const appendChannel = useAppState(s => s.appendChannel);
-  const options = useAppState(s => s.options);
+  const user = useAppState((s) => s.user);
+  const channels = useAppState((s) => s.channels);
+  const appendChannel = useAppState((s) => s.appendChannel);
+  const options = useAppState((s) => s.options);
 
   const [activeChannel, setActiveChannel] = useState<ChatChannel>("general");
   const [msg, setMsg] = useState("");
@@ -158,44 +170,90 @@ export default function ChatPage(): React.ReactElement {
 
   const msgListRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const appVersion = useAppState(s => (s as { appVersion?: string }).appVersion);
+  const appVersion = useAppState(
+    (s) => (s as { appVersion?: string }).appVersion,
+  );
 
-  // Load chat config
+  // Mirrors (go (swap! chat-state assoc :config (:json (<! (GET "/chat/config")))))
   useEffect(() => {
-    GET("/chat/config").then(r => {
+    GET("/chat/config").then((r) => {
       if (r.status === 200 && r.json) {
-        setMaxLen((r.json as { "max-length"?: number })["max-length"] ?? null);
+        setMaxLen(
+          (r.json as { "max-length"?: number })["max-length"] ?? null,
+        );
       }
     });
   }, []);
 
-  // Fetch all message history on mount
+  // Mirrors fetch-all-messages
   useEffect(() => {
-    CHANNELS.forEach(ch => {
-      GET(`/messages/${ch}`).then(r => {
+    CHANNELS.forEach((ch) => {
+      GET(`/messages/${ch}`).then((r) => {
         if (r.status === 200 && Array.isArray(r.json)) {
-          const blockedUsers: string[] = (options.blockedUsers as string[]) ?? [];
+          const blocked = currentBlockList(options);
           const filtered = (r.json as ChatMessage[]).filter(
-            m => !blockedUsers.includes(m.username)
+            (m) => !blocked.includes(m.username),
           );
-          // bulk-set channel via store action (appendChannel one by one would be noisy)
-          // Use setChannelMessages if available; otherwise append each
-          filtered.forEach(m => appendChannel(ch, m));
+          filtered.forEach((m) => appendChannel(ch, m));
         }
       });
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // WS handlers
+  // WS handlers (mirrors defmethod event-msg-handler for :chat/message,
+  // :chat/delete-msg, :chat/delete-all, :chat/blocked)
   useEffect(() => {
     onWSEvent("chat/message", (data: unknown) => {
       const m = data as ChatMessage & { channel: string };
       const ch = m.channel as ChatChannel;
-      const blockedUsers: string[] = (options.blockedUsers as string[]) ?? [];
-      if (!blockedUsers.includes(m.username)) {
+      const blocked = currentBlockList(options);
+      if (!blocked.includes(m.username)) {
         appendChannel(ch, m);
       }
+    });
+
+    // Mirrors chat/delete-msg: remove a single message by _id from its channel
+    onWSEvent("chat/delete-msg", (data: unknown) => {
+      const m = data as { channel: string; _id: string };
+      const ch = m.channel as ChatChannel;
+      const st = useAppState.getState();
+      const next = (st.channels[ch] ?? []).filter(
+        (x) => (x as { _id?: string })._id !== m._id,
+      );
+      useAppState.setState({
+        channels: { ...st.channels, [ch]: next },
+      });
+    });
+
+    // Mirrors chat/delete-all: drop every message by `username` across channels
+    onWSEvent("chat/delete-all", (data: unknown) => {
+      const m = data as { username: string };
+      const st = useAppState.getState();
+      const newChannels = { ...st.channels };
+      for (const ch of Object.keys(newChannels) as ChatChannel[]) {
+        newChannels[ch] = (newChannels[ch] ?? []).filter(
+          (x) => x.username !== m.username,
+        );
+      }
+      useAppState.setState({ channels: newChannels });
+    });
+
+    // Mirrors chat/blocked: toast when the server refuses a chat send
+    onWSEvent("chat/blocked", (data: unknown) => {
+      const d = data as { reason?: string };
+      const reasonStr =
+        d.reason === "rate-exceeded"
+          ? tr(["chat_rate-exceeded", "Rate exceeded"])
+          : d.reason === "length-exceeded"
+            ? tr(["chat_length-exceeded", "Length exceeded"])
+            : "";
+      trNonGameToast(
+        ["chat_message-blocked", "Message blocked: {{reason-str}}"],
+        { "reason-str": reasonStr },
+        "warning",
+        null,
+      );
     });
   }, [appendChannel, options]);
 
@@ -208,16 +266,19 @@ export default function ChatPage(): React.ReactElement {
 
   function handleScroll(e: React.UIEvent<HTMLDivElement>) {
     const el = e.currentTarget;
-    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 4;
+    const atBottom =
+      el.scrollTop + el.clientHeight >= el.scrollHeight - 4;
     setScrolling(!atBottom);
   }
 
-  const illegalMessage = !msg.trim() || (maxLen !== null && msg.length >= maxLen);
+  const illegalMessage =
+    !msg.trim() || (maxLen !== null && msg.length >= maxLen);
 
+  // Mirrors send-msg
   function sendMsg(e: React.FormEvent) {
     e.preventDefault();
     if (illegalMessage) return;
-    authenticated(u => {
+    authenticated((u) => {
       wsSend("chat/say", {
         channel: activeChannel,
         msg,
@@ -227,7 +288,8 @@ export default function ChatPage(): React.ReactElement {
       setMsg("");
       inputRef.current?.focus();
       if (msgListRef.current) {
-        msgListRef.current.scrollTop = msgListRef.current.scrollHeight + 500;
+        msgListRef.current.scrollTop =
+          msgListRef.current.scrollHeight + 500;
       }
     });
   }
@@ -244,39 +306,69 @@ export default function ChatPage(): React.ReactElement {
     });
   }
 
+  // Mirrors block-user: optimistically update options, then POST profile
+  // (cljs delegates to account/post-options; here we POST inline).
   function handleBlock(blockedUser: string) {
-    authenticated(u => {
-      if (!blockedUser || blockedUser === (u.username as string)) return;
-      const blocked: string[] = (options.blockedUsers as string[]) ?? [];
-      if (blocked.includes(blockedUser)) return;
+    authenticated((u) => {
+      const myUserName = u.username as string;
+      const blocked = currentBlockList(options);
+      if (
+        !blockedUser.trim() ||
+        blockedUser === myUserName ||
+        blocked.includes(blockedUser)
+      ) {
+        return;
+      }
       const newList = [...blocked, blockedUser];
-      // Post updated options
-      POST("/profile", JSON.stringify({ options: { ...options, blockedUsers: newList } }))
-        .then(r => {
-          if (r.status === 200) {
-            useAppState.getState().setOptions({ blockedUsers: newList } as never);
-          }
-        });
+      useAppState.getState().setOptions({
+        "blocked-users": newList,
+      } as never);
+      POST(
+        "/profile",
+        JSON.stringify({
+          ...options,
+          "blocked-users": newList,
+        }),
+        "json",
+      ).then((r) => {
+        if (r.status === 200) {
+          nonGameToast(
+            `Blocked user ${blockedUser}. Refresh browser to update.`,
+            "success",
+            null,
+          );
+        } else {
+          nonGameToast("Failed to block user", "error", null);
+        }
+      });
     });
   }
 
   const messages = channels[activeChannel] ?? [];
-  const blockedUsers: string[] = (options.blockedUsers as string[]) ?? [];
-  const visibleMessages = messages.filter(m => !blockedUsers.includes(m.username));
+  const blocked = currentBlockList(options);
+  const visibleMessages = messages.filter(
+    (m) => !blocked.includes(m.username),
+  );
 
   return (
     <div className="container">
       <div className="home-bg" />
-      <h1>Play Netrunner in your browser</h1>
+      {trElement("h1", [
+        "chat_title",
+        "Play Netrunner in your browser",
+      ])}
       <News />
       <div id="chat" className="chat-app">
         <div className="blue-shade panel channel-list">
-          <h4>Channels</h4>
-          {CHANNELS.map(ch => (
+          {trElement("h4", ["chat_channels", "Channels"])}
+          {CHANNELS.map((ch) => (
             <div
               key={ch}
               className={`block-link${ch === activeChannel ? " active" : ""}`}
-              onClick={() => { setScrolling(false); setActiveChannel(ch); }}
+              onClick={() => {
+                setScrolling(false);
+                setActiveChannel(ch);
+              }}
             >
               #{ch}
             </div>
@@ -305,13 +397,21 @@ export default function ChatPage(): React.ReactElement {
                 <input
                   type="text"
                   ref={inputRef}
-                  placeholder="Say something..."
+                  placeholder={tr([
+                    "chat_placeholder",
+                    "Say something...",
+                  ])}
+                  data-i18n-key="chat_placeholder"
                   accessKey="l"
                   value={msg}
-                  onChange={e => setMsg(e.target.value)}
+                  onChange={(e) => setMsg(e.target.value)}
                 />
-                <button type="submit" disabled={illegalMessage} className={illegalMessage ? "disabled" : ""}>
-                  Send
+                <button
+                  type="submit"
+                  disabled={illegalMessage}
+                  className={illegalMessage ? "disabled" : ""}
+                >
+                  {trSpan(["chat_send", "Send"])}
                 </button>
               </form>
             )}

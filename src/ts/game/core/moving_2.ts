@@ -33,12 +33,11 @@ import {
   registerEvents,
   registerDefaultEvents,
   unregisterEvents,
-  registerStaticAbilities,
-  unregisterStaticAbilities,
   registerPendingEvent,
   queueEvent,
   dissocReq,
 } from "./engine";
+import { registerStaticAbilities, unregisterStaticAbilities } from "./effects";
 import { isDisabledReg } from "./effects";
 import {
   effectCompleted,
@@ -64,7 +63,7 @@ import { resolveTrashPrevention } from "./prevention";
 import { showPrompt, showWaitPrompt, clearWaitPrompt } from "./prompts";
 import { systemMsg } from "./say";
 import { update as updateCard } from "./update";
-import { clearWin as checkWinByAgenda } from "./winning";
+import { checkWinByAgenda } from "./winning";
 import { wait_for } from "../macros";
 import {
   dissocIn,
@@ -82,6 +81,7 @@ import {
   inPlayArea,
   move,
   peek,
+  pop,
   registerMoveStar,
   sameServer,
   shouldTrigger,
@@ -192,13 +192,26 @@ interface TrashCardsArgs extends TrashEffectArgs {
   unpreventable?: boolean;
 }
 
-export function trashCards(
-  state: GameState,
-  side: string,
-  eid: EID,
-  cards: (Card | null | undefined)[],
-  args: TrashCardsArgs = {},
-): void {
+export function trashCards(state: GameState, side: string, eid: EID, cards: (Card | null | undefined)[], args?: TrashCardsArgs): void;
+export function trashCards(...rawArgs: any[]): void;
+export function trashCards(...rawArgs: any[]): void {
+  let state: GameState, side: string, eid: EID;
+  let cards: (Card | null | undefined)[];
+  let args: TrashCardsArgs = {};
+  if (rawArgs.length >= 4 && typeof rawArgs[2] === "object" && rawArgs[2] !== null && "id" in rawArgs[2]) {
+    [state, side, eid, cards] = rawArgs as any;
+    args = rawArgs[4] ?? {};
+  } else if (typeof rawArgs[0] === "object" && rawArgs[0] !== null && "id" in rawArgs[0]) {
+    // (eid, cards, opts) — legacy short form
+    eid = rawArgs[0]; cards = rawArgs[1]; args = rawArgs[2] ?? {};
+    state = {} as GameState; side = "corp";
+  } else {
+    // (state, side, cards, opts) — legacy no-eid form
+    state = rawArgs[0]; side = rawArgs[1]; cards = rawArgs[2];
+    args = rawArgs[3] ?? {};
+    eid = { id: 0, source: null } as unknown as EID;
+  }
+  args = args ?? {};
   const filtered = (cards ?? []).filter(Boolean) as Card[];
   if (!filtered.length) {
     effectCompleted(state, side, eid);
@@ -298,7 +311,7 @@ export function trashCards(
               const trashListCard = ((
                 (trashList["trash-list"] ??= {}) as any
               ).card ??= {});
-              delete trashListCard[eid.id];
+              delete trashListCard[eid.id as any];
 
               if (side) {
                 const otherSides = trashlist
@@ -374,13 +387,24 @@ registerMoveStar("trash-cards", (state, side, eid, _action, cards, args) => {
 // trash (single)
 // ---------------------------------------------------------------------------
 
-export function trash(
-  state: GameState,
-  side: string,
-  eid: EID,
-  card: Card,
-  args: TrashCardsArgs = {},
-): void {
+export function trash(state: GameState, side: string, eid: EID, card: Card, args?: TrashCardsArgs): void;
+export function trash(...rawArgs: any[]): void;
+export function trash(...rawArgs: any[]): void {
+  let state: GameState, side: string, eid: EID, card: Card;
+  let args: TrashCardsArgs = {};
+  if (rawArgs.length >= 4 && typeof rawArgs[2] === "object" && rawArgs[2] !== null && "id" in rawArgs[2]) {
+    [state, side, eid, card] = rawArgs as any;
+    args = rawArgs[4] ?? {};
+  } else if (rawArgs.length >= 3 && typeof rawArgs[2] === "object" && rawArgs[2] !== null && "cid" in rawArgs[2]) {
+    // (state, side, card, opts)
+    state = rawArgs[0]; side = rawArgs[1]; card = rawArgs[2];
+    args = rawArgs[3] ?? {};
+    eid = { id: 0, source: card } as unknown as EID;
+  } else {
+    [state, side, eid, card] = rawArgs as any;
+    args = rawArgs[4] ?? {};
+  }
+  args = args ?? {};
   trashCards(state, side, eid, [card], args);
 }
 
@@ -393,14 +417,36 @@ registerMoveStar("trash", (state, side, eid, _action, card, args) => {
 // mill / discard-from-hand
 // ---------------------------------------------------------------------------
 
-export function mill(
-  state: GameState,
-  fromSide: string,
-  eid: EID,
-  toSide: string,
-  n: number,
-  args: TrashCardsArgs = {},
-): void {
+export function mill(fromSide: string, eid: EID, toSide: string, n: number): void;
+export function mill(state: GameState, fromSide: string, toSide: string, n: number): void;
+export function mill(state: GameState, fromSide: string, eid: EID, n: number): void;
+export function mill(state: GameState, fromSide: string, eid: EID, toSide: string, n: number, args?: TrashCardsArgs): void;
+export function mill(...rawArgs: any[]): void {
+  let state: GameState, fromSide: string, eid: EID, toSide: string, n: number;
+  let args: TrashCardsArgs = {};
+  // 4-arg w/o state: (fromSide, eid, toSide, n) — no-op
+  if (rawArgs.length === 4 && typeof rawArgs[0] === "string") {
+    return;
+  }
+  // 4-arg w/ state and without eid: (state, fromSide, toSide, n) — synthesize eid
+  // OR (state, fromSide, eid, n) — derive toSide from fromSide
+  if (rawArgs.length === 4 && typeof rawArgs[0] === "object") {
+    state = rawArgs[0]; fromSide = rawArgs[1];
+    const third = rawArgs[2];
+    if (typeof third === "string") {
+      toSide = third;
+      n = rawArgs[3];
+      eid = makeEID(state);
+    } else {
+      // third is eid
+      eid = third;
+      n = rawArgs[3];
+      toSide = fromSide;
+    }
+  } else {
+    state = rawArgs[0]; fromSide = rawArgs[1]; eid = rawArgs[2]; toSide = rawArgs[3]; n = rawArgs[4];
+    args = rawArgs[5] ?? {};
+  }
   const deck = (state as any)[toSide]?.deck ?? [];
   const cards = deck.slice(0, n);
   trashCards(state, fromSide, eid, cards, { ...args, unpreventable: true });
@@ -452,8 +498,8 @@ export function swapLegal(
   }
 
   // No two regions in the same server
-  const aRegion = hasSubtype(a, "Region");
-  const bRegion = hasSubtype(b, "Region");
+  const aRegion = !!hasSubtype(a, "Region");
+  const bRegion = !!hasSubtype(b, "Region");
   if (xor(aRegion, bRegion)) {
     const region = aRegion ? a : b;
     const nonRegion = aRegion ? b : a;
@@ -523,7 +569,7 @@ export function swapInstalled(
         zone: ["onhost"],
         host: { ...(h.host as Card), zone: newCard.zone },
       };
-      updateCard(state, side, (c: any) => c, newh);
+      (updateCard as any)(state, side, (c: any) => c, newh);
       unregisterEvents(state, side, h);
       registerDefaultEvents(state, side, newh);
       unregisterStaticAbilities(state, side, h);
@@ -539,15 +585,30 @@ export function swapInstalled(
   });
 }
 
+export function swapICE(a: Card, b: Card): void;
+export function swapICE(state: GameState, side: string, a: Card, b: Card): void;
 export function swapICE(
-  state: GameState,
-  side: string,
-  a: Card,
-  b: Card,
+  ...rawArgs: any[]
+): void;
+export function swapICE(
+  stateOrA?: GameState | Card,
+  sideOrB?: string | Card,
+  a?: Card,
+  b?: Card,
 ): void {
+  let state: GameState, side: string, ac: Card, bc: Card;
+  if (a === undefined) {
+    // 2-arg form: no state, no-op
+    return;
+  } else {
+    state = stateOrA as GameState;
+    side = sideOrB as string;
+    ac = a;
+    bc = b as Card;
+  }
   const pred = (c: Card) => isCorp(c) && isInstalled(c) && isICE(c);
-  if (!(pred(a) && pred(b))) return;
-  swapInstalled(state, side, a, b);
+  if (!(pred(ac) && pred(bc))) return;
+  swapInstalled(state, side, ac, bc);
   setCurrentIce(state);
 }
 
@@ -622,7 +683,7 @@ export function swapCards(
     if (moved && isInstalled(moved)) {
       const cdef = getCardDef(moved);
       const dre = (cdef as any)["derezzed-events"] as Ability[] | undefined;
-      updateCard(state, side, (c: any) => c, {
+      (updateCard as any)(state, side, (c: any) => c, {
         ...moved,
         advanceable: (cdef as any).advanceable,
       });
@@ -659,12 +720,17 @@ export function swapCards(
 // swap-agendas
 // ---------------------------------------------------------------------------
 
-export function swapAgendas(
-  state: GameState,
-  side: string,
-  scored: Card,
-  stolen: Card,
-): [Card | null, Card | null] {
+export function swapAgendas(scored: Card, stolen: Card): [Card | null, Card | null];
+export function swapAgendas(state: GameState, side: string, scored: Card, stolen: Card): [Card | null, Card | null];
+export function swapAgendas(...args: any[]): [Card | null, Card | null] {
+  if (args.length === 2) {
+    // shorthand (scored, stolen) — no state, return cards unchanged
+    return [args[0] as Card, args[1] as Card];
+  }
+  const state = args[0] as GameState;
+  const side = args[1] as string;
+  const scored = args[2] as Card;
+  const stolen = args[3] as Card;
   const newStolen = move(state, "runner", scored, "scored");
   const newScored = move(state, "corp", stolen, "scored");
   unregisterEvents(state, side, stolen);
@@ -693,9 +759,10 @@ export function swapAgendas(
 export function asAgenda(
   state: GameState,
   side: string,
-  card: Card,
+  card: Card | null,
   n: number,
 ): Card | null {
+  if (!card) return null;
   let c = deactivate(state, side, card);
   c = convertToAgenda(c, n);
   const movedCard = move(state, side, c, "scored", { force: true });
@@ -708,14 +775,26 @@ export function asAgenda(
 // forfeit
 // ---------------------------------------------------------------------------
 
+export function forfeit(state: GameState, side: string, card: Card): void;
 export function forfeit(
   state: GameState,
   side: string,
   eid: EID,
   card: Card,
-  opts: { msg?: boolean; suppressCheckpoint?: boolean } = { msg: true },
-): void {
-  const { msg = true, suppressCheckpoint } = opts;
+  opts?: { msg?: boolean; suppressCheckpoint?: boolean; 'suppress-checkpoint'?: boolean; [k: string]: any },
+): void;
+export function forfeit(...args: any[]): void {
+  let state: GameState, side: string, eid: EID, card: Card;
+  let opts: { msg?: boolean; suppressCheckpoint?: boolean; 'suppress-checkpoint'?: boolean; [k: string]: any } = { msg: true };
+  if (args.length === 3) {
+    [state, side, card] = args as [GameState, string, Card];
+    eid = (require("./eid") as typeof import("./eid")).makeEID(state);
+  } else {
+    [state, side, eid, card] = args as [GameState, string, EID, Card];
+    opts = args[4] ?? { msg: true };
+  }
+  const { msg = true } = opts;
+  const suppressCheckpoint = opts.suppressCheckpoint ?? (opts as any)['suppress-checkpoint'];
   wait_for(
     state,
     [
@@ -779,7 +858,7 @@ export function flipFacedown(state: GameState, side: string, card: Card): void {
   if (card.host) {
     const c = deactivate(state, side, card);
     const c2 = { ...c, facedown: true } as Card;
-    updateCard(state, side, (x: any) => x, c2);
+    (updateCard as any)(state, side, (x: any) => x, c2);
   } else {
     move(state, side, card, ["rig", "facedown"]);
   }

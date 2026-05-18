@@ -6,8 +6,8 @@ import { Routes, Route, Navigate } from "react-router-dom";
 // Lazy-load page components to match shadow-cljs code splitting behaviour
 const Landing = lazy(() => import("./landing"));
 const Chat = lazy(() => import("./chat"));
-const CardBrowser = lazy(() => import("./cardbrowser"));
-const DeckBuilder = lazy(() => import("./deckbuilder"));
+const CardBrowser = lazy(() => import("./cardbrowser").then((m) => ({ default: (m as any).CardBrowser ?? (m as any).default })));
+const DeckBuilder = lazy(() => import("./deckbuilder").then((m) => ({ default: (m as any).DeckBuilder ?? (m as any).default })));
 const Play = lazy(() => import("./play"));
 const Help = lazy(() => import("./help"));
 const Account = lazy(() => import("./account"));
@@ -15,7 +15,7 @@ const Stats = lazy(() => import("./stats"));
 const About = lazy(() => import("./about"));
 const Tournament = lazy(() => import("./tournament"));
 const Admin = lazy(() => import("./admin"));
-const Users = lazy(() => import("./users"));
+const Users = lazy(() => import("./users").then((m) => ({ default: (m as any).Users ?? (m as any).default })));
 const Prizes = lazy(() => import("./prizes"));
 const Replay = lazy(() => import("./replay_game"));
 

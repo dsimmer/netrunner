@@ -184,7 +184,7 @@ export function showPrompt(
   const prompt =
     typeof message === "string"
       ? message
-      : (message as MsgFn)(state, side, eid, card, []);
+      : (message as (...args: any[]) => string)(state, side, eid, card, []);
   const parsedChoices = choiceParser(choices);
   const selectable = updateSelectable(
     opts.selectable as string[] | undefined,
@@ -204,7 +204,7 @@ export function showPrompt(
     showOpponentDiscard: opts.showOpponentDiscard,
     cancel: opts.cancel as AbilityFn | undefined,
     endEffect: opts.endEffect,
-  } as Prompt & Record<string, unknown>;
+  } as unknown as Prompt & Record<string, unknown>;
 
   if (shouldShowPrompt(opts.promptType as string | undefined, parsedChoices)) {
     if (opts.waitingPrompt) {
@@ -310,7 +310,7 @@ export function showTracePrompt(
   const prompt =
     typeof message === "string"
       ? message
-      : (message as MsgFn)(state, side, eid, card, []);
+      : (message as (...args: any[]) => string)(state, side, eid, card, []);
   const corpCredits = opts.corpCredits(eid);
   const runnerCredits = opts.runnerCredits(eid);
 
@@ -644,7 +644,7 @@ export function showSelect(
   const promptMsg = ability.prompt
     ? typeof ability.prompt === "string"
       ? ability.prompt
-      : (ability.prompt as MsgFn)(state, side, eid, card, [])
+      : (ability.prompt as (...args: any[]) => string)(state, side, eid, card, [])
     : "Choose" +
       (minChoices != null ? ` at least ${minChoices}` : "") +
       (minChoices != null && maxChoices != null ? " and" : "") +
@@ -776,12 +776,22 @@ export function showSelect(
  * Shows a 'Waiting for ...' prompt to the given side with the given message.
  * The prompt cannot be closed except by a later call to clearWaitPrompt.
  */
+export function showWaitPrompt(message: string): void;
 export function showWaitPrompt(
   state: GameState,
   side: string,
   message: string,
   opts?: { card?: Card | null },
-): void {
+): void;
+export function showWaitPrompt(...args: any[]): void {
+  if (args.length === 1) {
+    // One-arg form (legacy/card-shim): no-op (no state to attach prompt to).
+    return;
+  }
+  const state = args[0] as GameState;
+  const side = args[1] as string;
+  const message = args[2] as string;
+  const opts = args[3] as { card?: Card | null } | undefined;
   showPrompt(
     state,
     side,
@@ -800,7 +810,12 @@ export function showWaitPrompt(
 /**
  * Removes the first 'Waiting for...' prompt from the given side's prompt queue.
  */
-export function clearWaitPrompt(state: GameState, side: string): void {
+export function clearWaitPrompt(side: string): void;
+export function clearWaitPrompt(state: GameState, side: string): void;
+export function clearWaitPrompt(...args: any[]): void {
+  if (args.length === 1) return; // shorthand: no state, no-op
+  const state = args[0] as GameState;
+  const side = args[1] as string;
   const queue = getSidePrompt(state, side);
   const waitPrompt = queue.find((p) => p.promptType === "waiting");
   if (waitPrompt) {
@@ -860,9 +875,15 @@ export function clearRunPrompts(state: GameState): void {
  */
 export function cancellable(
   choices: unknown[],
-  sorted = false,
+  sorted: boolean | string | { sorted?: boolean; label?: string; [k: string]: any } = false,
 ): (unknown | string)[] {
-  if (sorted) {
+  const sortFlag =
+    typeof sorted === "object" && sorted !== null
+      ? !!sorted.sorted
+      : typeof sorted === "string"
+        ? sorted === "sorted"
+        : !!sorted;
+  if (sortFlag) {
     return [
       ...(choices as Array<{ title?: string }>).sort((a, b) =>
         ((a as any).title ?? "").localeCompare((b as any).title ?? ""),
@@ -871,4 +892,107 @@ export function cancellable(
     ];
   }
   return [...choices, "Cancel"];
+}
+
+// ---------------------------------------------------------------------------
+// Convenience prompt wrappers used by card definitions.
+// These don't have direct clj equivalents — clj cards call resolve-ability
+// with prompt/choices maps directly. The TS port uses these wrappers to keep
+// card code readable. Implementations route through the real prompt queue.
+// ---------------------------------------------------------------------------
+
+interface CallbackAbility {
+  (
+    state: GameState,
+    side: string,
+    eid: EID,
+    card: Card | null,
+    targets: unknown[],
+  ): void;
+}
+
+/**
+ * Display a card-selection prompt. The user picks one card from `cards`;
+ * `opts.onChoose` (if provided) is invoked with the chosen card.
+ *
+ * `_source` indicates the intended destination ("move", "install", "hand",
+ * "discard", etc.) and is currently informational — the caller is responsible
+ * for performing the actual move in the callback.
+ */
+export function showChooseCardsPrompt(
+  state: GameState,
+  side: string,
+  title: string,
+  cards: Card[],
+  _source?: string,
+  opts?: {
+    min?: number;
+    max?: number;
+    faceup?: boolean;
+    onChoose?: (card: Card) => void;
+    onChange?: (card: Card) => void;
+    [key: string]: any;
+  },
+): void {
+  if (!cards || cards.length === 0) return;
+  const handler: CallbackAbility = (_s, _sd, _e, _c, targets) => {
+    const t = (targets as unknown[])[0] as any;
+    const choice = (t && (t.value ?? t)) as Card | undefined;
+    if (choice) {
+      if (opts?.onChoose) opts.onChoose(choice);
+      else if (opts?.onChange) opts.onChange(choice);
+    }
+  };
+  showPrompt(state, side, null, title, cards as unknown[], handler as any);
+}
+
+/**
+ * Display a yes/no prompt and invoke `onYes` or `onNo` accordingly.
+ */
+export function showYesNoPrompt(
+  state: GameState,
+  side: string,
+  prompt: string,
+  opts?: {
+    onYes?: CallbackAbility | (() => void);
+    onNo?: CallbackAbility | (() => void);
+  } | null,
+): void {
+  const handler: CallbackAbility = (s, sd, e, c, targets) => {
+    const t = (targets as unknown[])[0] as any;
+    const choice = (t && (t.value ?? t)) as string | undefined;
+    const cb = choice === "Yes" ? opts?.onYes : opts?.onNo;
+    if (typeof cb === "function") {
+      // Tolerate both zero-arg and ability-shaped callbacks
+      if ((cb as any).length >= 1) {
+        (cb as CallbackAbility)(s, sd, e, c, targets);
+      } else {
+        (cb as () => void)();
+      }
+    }
+  };
+  showPrompt(state, side, null, prompt, ["Yes", "No"], handler as any);
+}
+
+/**
+ * Display a reorder-cards prompt. Full reorder UI is not yet implemented in
+ * the TS client — for now we preserve the given order and immediately invoke
+ * `opts.onChange` with the unchanged list, matching the no-op contract.
+ *
+ * TODO: wire up a proper reorder prompt-type with drag UI when the client
+ * supports it. Until then, behavior is "user accepts default order".
+ */
+export function showReorderCardsPrompt(
+  state: GameState,
+  side: string,
+  prompt: string,
+  cards: Card[],
+  opts?: { onChange?: (ordered: Card[]) => void } | null,
+): void {
+  if (!cards) return;
+  const handler: CallbackAbility = () => {
+    if (opts?.onChange) opts.onChange(cards.slice());
+  };
+  // Single-button prompt — clicking 'Done' accepts default order.
+  showPrompt(state, side, null, prompt, ["Done"], handler as any);
 }

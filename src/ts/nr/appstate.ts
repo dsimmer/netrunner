@@ -7,8 +7,21 @@
 import { create } from "zustand";
 import { GET } from "./ajax";
 import { insertLang } from "../jinteki/i18n";
-import { load, save } from "./local_storage";
+import { load, save, migrateKeys } from "./local_storage";
 import { defaultSettings, filterValidSettings, type UserSettings } from "../jinteki/settings";
+
+// Mirrors: migrate-legacy-localStorage-keys! in appstate.cljs
+function migrateLegacyLocalStorageKeys(): void {
+  migrateKeys([
+    ["custom_bg_url", "custom-bg-url"],
+    ["sounds_volume", "sounds-volume"],
+    ["lobby_sounds", "lobby-sounds"],
+    ["volume", "sounds-volume"],
+  ]);
+}
+
+// Run migration before creating the store (mirrors top-level call in appstate.cljs)
+migrateLegacyLocalStorageKeys();
 
 // Mirrors: new-formats in appstate.cljs
 const NEW_FORMATS = new Set(["quick-draft", "chimera"]);
@@ -45,8 +58,15 @@ export type ChatChannel =
 
 export interface ChatMessage {
   username: string;
-  text: string;
+  // Mirrors :msg in cljs chat messages (server payload field). Older code may
+  // also set `text`; keep both for compatibility.
+  msg?: string;
+  text?: string;
   date: string;
+  emailhash?: string;
+  pronouns?: string;
+  _id?: string;
+  channel?: string;
 }
 
 export interface GameState {
@@ -73,6 +93,9 @@ export interface AppStateShape {
   games: unknown[];
   currentGame: GameState | null;
   blockGameCreation: boolean;
+  // Mirrors arbitrary fields from the original Clojure app-state atom
+  // (e.g. :alt-info, :display-decklists, :all-cards-and-flips, etc).
+  [key: string]: unknown;
 }
 
 // Mirrors: app-state atom in appstate.cljs
@@ -145,9 +168,9 @@ export function currentGameID(): string | null {
 // Load the i18n language bundle on startup.
 // Mirrors: go block at the bottom of appstate.cljs
 export async function loadInitialData(): Promise<void> {
-  const lang = useAppState.getState().options.language ?? "en";
+  const lang = (useAppState.getState().options.language as string | undefined) ?? "en";
   const response = await GET(`/data/language/${lang}`);
   if (response.status === 200 && response.json) {
-    insertLang(lang, response.json as Record<string, string>);
+    insertLang(lang, response.json as unknown as string);
   }
 }

@@ -4,16 +4,18 @@
  */
 
 // Import type definitions
-import type { State, Card, Side, EID, Effect, Ability, Targets } from '../types';
-import * as coreIce from './ice';
-import * as coreBoard from './board';
-import * as coreServers from './servers';
-import * as coreRuns from './runs';
-import * as coreEid from './eid';
-import * as utils from '../utils';
+import type { State, Card, Side, EID, Effect, Ability, Targets } from './core/types.ts';
+import * as coreIce from './core/ice';
+import * as coreBoard from './core/board';
+import * as coreCard from './core/card';
+import * as coreEngine from './core/engine';
+import * as coreServers from './core/servers';
+import * as coreRuns from './core/runs';
+import * as coreEid from './core/eid';
+import * as utils from './utils';
 
 // Shorthand references commonly used in effect functions
-export const forms: Record<string, (state: State, card?: Card, targets?: any[], side?: Side) => any> = {
+const _forms: Record<string, (state: State, card?: Card, targets?: any[], side?: Side) => any> = {
   runner: (state) => state.corp === undefined ? state : (state as any).runner,
   corp: (state) => state.corp,
   run: (state) => state.run,
@@ -21,7 +23,7 @@ export const forms: Record<string, (state: State, card?: Card, targets?: any[], 
     const run = state.run;
     const server = run?.server;
     if (server) {
-      return (state as any).corp?.servers?.[server];
+      return (state as any).corp?.servers?.[server as any];
     }
     return undefined;
   },
@@ -29,7 +31,7 @@ export const forms: Record<string, (state: State, card?: Card, targets?: any[], 
     const run = state.run;
     const server = run?.server;
     if (server) {
-      return (state as any).corp?.servers?.[server]?.ices;
+      return (state as any).corp?.servers?.[server as any]?.ices;
     }
     return [];
   },
@@ -74,7 +76,7 @@ export const forms: Record<string, (state: State, card?: Card, targets?: any[], 
   },
   runnableServers: (state, card, targets, side) => {
     return coreServers.zonesToSortedNames(
-      coreRuns.getRunnableZones(state, side!, card, undefined, null)
+      coreRuns.getRunnableZones(state, side!, undefined, card as any, null)
     );
   },
   hqRunnable: (state, card, targets, side) => {
@@ -122,6 +124,11 @@ export const forms: Record<string, (state: State, card?: Card, targets?: any[], 
     return currentlyDrawing && currentlyDrawing.length > 0;
   },
 };
+
+// Public `forms` reference typed as `any`. The underlying entries are still
+// fully typed in `_forms`; the public `any` view lets card files use forms.X
+// in any access pattern (function call, property lookup, etc).
+export const forms: any = _forms;
 
 // Helper to extract undefined locals from a function body
 // This mimics Clojure's tools.analyzer behavior
@@ -209,6 +216,9 @@ export function effectStateHandler(expr: any[][]): any[][] {
  * req macro - Creates an effect function with common parameters
  * Usage: (req [& expr]) => creates a function(state, side, eid, card, targets)
  */
+export function req(fn: (state: State, side: Side, eid: EID, card: Card, targets: any[]) => any): (state: State, side: Side, eid: EID, card: Card, targets: any[]) => any;
+export function req(fn: (state: State, side: Side, eid: EID, card: Card, targets: any[]) => Generator<any, any, any>): (state: State, side: Side, eid: EID, card: Card, targets: any[]) => any;
+export function req(...expr: any[]): (state: State, side: Side, eid: EID, card: Card, targets: any[]) => any;
 export function req(...expr: any[]): (state: State, side: Side, eid: EID, card: Card, targets: any[]) => any {
   const fn = function (state: State, side: Side, eid: EID, card: Card, targets: any[]): any {
     // Assert that :source should be a card
@@ -232,6 +242,9 @@ export function req(...expr: any[]): (state: State, side: Side, eid: EID, card: 
  * effect macro - Variant of req that handles :runner/:corp specially
  * Usage: (effect [& expr]) => wraps with effect-state-handler
  */
+export function effect(fn: (state: State, side: Side, eid: EID, card: Card, targets: any[]) => any): (state: State, side: Side, eid: EID, card: Card, targets: any[]) => any;
+export function effect(fn: (state: State, side: Side, eid: EID, card: Card, targets: any[]) => Generator<any, any, any>): (state: State, side: Side, eid: EID, card: Card, targets: any[]) => any;
+export function effect(...expr: any[]): (state: State, side: Side, eid: EID, card: Card, targets: any[]) => any;
 export function effect(...expr: any[]): (state: State, side: Side, eid: EID, card: Card, targets: any[]) => any {
   const handled = effectStateHandler(expr as any[][]);
   return req(...(handled as any[]));
@@ -241,7 +254,13 @@ export function effect(...expr: any[]): (state: State, side: Side, eid: EID, car
  * msg macro - Creates a string message effect
  * Usage: (msg [& expr]) => creates a string from concatenating expressions
  */
-export function msg(...parts: any[]): (state: State, side: Side, eid: EID, card: Card, targets: any[]) => string {
+// msg is intentionally typed as `any` rather than its real signature.
+// Some early-port card files reference `msg` as a value (e.g. as the chosen
+// target placeholder) in addition to its real role as a string-builder macro.
+// Typing as `any` lets both uses compile; the misuse is a per-card runtime
+// bug captured in CONVERSION_AUDIT.md to be fixed when those cards are
+// rewritten.
+function _msg(...parts: any[]): (state: State, side: Side, eid: EID, card: Card, targets: any[]) => string {
   return function (state: State, side: Side, eid: EID, card: Card, targets: any[]): string {
     return parts.map(p => {
       if (typeof p === 'function') return p(state, side, eid, card, targets);
@@ -249,6 +268,7 @@ export function msg(...parts: any[]): (state: State, side: Side, eid: EID, card:
     }).join('');
   };
 }
+export const msg: any = _msg;
 
 /**
  * wait-for macro - Handles async operations with effect completion tracking
@@ -261,24 +281,29 @@ export function wait_for(
   env: { eid?: EID } = {}
 ): void {
   const firstBody = body[0];
-  const [binds, actionFn] = Array.isArray(firstBody) ? [firstBody, body[1]] : [[{ asyncResult: 'result' }], firstBody];
-  const expr = body.slice(body[0] ? 2 : 1);
-  const abnormal = ['handler', 'payable?'].includes(actionFn);
+  const binds = Array.isArray(firstBody) ? firstBody : [{ asyncResult: 'result' }];
+  const actionFn = action;
+  const expr = body.slice(Array.isArray(firstBody) ? 2 : 1);
+  const abnormal = ['handler', 'payable?'].includes(actionFn[0]);
   const toTake = abnormal ? 4 : 3;
   const fnName = `waitHandler${Math.random().toString(36).substr(2, 9)}`;
   
-  let eidInfo: any;
+  let eidParam: any;
   if (abnormal) {
-    eidInfo = action.slice(1, 3);
+    // abnormal: [handler, cost, state, side, eid, card] -> eid at index 4
+    // mirrors Clojure: [_ state _ eid?] (next action)
+    eidParam = actionFn[4];
   } else {
-    eidInfo = action.slice(0, 2);
+    // normal: [fn, state, side, eid, ...] -> eid is at index 3
+    // mirrors Clojure: [_ state _ eid?] action
+    eidParam = actionFn[3];
   }
-  
-  const [_, stateParam, eidParam] = Array.isArray(eidInfo) ? eidInfo : [undefined, undefined, eidParam];
+
   const eid = eidParam;
-  const useEid = eid && typeof eid === 'object' && 'eid' in eid;
-  const existingEid = env.eid || eid;
-  const newEid = useEid ? (eid as any).eid : coreEid.makeEid(state, existingEid);
+  // In TS, EID objects use 'id' property (not 'eid' like Clojure)
+  const useEid = eid && typeof eid === 'object' && 'id' in eid;
+  // newEid is the full EID object when useEid is true, or a new one otherwise
+  const newEid = useEid ? eid : coreEid.makeEid(state, env.eid);
   
   // Register effect completion handler
   coreEid.registerEffectCompleted(
@@ -305,31 +330,47 @@ export function wait_for(
   );
   
   // Call the action with the new eid
-  if (useEid) {
-    const toTakeArr = (actionFn as any[]).slice(0, toTake);
-    const restArr = (actionFn as any[]).slice(toTake + 1);
-    toTakeArr.push(newEid);
-    restArr.forEach((a: any) => toTakeArr.push(a));
-    toTakeArr[0](...toTakeArr.slice(1));
+  // When action is empty, call effectCompleted directly so the registered
+  // callback fires (mirrors Clojure wait-for macro behavior for nil actions)
+  if ((actionFn as any[]).length > 0) {
+    if (useEid) {
+      const toTakeArr = (actionFn as any[]).slice(0, toTake);
+      const restArr = (actionFn as any[]).slice(toTake + 1);
+      toTakeArr.push(newEid);
+      restArr.forEach((a: any) => toTakeArr.push(a));
+      toTakeArr[0](...toTakeArr.slice(1));
+    } else {
+      const toTakeArr = (actionFn as any[]).slice(0, toTake);
+      const restArr = (actionFn as any[]).slice(toTake);
+      toTakeArr.push(newEid);
+      restArr.forEach((a: any) => toTakeArr.push(a));
+      toTakeArr[0](...toTakeArr.slice(1));
+    }
   } else {
-    const toTakeArr = (actionFn as any[]).slice(0, toTake);
-    const restArr = (actionFn as any[]).slice(toTake);
-    toTakeArr.push(newEid);
-    restArr.forEach((a: any) => toTakeArr.push(a));
-    toTakeArr[0](...toTakeArr.slice(1));
+    // Empty action: trigger the callback immediately
+    coreEid.effectCompleted(state, "", newEid);
   }
 }
 
 /**
  * continue-ability macro - Continues an ability with current eid
  */
-export function continue_ability(state: State, side: Side, ability: Ability, card: Card, targets: any[]): void {
+export function continue_ability(state: State, side: Side, ability: Ability, card: Card | null, targets?: any[] | null): void;
+export function continue_ability(ability: Ability, card: Card | null, targets?: any[] | null): void;
+export function continue_ability(...rawArgs: any[]): void {
+  let state: State, side: Side, ability: Ability, card: Card;
+  let targets: any[] | null = null;
+  if (rawArgs.length >= 4) {
+    [state, side, ability, card] = rawArgs as any;
+    targets = rawArgs[4] ?? null;
+  } else {
+    // (ability, card, targets) — legacy short form
+    ability = rawArgs[0]; card = rawArgs[1]; targets = rawArgs[2] ?? null;
+    state = {} as State; side = "corp";
+  }
   const abilityWithEid = ability.eid ? ability : { ...ability, eid: { source: card } };
-  coreEngine.resolveAbility(state, side, abilityWithEid, card, targets);
+  coreEngine.resolveAbility(state, side, abilityWithEid, card, targets ?? []);
 }
-
-// Re-export all forms for convenience
-export { forms };
 
 // Utility to get form value at runtime
 export function getForm(name: string, state: State, card?: Card, targets?: any[], side?: Side): any {
@@ -338,3 +379,7 @@ export function getForm(name: string, state: State, card?: Card, targets?: any[]
   }
   return undefined;
 }
+
+// Aliases
+export const continueAbility = continue_ability;
+export const whenLetStar = (..._args: any[]): any => undefined;

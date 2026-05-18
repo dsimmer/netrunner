@@ -30,15 +30,20 @@ interface AddCounterArgs {
  * Triggers events.
  * Mirrors `add-prop` in props.clj.
  */
-export function addProp(
-  state: GameState,
-  side: string,
-  eid: EID,
-  card: Card,
-  propType: string,
-  n: number,
-  args?: AddCounterArgs | null,
-): void {
+export function addProp(state: GameState, side: string, eid: EID, card: Card, propType: string, n: number, args?: AddCounterArgs | null): void;
+export function addProp(...rawArgs: any[]): void;
+export function addProp(...rawArgs: any[]): void {
+  let state: GameState, side: string, eid: EID, card: Card, propType: string, n: number;
+  let args: AddCounterArgs | null = null;
+  if (rawArgs.length >= 6 && typeof rawArgs[2] === "object" && rawArgs[2] !== null && "id" in rawArgs[2]) {
+    [state, side, eid, card, propType, n] = rawArgs as any;
+    args = rawArgs[6] ?? null;
+  } else {
+    // (state, side, card, propType, n, args)
+    state = rawArgs[0]; side = rawArgs[1]; card = rawArgs[2]; propType = rawArgs[3]; n = rawArgs[4];
+    args = rawArgs[5] ?? null;
+    eid = { id: 0, source: card } as unknown as EID;
+  }
   const resolvedCard = getCard(state, card);
   if (!resolvedCard) {
     effectCompleted(state, side, eid);
@@ -85,15 +90,20 @@ export function addProp(
  * Adds n counters of the specified type to a card.
  * Mirrors `add-counter` in props.clj.
  */
-export function addCounter(
-  state: GameState,
-  side: string,
-  eid: EID,
-  card: Card,
-  propType: string,
-  n: number,
-  args?: AddCounterArgs | null,
-): void {
+export function addCounter(state: GameState, side: string, eid: EID, card: Card, propType: string, n: number, args?: AddCounterArgs | null): void;
+export function addCounter(...rawArgs: any[]): void;
+export function addCounter(...rawArgs: any[]): void {
+  let state: GameState, side: string, eid: EID, card: Card, propType: string, n: number;
+  let args: AddCounterArgs | null = null;
+  if (rawArgs.length >= 6 && typeof rawArgs[2] === "object" && rawArgs[2] !== null && "id" in rawArgs[2]) {
+    [state, side, eid, card, propType, n] = rawArgs as any;
+    args = rawArgs[6] ?? null;
+  } else {
+    // (state, side, card, propType, n, args)
+    state = rawArgs[0]; side = rawArgs[1]; card = rawArgs[2]; propType = rawArgs[3]; n = rawArgs[4];
+    args = rawArgs[5] ?? null;
+    eid = { id: 0, source: card } as unknown as EID;
+  }
   const resolvedCard = getCard(state, card);
   if (!resolvedCard) {
     effectCompleted(state, side, eid);
@@ -141,7 +151,7 @@ export function setProp(
   state: GameState,
   side: string,
   card: Card,
-  ...pairs: (string | number)[]
+  ...pairs: (string | number | boolean | unknown)[]
 ): void {
   const resolvedCard = getCard(state, card);
   if (!resolvedCard) return;
@@ -153,3 +163,5 @@ export function setProp(
   }
   update(state, side, resolvedCard);
 }
+
+export { canBeAdvanced } from "./card";

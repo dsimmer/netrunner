@@ -138,6 +138,7 @@ export {
   isInstallable,
   isUpgrade,
   printedTitle,
+  sameCard,
 } from "./core/card";
 
 // ---- game.core.effects (from core/effects.ts) ----
@@ -170,6 +171,29 @@ export {
   registerEIDCallback,
   clearEIDWaitPrompt,
 } from "./core/eid";
+
+// ---- game.core.checkpoint (from core/checkpoint.ts) ----
+export { checkpoint, fakeCheckpoint } from "./core/checkpoint";
+
+// ---- game.core.moving (from core/moving.ts) ----
+export { move, moveStar, moveZone } from "./core/moving";
+
+// ---- game.core.drawing (from core/drawing.ts) ----
+export { draw, drawUpTo, maxDraw, remainingDraws, drawBonus } from "./core/drawing";
+
+// ---- game.core.damage (from core/damage.ts) ----
+export { damage, damageName } from "./core/damage";
+
+// ---- game.core.purging (from core/purging.ts) ----
+export { purge } from "./core/purging";
+
+// ---- game.core.def-helpers (from core/def_helpers.ts) ----
+export {
+  takeCredits,
+  takeNCreditsAbility,
+  takeAllCreditsAbility,
+  spendCredits,
+} from "./core/def_helpers";
 
 // ---- game.core.finding (from core/finding.ts) ----
 export {
@@ -205,6 +229,15 @@ export {
 
 // ---- game.core.link (from core/link.ts) ----
 export { getLink, linkPlus, updateLink } from "./core/link";
+
+// ---- game.core.tags (from core/tags.ts) ----
+export { gainTags, loseTags } from "./core/tags";
+
+// ---- game.core.trace (from core/trace.ts) ----
+export { initTrace, initTraceSimple, initTraceWithTrace } from "./core/trace";
+
+// ---- game.core.initializing (from core/initializing.ts) ----
+export { makeCard, resetCard } from "./core/initializing";
 
 // ---- game.core.say (from core/say.ts) ----
 export {
@@ -311,6 +344,14 @@ export {
   setProperty,
 } from "./core/process_actions";
 
+// ---- game.core.rezzing (from core/rezzing.ts) ----
+export {
+  rez,
+  derez,
+  getRezCost,
+  canPayToRez,
+} from "./core/rezzing";
+
 // ---- game.macros (from macros.ts) ----
 export {
   continueAbility,
@@ -324,7 +365,115 @@ export {
   findUndefinedLocals,
   emitOnly,
   effectStateHandler,
-} from "../macros";
+} from "./macros";
+
+// ---- game.core.runs (from core/runs.ts) ----
+export {
+  totalRunCost,
+  getRunnableZones,
+  canRunServer,
+  getCurrentEncounter,
+  activeEncounter,
+  updateCurrentEncounter,
+  clearEncounter,
+  setPhase,
+  setNextPhase,
+  startNextPhase,
+  runContinue,
+  makeRun,
+  toggleAutoNoAction,
+  checkAutoNoAction,
+  checkForEmptyServer,
+  bypassIce,
+  canBypassIce,
+  encounterIce,
+  forceIceEncounter,
+  redirectRun,
+  gainRunCredits,
+  gainNextRunCredits,
+  addRunEffect,
+  successfulRunReplaceBreach,
+  preventAccess,
+  completeRun,
+  successfulRun,
+  endRun,
+  jackOut,
+  runCleanup,
+  forcedEncounterCleanup,
+  handleEndRun,
+  totalCardsAccessed,
+  endOfPhaseCheckpoint,
+} from "./core/runs";
+export { runContinue as continue } from "./core/runs";
+
+// ---- game.core.ice (from core/ice_1.ts) ----
+export {
+  getRunIces,
+  getCurrentIce,
+  setCurrentIce,
+  isActiveIce,
+  buildSub,
+  breakSubroutine,
+  breakSubroutineEx,
+  breakAllSubroutines,
+  breakAllSubroutinesEx,
+  anySubsBroken,
+  allSubsBroken,
+  anySubsBrokenByCard,
+  allSubsBrokenByCard,
+  dontResolveSubroutine,
+  dontResolveSubroutineEx,
+  dontResolveAllSubroutines,
+  dontResolveAllSubroutinesEx,
+  resetAllSubs,
+  resetAllSubsEx,
+  resetAllIce,
+  unbrokenSubroutinesChoice,
+  breakableSubroutinesChoice,
+  resolveSubroutineEx,
+  resolveUnbrokenSubsEx,
+  getStrength,
+  getPumpStrength,
+  iceStrengthBonus,
+  sumIceStrengthEffects,
+  iceStrength,
+  updateIceStrength,
+  reconcileSubroutines,
+} from "./core/ice_1";
+
+// ---- game.core.events (from core/events.ts) ----
+export {
+  turnEvents,
+  lastTurn,
+  notLastTurn,
+  noEvent,
+  eventCount,
+  firstEvent,
+  secondEvent,
+  firstSuccessfulRunOnServer,
+  firstTrash,
+  getTurnDamage,
+  getInstalledTrashed,
+  firstInstalledTrash,
+  firstInstalledTrashOwn,
+  runEvents,
+  noRunEvent,
+  runEventCount,
+  firstRunEvent,
+} from "./core/events";
+
+// ---- game.core.diffs (from core/diffs.ts) ----
+export { iconSummary } from "./core/diffs";
+
+// ---- game.core.actions (from core/actions_2.ts) ----
+export { clickAdvance } from "./core/actions_2";
+
+// ---- game.core.props (from core/props.ts) ----
+export {
+  addProp,
+  addCounter,
+  setProp,
+} from "./core/props";
 
 // ---- Re-export shared types (from core/types.ts) ----
 export {

@@ -46,7 +46,7 @@ export function makeMessage(opts: {
             .join(" ")
         : "";
   return {
-    user: processedUser,
+    user: processedUser ?? "",
     text,
     timestamp: opts.timestamp ?? new Date().toISOString(),
   };
@@ -213,12 +213,9 @@ export function systemSay(
   const finalText = opts?.hr ? `${text} [hr]` : text;
   const message = makeSystemMessage(finalText);
   const logSide = opts?.logSide ?? "public";
-  const logSides: string[] = Array.isArray(logSide) ? logSide : [logSide];
-  const logMap: Record<string, Message> = {};
-  for (const ls of logSides) {
-    logMap[ls] = message;
-  }
-  log(state, logMap);
+  // Delegate to say() so that pronoun substitution is handled correctly,
+  // mirroring the Clojure system-say which calls say internally.
+  say(state, side, message as { text: string; user?: Record<string, unknown> | null }, logSide);
 }
 
 /**
@@ -234,12 +231,18 @@ export function unsafeSay(state: GameState, text: string): void {
  * Prints a message to the log without a username.
  * Mirrors: system-msg in say.clj
  */
-export function systemMsg(
-  state: GameState,
-  side: string,
-  text: string,
-  opts: SystemMsgOptions | null = null,
-): void {
+export function systemMsg(state: GameState, side: string, text: string, opts?: SystemMsgOptions | null): void;
+export function systemMsg(text: string): void;
+export function systemMsg(...args: any[]): void {
+  let state: GameState | undefined, side: string, text: string;
+  let opts: SystemMsgOptions | null = null;
+  if (args.length === 1) {
+    text = args[0];
+    return; // No state available — best-effort no-op
+  } else {
+    state = args[0]; side = args[1]; text = args[2]; opts = args[3] ?? null;
+  }
+  if (!state) return;
   const user = side === CORP_SIDE ? state.corp.user : state.runner.user;
   const username = (user as Record<string, unknown>)?.username as string;
   systemSay(state, side, `${username} ${text}.`, opts);
@@ -314,7 +317,17 @@ export function indicateAction(
  * The sfx queue has size limited to 3 to limit the sound torrent tabbed out or lagged players will experience.
  * Mirrors: play-sfx in say.clj
  */
-export function playSfx(state: GameState, _side: string, sfx: string): void {
+export function playSfx(sfx: string): void;
+export function playSfx(state: GameState, side: string, sfx: string): void;
+export function playSfx(...args: any[]): void;
+export function playSfx(...args: any[]): void {
+  if (args.length === 1) {
+    // single-arg shorthand: ignore state/side
+    return;
+  }
+  const state = args[0] as GameState;
+  const _side = args[1] as string;
+  const sfx = args[2] as string;
   const currentId = state.sfxCurrentId;
   if (!currentId && currentId !== 0) return;
   (state.sfx as any[]).push({ id: currentId + 1, name: sfx });

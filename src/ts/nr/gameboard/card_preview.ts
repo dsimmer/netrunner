@@ -55,7 +55,7 @@ export function getCardDataTitle(e: React.MouseEvent): string | null {
  * Mirrors CLJS `put-game-card-in-channel`.
  */
 export function putGameCardInChannel(card: { title?: string; "printed-title"?: string } & Record<string, unknown>): void {
-  const appState = useAppState.getState() as Record<string, unknown>;
+  const appState = useAppState.getState() as unknown as Record<string, unknown>;
   const allCards = appState["all-cards-and-flips"] as Record<string, Record<string, unknown>> | undefined;
   const cardKey = card.title ?? card["printed-title"];
   if (cardKey && allCards) {
@@ -82,7 +82,7 @@ export function cardPreviewMouseOver(e: React.MouseEvent): void {
   e.preventDefault();
   const title = getCardDataTitle(e);
   if (title) {
-    const appState = useAppState.getState() as Record<string, unknown>;
+    const appState = useAppState.getState() as unknown as Record<string, unknown>;
     const allCards = appState["all-cards-and-flips"] as Record<string, Record<string, unknown>> | undefined;
     const card = allCards?.[title];
     if (card) {

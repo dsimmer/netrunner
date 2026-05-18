@@ -7,7 +7,7 @@
 import type { GameState, Effect } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { Ability } from "../../jinteki/utils";
+import type { Ability } from "./types";
 import { allActive, allActiveInstalled } from "./board";
 import { getCard } from "./finding";
 import { installed, resource, rezzed, sameCard } from "./card";
@@ -15,7 +15,7 @@ import { cardDef } from "./card_defs";
 import { chooseOneHelper } from "./choose_one";
 import type { ChoiceOption } from "./choose_one";
 import { cardAbilityCost } from "./cost_fns";
-import { completeWithResult, effectCompleted } from "./eid";
+import { completeWithResult, effectCompleted, makeEID } from "./eid";
 import { anyEffects, getEffectMaps } from "./effects";
 import { resolveAbility, triggerEventSimult, triggerEventSync } from "./engine";
 import {
@@ -207,7 +207,7 @@ function floatingPreventionAbilities(
 
       return payable && notUsedTooManyTimes && abilityReq;
     })
-    .map((cv) => ({ ...cv.value, card: cv.card }));
+    .map((cv) => ({ ...cv.value, card: cv.card } as PreventionEntry));
 
   return playable;
 }
@@ -292,7 +292,7 @@ function triggerPrevention(
       uses[cid] = (uses[cid] ?? 0) + 1;
       (s as any).prevent[key].uses = uses;
       const context = (s as any).prevent[key];
-      resolveAbility(s, sid, e, prevention.ability, card, [context]);
+      (resolveAbility as any)(s, sid, e, prevention.ability, card, [context]);
     }),
   };
 
@@ -306,7 +306,7 @@ function triggerPrevention(
       }
     : abi;
 
-  resolveAbility(state, side, sourceEid, finalAbility, card, null);
+  (resolveAbility as any)(state, side, sourceEid, finalAbility, card, null);
 }
 
 function buildPreventionOption(
@@ -433,7 +433,7 @@ export function resolveKeyedPreventionForSide(
   const chooseOneAbility = chooseOneHelper(
     {
       prompt: promptStr ?? "Choose",
-      waitingPrompt: waitingStr,
+      waitingPrompt: !!waitingStr,
     },
     options,
   );
@@ -444,7 +444,7 @@ export function resolveKeyedPreventionForSide(
       { asyncResult: true },
       () => resolveKeyedPreventionForSide(state, side, eid, key, args),
     ],
-    [() => resolveAbility(state, side, eid, chooseOneAbility, null, null)],
+    [() => (resolveAbility as any)(state, side, eid, chooseOneAbility, null, null)],
   );
 }
 
@@ -496,8 +496,13 @@ export function resolvePreventEffectsWithPriority(
 // preventable?
 // ---------------------------------------------------------------------------
 
-export function preventable(state: GameState, key: string): boolean {
-  const ctx = (state as any).prevent?.[key];
+export function preventable(stateOrCtx: any, key?: any): boolean {
+  // Permissive: accept either (state, key) or (ctx).
+  if (key === undefined) {
+    if (!stateOrCtx) return false;
+    return preventableContext(stateOrCtx);
+  }
+  const ctx = (stateOrCtx as any)?.prevent?.[key];
   if (!ctx) return false;
   return preventableContext(ctx);
 }
@@ -615,7 +620,7 @@ function resolveTrashForSide(state: GameState, side: string, eid: EID): void {
       if (remaining.length === 1) {
         return `Prevent ${remaining[0].card.title} from being trashed?`;
       } else if (remaining.length <= 5) {
-        const titles = remaining.map((r) => r.card.title).sort();
+        const titles = remaining.map((r) => r.card.title ?? "").sort();
         return `Prevent any of ${enumerateStr(titles, "or")} from being trashed?`;
       } else {
         return `Prevent any of ${remaining.length} cards from being trashed?`;
@@ -698,8 +703,8 @@ export function resolveTrashPrevention(
 
   pushPrevention(state, "trash", {
     count: trashable.length,
-    remaining: trashableEntries,
-    untrashable: untrashableEntries,
+    remaining: trashableEntries as any,
+    untrashable: untrashableEntries as any,
     prevented: 0,
     sourcePlayer: side,
     sourceCard: causeCard ?? null,
@@ -790,12 +795,16 @@ export function damageName(state: GameState): string {
  * Prevent n damage within an active damage/pre-damage window.
  * Mirrors: prevent-damage
  */
-export function preventDamage(
-  state: GameState,
-  side: string,
-  eid: EID,
-  n: number | "all",
-): void {
+export function preventDamage(state: GameState, side: string, n: number | "all"): void;
+export function preventDamage(state: GameState, side: string, eid: EID, n: number | "all"): void;
+export function preventDamage(...rawArgs: any[]): void {
+  let state: GameState, side: string, eid: EID, n: number | "all";
+  if (rawArgs.length === 3) {
+    [state, side, n] = rawArgs as [GameState, string, number | "all"];
+    eid = makeEID(state);
+  } else {
+    [state, side, eid, n] = rawArgs as [GameState, string, EID, number | "all"];
+  }
   const pending = damagePending(state);
   if (pending && pending > 0) {
     const dk = damageKey(state)!;

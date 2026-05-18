@@ -62,6 +62,8 @@ interface CardStrOpts {
   visible?: boolean;
   maybeVisible?: boolean;
   noIcon?: boolean;
+  'maybe-visible'?: boolean;
+  [key: string]: any;
 }
 
 /**
@@ -82,9 +84,9 @@ export function cardStr(
     const installedIce = ice(card) && installed(card);
     let title: string;
     if (rezzed(card) || card.seen || visible) {
-      title = getTitle(card);
+      title = getTitle(card) ?? "";
     } else if (maybeVisible) {
-      title = `facedown ${getTitle(card)}`;
+      title = `facedown ${getTitle(card) ?? ""}`;
     } else {
       title = installedIce ? "ice" : "a card";
     }
@@ -92,15 +94,16 @@ export function cardStr(
     // Hosted cards do not need "in server 1" messages, host has them
     if (!host) {
       let prefix: string;
+      const safeZone = zone ?? [];
       if (installedIce) {
         prefix = " protecting ";
-      } else if (isRoot(zone)) {
+      } else if (isRoot(safeZone)) {
         prefix = " in the root of ";
       } else {
         prefix = " in ";
       }
 
-      const zoneName = zoneToName(zone.length >= 2 ? zone.slice(1) : zone);
+      const zoneName = zoneToName(safeZone.length >= 2 ? safeZone.slice(1) : safeZone);
       title += prefix + (zoneName ?? "");
 
       if (installedIce) {
@@ -117,7 +120,7 @@ export function cardStr(
     return title;
   } else {
     // Runner card
-    const result = facedown || visible ? "a facedown card" : getTitle(card);
+    const result = facedown || visible ? "a facedown card" : (getTitle(card) ?? "");
     if (host) {
       return `${result} hosted on ${cardStr(state, getCard(state, host))}`;
     }

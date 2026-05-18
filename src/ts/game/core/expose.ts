@@ -6,7 +6,12 @@ import type { EID } from "./eid";
 import type { Card } from "./card";
 import { isRezzed } from "./card";
 import { cardDef } from "./card_defs";
-import { completeWithResult, effectCompleted } from "./eid";
+import {
+  completeWithResult,
+  effectCompleted,
+  makeEID,
+  registerEffectCompleted,
+} from "./eid";
 import { anyEffects } from "./effects";
 import { checkpoint, queueEvent, registerPendingEvent } from "./engine";
 import { resolveExposePrevention } from "./prevention";
@@ -32,13 +37,13 @@ export interface ExposeArgs {
  * :expose event, run a checkpoint, then complete.
  * Mirrors: resolve-expose in expose.clj
  */
-export async function resolveExpose(
+export function resolveExpose(
   state: GameState,
   side: string,
   eid: EID,
   targets: Card[],
   args: ExposeArgs,
-): Promise<void> {
+): void {
   if (targets.length === 0) {
     effectCompleted(state, side, eid);
     return;
@@ -62,21 +67,29 @@ export async function resolveExpose(
 
   queueEvent(state, "expose", { cards: targets });
 
-  await checkpoint(state, side, { duration: "expose" });
-  completeWithResult(state, side, eid, { cards: targets });
+  const checkpointEid = makeEID(state);
+  registerEffectCompleted(state, checkpointEid, ((
+    _s: GameState,
+    _sd: string,
+    _e: EID,
+  ) => {
+    completeWithResult(state, side, eid, { cards: targets });
+  }) as any);
+  checkpoint(state, side, checkpointEid, { duration: "expose" });
 }
 
 /**
  * Exposes the given cards.
  * Mirrors: expose in expose.clj
  */
-export async function expose(
+export function expose(state: any, side?: any, eid?: any, targets?: any, args?: any): any;
+export function expose(
   state: GameState,
   side: string,
   eid: EID,
   targets: Card[],
   args?: ExposeArgs | null,
-): Promise<void> {
+): void {
   const resolvedArgs = args ?? {};
   const a: ExposeArgs = {
     ...resolvedArgs,
@@ -104,6 +117,22 @@ export async function expose(
   }
 
   // Mirrors: (wait-for (resolve-expose-prevention state side targets args) ...)
-  const result = await resolveExposePrevention(state, side, filtered, a);
-  await resolveExpose(state, side, eid, result.remaining, a);
+  // resolveExposePrevention signals completion via the inner eid; we register
+  // a continuation to read the `remaining` cards and resume.
+  const preventionEid = makeEID(state);
+  registerEffectCompleted(state, preventionEid, ((
+    _s: GameState,
+    _sd: string,
+    completedEid: EID,
+  ) => {
+    const result: any = (completedEid as any).result;
+    const remaining: Card[] = Array.isArray(result?.remaining)
+      ? result.remaining
+      : filtered;
+    resolveExpose(state, side, eid, remaining, a);
+  }) as any);
+  resolveExposePrevention(state, side, preventionEid, filtered, {
+    unpreventable: a.unpreventable,
+    card: a.card ?? undefined,
+  });
 }

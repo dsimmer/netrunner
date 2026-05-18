@@ -8,49 +8,36 @@ import type { Card } from "./card";
 
 export type { EID, Card, GameState };
 
+// Convenience aliases used widely across card files.
+export type State = GameState;
+export type Side = string;
+export type Targets = unknown[];
+export type Effect = AbilityFn;
+
 // ---------------------------------------------------------------------------
 // Function types (mirror Go's AbilityFn / ReqFn / ValueFn / NumberFn)
 // ---------------------------------------------------------------------------
 
-export type AbilityFn = (
-  state: GameState,
-  side: string,
-  eid: EID,
-  card: Card | null,
-  targets: Card[],
-) => void;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyFn = (...args: any[]) => any;
 
-export type ReqFn = (
-  state: GameState,
-  side: string,
-  eid: EID,
-  card: Card | null,
-  targets: Card[],
-) => boolean;
+export type AbilityFn = AnyFn;
 
-export type MsgFn = (
-  state: GameState,
-  side: string,
-  eid: EID,
-  card: Card | null,
-  targets: Card[],
-) => string;
+export type ReqFn = AnyFn | boolean;
 
-export type ValueFn = (
-  state: GameState,
-  side: string,
-  eid: EID,
-  card: Card | null,
-  targets: Card[],
-) => unknown;
+export type MsgFn =
+  | AnyFn
+  | string
+  | {
+      public?: string | AnyFn;
+      corp?: string | AnyFn;
+      runner?: string | AnyFn;
+      [key: string]: any;
+    };
 
-export type NumberFn = (
-  state: GameState,
-  side: string,
-  eid: EID,
-  card: Card | null,
-  targets: Card[],
-) => number;
+export type ValueFn = AnyFn;
+
+export type NumberFn = AnyFn | number;
 
 // ---------------------------------------------------------------------------
 // Cost
@@ -58,8 +45,14 @@ export type NumberFn = (
 
 export interface Cost {
   type: string; // "credit", "click", "tag", etc.
-  amount: number;
+  amount?: number;
   subAbility?: Ability;
+  additional?: boolean;
+  stealth?: number | "all-stealth";
+  maximum?: number;
+  offset?: number;
+  args?: Record<string, unknown>;
+  [key: string]: any;
 }
 
 // ---------------------------------------------------------------------------
@@ -107,14 +100,18 @@ export interface Ability {
   psi?: PsiAbility;
   trace?: TraceAbility;
   notShown?: boolean;
+  // Card defs are still being ported from clj — allow kebab-case / extra keys.
+  [key: string]: any;
 }
 
 // ChoicesSpec mirrors Go's ChoicesMap — can be string[], "*", "credit", etc.
+// Cards in progress sometimes pass a function (req-style) directly; allow that.
 export type ChoicesSpec =
   | string[]
   | "*"
   | "credit"
   | "counter"
+  | ReqFn
   | {
       number?: NumberFn;
       default?: NumberFn;
@@ -123,6 +120,7 @@ export type ChoicesSpec =
       all?: boolean;
       max?: NumberFn;
       notSelf?: boolean;
+      [key: string]: any;
     };
 
 // ---------------------------------------------------------------------------
@@ -139,6 +137,7 @@ export interface Subroutine {
   sourceCard?: Card | null;
   breakerCid?: string;
   index?: number;
+  [key: string]: any;
 }
 
 // ---------------------------------------------------------------------------
@@ -149,10 +148,11 @@ export interface StaticAbility {
   type: string;
   req?: ReqFn;
   value?: ValueFn;
+  [key: string]: any;
 }
 
 export interface EventHandler {
-  event: string;
+  event?: string;
   req?: ReqFn;
   effect?: AbilityFn;
   async?: boolean;
@@ -160,10 +160,11 @@ export interface EventHandler {
   oncePer?: string;
   optional?: Ability;
   waiting?: string;
-  location?: string[][];
+  location?: string | string[] | string[][];
   name?: string;
   msg?: string | MsgFn;
   duration?: string; // "until-runner-turn-ends" etc.
+  [key: string]: any;
 }
 
 // ---------------------------------------------------------------------------
@@ -200,6 +201,7 @@ export interface CardDef {
   highlightInDiscard?: boolean;
   special?: Record<string, unknown>;
   flags?: Record<string, ReqFn>;
+  [key: string]: any;
 }
 
 // ---------------------------------------------------------------------------

@@ -23,11 +23,11 @@ import {
   registerTournamentPropertyHandler,
 } from "./lobby";
 import { handleMessageAndSendDiffs } from "./game";
-import { response } from "./utils";
+import { response, type HttpResponse } from "./utils";
 
 // ---- Types ----
 
-interface WSMessageWithReq extends WSMessage {
+interface WSMessageWithReq extends Omit<WSMessage, "replyFn"> {
   "ring-req"?: {
     user?: Record<string, unknown>;
   };
@@ -39,7 +39,7 @@ interface WSMessageWithReq extends WSMessage {
 /**
  * Auth check endpoint (unused in current routing, kept for compatibility).
  */
-export function auth(_req: unknown): { status: number; body: Record<string, string>; headers: Record<string, string> } {
+export function auth(_req: unknown): HttpResponse {
   return response(200, { message: "ok" });
 }
 
@@ -51,7 +51,7 @@ function wrapWithToHandler(handler: (msg: WSMessageWithReq) => void) {
   return (msg: WSMessageWithReq): void => {
     const user = msg["ring-req"]?.user;
     const replyFn = msg.replyFn;
-    if (user && (user as any).tournament_organizer) {
+    if (user && (user as any)["tournament-organizer"]) {
       handler(msg);
       if (replyFn) replyFn(200);
     } else {

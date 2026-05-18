@@ -284,7 +284,7 @@ export function buildCostLabel(
   return capitalize(cost);
 }
 
-interface AbilityWithCost extends Ability {
+interface AbilityWithCost extends Omit<Ability, "cost"> {
   cost?: CostData | CostData[] | null;
   "fake-cost"?: CostData | CostData[] | null;
   "cost-label"?: string;
@@ -349,3 +349,6 @@ export function buildSpendMsg(
   }
   return `${costStr} to ${verb} `;
 }
+
+export { pay } from "./engine_1";
+export { totalAvailableCredits } from "./costs_1";

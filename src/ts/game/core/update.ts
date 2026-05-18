@@ -103,7 +103,11 @@ function updateInZone(state: GameState, side: string, card: Card): void {
  *
  * Mirrors: game.core.update/update!
  */
-export function updateCard(state: GameState, side: string, card: Card): void {
+export function updateCard(state: GameState, side: string, card: Card | null | undefined): void;
+export function updateCard(state: GameState, side: string, card: any): void;
+export function updateCard(state: GameState, side: string, cardArg: any): void {
+  if (!cardArg) return;
+  const card = cardArg as Card;
   if (card.type === "Identity") {
     if (side === toKeyword(card.side ?? "")) {
       if (side === "corp") {
@@ -128,3 +132,37 @@ export function updateCard(state: GameState, side: string, card: Card): void {
  * Updates the state so that its copy of the given card matches the argument given.
  */
 export const update = updateCard;
+
+/**
+ * Mirrors Clojure's `update-in`: walks the path inside `obj`, applies `fn` to the
+ * value at the final key, then writes the result back. Mutates in place.
+ */
+export function updateIn(
+  ...args: any[]
+): any {
+  // Permissive signature supporting both:
+  //   updateIn(obj, path, fn)
+  //   updateIn(state, side, card, fn)  (legacy Clojure-style)
+  let obj: any;
+  let path: (string | number | symbol)[];
+  let fn: (current: any) => any;
+  if (args.length === 3) {
+    [obj, path, fn] = args;
+  } else if (args.length >= 4) {
+    obj = args[0];
+    // Best-effort: assume args[1] (side) is path root, args[2] is card or further path; treat remaining as path; last arg is fn
+    fn = args[args.length - 1];
+    path = args.slice(1, args.length - 1).flatMap((p) => Array.isArray(p) ? p : [p]);
+  } else {
+    return undefined;
+  }
+  if (!Array.isArray(path) || path.length === 0 || obj == null || typeof obj !== "object") return;
+  let current: any = obj;
+  for (let i = 0; i < path.length - 1; i++) {
+    const seg = String(path[i]);
+    if (current[seg] == null || typeof current[seg] !== "object") current[seg] = {};
+    current = current[seg];
+  }
+  const last = String(path[path.length - 1]);
+  current[last] = typeof fn === 'function' ? fn(current[last]) : fn;
+}

@@ -1,14 +1,14 @@
 // Angel Arena lobby: queue management, run display, format selection, game list.
 // Mirrors: src/cljs/nr/angel_arena/lobby.cljs
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { useAppState } from "./appstate";
-import { Avatar } from "./avatar";
-import { DeckFormatStatusSpan } from "./deck_status";
-import { joinGame, LobbyState, Game as GameRowGame } from "./game_row";
+import { useAppState } from "../appstate";
+import { Avatar } from "../avatar";
+import { DeckFormatStatusSpan } from "../deck_status";
+import { joinGame, LobbyState, Game as GameRowGame } from "../game_row";
 import { AllCards } from "../../jinteki/cards";
 import { superuser } from "../../jinteki/utils";
-import { resumeSound } from "./sounds";
-import { tr, trPronouns } from "./translations";
+import { resumeSound } from "../sounds";
+import { tr, trPronouns } from "../translations";
 import {
   condButton,
   factionIcon,
@@ -17,8 +17,8 @@ import {
   slugToFormat,
   timeSpanString,
   tristateButton,
-} from "./utils";
-import { wsSend, onWSEvent } from "./ws";
+} from "../utils";
+import { wsSend, onWSEvent } from "../ws";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -228,12 +228,12 @@ function DeckButtons({ side, deck }: { side: string; deck: DeckData | undefined 
   return (
     <div className="buttons">
       <div className="button-row">
-        <tristateButton
-          onText={tr(["angel-arena_queueing", "Queueing..."])}
-          offText={tr(["angel-arena_queue-for-match", "Queue for match"])}
-          onCond={isQueueing}
-          disableCond={isOtherQueueing}
-          f={() => {
+        {tristateButton(
+          tr(["angel-arena_queueing", "Queueing..."]),
+          tr(["angel-arena_queue-for-match", "Queue for match"]),
+          isQueueing,
+          isOtherQueueing,
+          () => {
             if (isQueueing) {
               wsSend("angel-arena/dequeue", { "deck-id": deckId });
               queueingRef.current = null;
@@ -241,8 +241,8 @@ function DeckButtons({ side, deck }: { side: string; deck: DeckData | undefined 
               wsSend("angel-arena/queue", { "deck-id": deckId });
               queueingRef.current = deckId ?? null;
             }
-          }}
-        />
+          },
+        )}
         <span>{"Average waiting time: " + timeSpanString(avgTime)}</span>
       </div>
       <div className="button-row">
@@ -265,11 +265,11 @@ function DeckButtons({ side, deck }: { side: string; deck: DeckData | undefined 
             </span>
           </>
         ) : (
-          <condButton
-            text={tr(["angel-arena_abandon-run", "Abandon run"])}
-            cond={!isQueueing}
-            f={() => setAbandon(true)}
-          />
+          condButton(
+            tr(["angel-arena_abandon-run", "Abandon run"]),
+            !isQueueing,
+            () => setAbandon(true),
+          )
         )}
       </div>
     </div>
@@ -318,7 +318,7 @@ function DeckSelectModal({
   side: string;
   onClose: () => void;
 }): React.ReactElement {
-  const decks = useAppState((s) => s.decks) as DeckData[];
+  const decks = useAppState((s: any) => s.decks) as DeckData[];
   const format = chosenFormatRef.current;
 
   const sameSide = (deck: DeckData) =>
@@ -401,11 +401,11 @@ function NewRunButtonBar({
 
   return (
     <div className="button-bar">
-      <condButton
-        text={tr(["angel-arena_start-new-run", "Start new run"])}
-        cond={queueingRef.current === null}
-        f={() => setShowModal(true)}
-      />
+      {condButton(
+        tr(["angel-arena_start-new-run", "Start new run"]),
+        queueingRef.current === null,
+        () => setShowModal(true),
+      )}
       {showModal && <DeckSelectModal side={side} onClose={() => setShowModal(false)} />}
     </div>
   );
@@ -457,9 +457,8 @@ function LatestRunView({ run }: { run: ArenaRun }): React.ReactElement {
   return (
     <div className="run" key={_id}>
       <div
-        className="unfold-button"
+        className={`unfold-button${opened ? " open" : ""}`}
         onClick={() => setOpened((o) => !o)}
-        className={opened ? "open" : undefined}
       />
       <div className="deck">
         <img src={imageUrl(identity) ?? ""} alt={identity} />
@@ -671,7 +670,7 @@ function LobbyPlayerView({
   if (faction && faction !== "Neutral" && specs) {
     sideContent = factionIcon(faction, identity ?? "");
   } else if (side) {
-    sideContent = ` (${tr(["side_name"], { side: String(side) })})`;
+    sideContent = ` (${tr(["side_name", String(side)], { side: String(side) })})`;
   }
 
   return (
@@ -738,7 +737,7 @@ function LobbyGameRow({
         {saveReplay ? "\uD83D\uDFE2" : ""}
         {game.title}
         {spectatorCount > 0
-          ? ` (${tr(["lobby_spectator-count"], { cnt: String(spectatorCount) })})`
+          ? ` (${tr(["lobby_spectator-count", `${spectatorCount} spectators`], { cnt: String(spectatorCount) })})`
           : ""}
       </h4>
       <div className="game-format">
@@ -803,7 +802,7 @@ export function gameList(
   // Group by max wins
   const groups: Map<number, GameRowGame[]> = new Map();
   for (const game of roomGames) {
-    const wins = Math.max(0, ...getPlayerWins(game));
+    const wins = Math.max(0, ...getPlayerWins(game as unknown as { players?: { "run-info"?: { games?: GameEntry[]; side?: string } }[] }));
     const existing = groups.get(wins) ?? [];
     existing.push(game);
     groups.set(wins, existing);
@@ -834,9 +833,30 @@ export function gameList(
 }
 
 // ---------------------------------------------------------------------------
-// Default export (stub for compatibility with import in lobby.tsx)
+// Default export — composes gamePanel + gameList for any caller that imports
+// the module's default. Mirrors how lobby.cljs consumes the angel-arena ns:
+// callers pass a lobby state + the current decks/games view.
 // ---------------------------------------------------------------------------
 
-export default function AngelArenaLobby(): React.ReactElement {
-  throw new Error("not implemented");
+interface AngelArenaLobbyProps {
+  lobbyState: { games?: unknown[]; currentGame?: unknown };
+  decks: DeckData[];
+}
+
+export default function AngelArenaLobby({
+  lobbyState,
+  decks,
+}: AngelArenaLobbyProps): React.ReactElement {
+  return (
+    <div className="angel-arena-lobby">
+      {gamePanel({ decks })}
+      {gameList(
+        lobbyState as unknown as Parameters<typeof gameList>[0],
+        {
+          games: (lobbyState.games ?? []) as Parameters<typeof gameList>[1]["games"],
+          currentGame: lobbyState.currentGame as Parameters<typeof gameList>[1]["currentGame"],
+        },
+      )}
+    </div>
+  );
 }

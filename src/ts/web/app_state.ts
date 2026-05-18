@@ -17,7 +17,7 @@ export interface Lobby {
   started?: boolean;
   messages?: unknown[];
   "last-update"?: Date;
-  pool?: Record<string, unknown>;
+  pool?: unknown;
   [key: string]: unknown;
 }
 
@@ -91,6 +91,14 @@ function registerUser(state: AppStateData, uid: string, user: Record<string, unk
  */
 export function getUsers(): Record<string, unknown>[] {
   return Object.values(appState.users);
+}
+
+/**
+ * Get all users keyed by uid.
+ * Mirrors: (get-all-users) -> (:users @app-state)
+ */
+export function getAllUsers(): Record<string, Record<string, unknown>> {
+  return appState.users;
 }
 
 /**

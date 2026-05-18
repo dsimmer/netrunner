@@ -39,7 +39,7 @@ import {
   isResource,
   isRezzed,
   isRunner,
-  isActive,
+  active as isActive,
 } from "./card";
 import { getCardDef } from "./types.ts";
 import { damage } from "./damage";
@@ -553,10 +553,10 @@ registerTrashInstalled(
       hasSubtype(c, "Connection"),
     ),
   () => (c) =>
-    isInstalled(c) &&
+    !!(isInstalled(c) &&
     isResource(c) &&
     hasSubtype(c, "Connection") &&
-    !isFacedown(c),
+    !isFacedown(c)),
 );
 
 // ice
@@ -614,9 +614,9 @@ handlerDispatch.set("derez-other-harmonic", (c, state, side, eid, card) => {
           ei,
           (innerEid) =>
             derez(s, sd, innerEid, targets, {
-              "suppress-checkpoint": true,
-              "no-msg": true,
-            }),
+              suppressCheckpoint: true,
+              noMsg: true,
+            } as any),
           () => {
             completeWithResult(s, sd, ei, {
               "paid/msg": `derezzes ${targets.length} Harmonic ice (${enumerateStr(targets.map((t) => cardStr(s, t)))})`,
@@ -734,9 +734,9 @@ handlerDispatch.set("trash-from-deck", (c, state, side, eid) => {
     state,
     eid,
     (innerEid) =>
-      mill(state, side, side, innerEid, value(c), {
+      mill(state, side, innerEid, side, value(c), {
         "suppress-checkpoint": true,
-      }),
+      } as any),
     (asyncResult) => {
       const trashed = (asyncResult as Card[]) ?? [];
       completeWithResult(state, side, eid, {
@@ -827,9 +827,9 @@ handlerDispatch.set("randomly-trash-from-hand", (c, state, side, eid) => {
     state,
     eid,
     (innerEid) =>
-      discardFromHand(state, side, side, innerEid, value(c), {
+      discardFromHand(state, side, innerEid, side, value(c), {
         "suppress-checkpoint": true,
-      }),
+      } as any),
     (asyncResult) => {
       const trashed = (asyncResult as Card[]) ?? [];
       const detail =

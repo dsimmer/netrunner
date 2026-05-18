@@ -53,7 +53,7 @@ export function selectState(
   const corpSpectators = (lobby["corp-spectators"] ?? []) as Record<string, unknown>[];
   const runnerSpectators = (lobby["runner-spectators"] ?? []) as Record<string, unknown>[];
 
-  let selected: Record<string, unknown>;
+  let selected: unknown;
   if (side === "Corp") {
     selected = diffs["corp-state"];
   } else if (side === "Runner") {
@@ -241,7 +241,7 @@ export function checkForInactivity(): void {
     const inactiveSide = endTurn
       ? otherSide(activePlayer) ?? ""
       : activePlayer;
-    const inactiveUser = (state[inactiveSide] as Record<string, unknown>)?.user;
+    const inactiveUser = (state[inactiveSide] as Record<string, unknown>)?.user as Record<string, unknown> | undefined;
 
     if (players && players.length === 1) {
       // Player leaves
@@ -385,8 +385,8 @@ registerMsgHandler("angel-arena/more-time", async (msg: WSMessageWithReq) => {
     | Record<string, unknown>
     | undefined;
 
-  const corpUsername = (state.corp as Record<string, unknown>)?.user?.username;
-  const runnerUsername = (state.runner as Record<string, unknown>)?.user?.username;
+  const corpUsername = ((state.corp as Record<string, unknown>)?.user as Record<string, unknown> | undefined)?.username;
+  const runnerUsername = ((state.runner as Record<string, unknown>)?.user as Record<string, unknown> | undefined)?.username;
 
   // Check user is in the game
   if (
@@ -454,8 +454,8 @@ registerMsgHandler(
     const stage = inactiveState.stage as string;
     const inactiveSide = inactiveState["inactive-side"] as string | undefined;
 
-    const corpUsername = (state.corp as Record<string, unknown>)?.user?.username;
-    const runnerUsername = (state.runner as Record<string, unknown>)?.user?.username;
+    const corpUsername = ((state.corp as Record<string, unknown>)?.user as Record<string, unknown> | undefined)?.username;
+    const runnerUsername = ((state.runner as Record<string, unknown>)?.user as Record<string, unknown> | undefined)?.username;
 
     // Check user is in the game
     if (username !== corpUsername && username !== runnerUsername) return;
@@ -515,8 +515,8 @@ registerMsgHandler("angel-arena/cancel-match", async (msg: WSMessageWithReq) => 
   const stage = inactiveState.stage as string;
   const inactiveSide = inactiveState["inactive-side"] as string | undefined;
 
-  const corpUsername = (state.corp as Record<string, unknown>)?.user?.username;
-  const runnerUsername = (state.runner as Record<string, unknown>)?.user?.username;
+  const corpUsername = ((state.corp as Record<string, unknown>)?.user as Record<string, unknown> | undefined)?.username;
+  const runnerUsername = ((state.runner as Record<string, unknown>)?.user as Record<string, unknown> | undefined)?.username;
 
   // Check user is in the game
   if (username !== corpUsername && username !== runnerUsername) return;

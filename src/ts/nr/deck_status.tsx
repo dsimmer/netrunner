@@ -4,7 +4,7 @@ import React from "react";
 import { calculateDeckStatus, trustedDeckStatus, DeckStatus as ValidatorDeckStatus } from "../jinteki/validator";
 import { Deck as DeckType } from "../jinteki/validator";
 import { slugToFormat } from "./utils";
-import { tr, trSpan, trFormat } from "./translations";
+import { trSpan, trFormat } from "./translations";
 
 // ──────────────────────────────────────────────────────────────────
 // Types
@@ -61,7 +61,7 @@ function buildDeckStatusLabel(deckStatus: ParsedDeckStatus, violationDetails?: b
             title={violationDetails && !legal ? (reason ?? "Unknown") : undefined}
           >
             <span className="tick">{legal ? "✔" : "✘"}</span>
-            {slug ?? fmt} {description ?? ""}
+            {trFormat(slug ?? fmt)} {description ?? ""}
           </div>
         );
       })}

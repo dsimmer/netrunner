@@ -32,7 +32,7 @@ interface NrdbApiResponse {
  * returns: [endpoint, id]
  * Mirrors: (parse-input input)
  */
-function parseInput(input: string): [Endpoint, string] {
+export function parseInput(input: string): [Endpoint, string] {
   let id: string;
   if (input.includes("/")) {
     const parts = input.split(/decklist\/|deck\/view\/|deck\//);
@@ -93,7 +93,7 @@ async function parseCards(
 /**
  * Mirrors: (readable-url endpoint id)
  */
-function readableUrl(endpoint: Endpoint, id: string | number): string {
+export function readableUrl(endpoint: Endpoint, id: string | number): string {
   if (endpoint === "private") {
     return `${NRDB_BASE_URL}deck/view/${id}`;
   }

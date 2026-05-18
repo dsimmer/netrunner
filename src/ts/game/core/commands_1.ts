@@ -44,7 +44,7 @@ import { psiGame } from "./psi";
 import { initTrace } from "./trace";
 import { sabotageAbility } from "./sabotage";
 import { identifyMark, setMark } from "./mark";
-import { isCentral, unknownToKW } from "./servers";
+import { isCentral, unknownToKw as unknownToKW } from "./servers";
 import { buildCard } from "./set_up";
 import { clearWin } from "./winning";
 import { removeFromPromptQueue } from "./prompt_state";
@@ -101,19 +101,23 @@ function setAdvCounter(
 
 /**
  * Multimethod dispatch for lobby-level commands.
- * Mirrors `lobby-command`.
+ * Mirrors `lobby-command`. Web layer registers concrete handlers
+ * (e.g. swap-sides) via `registerLobbyCommand`.
  */
+const lobbyCommandHandlers = new Map<string, (cmd: Record<string, unknown>) => void>();
+
+export function registerLobbyCommand(
+  command: string,
+  handler: (cmd: Record<string, unknown>) => void,
+): void {
+  lobbyCommandHandlers.set(command, handler);
+}
+
 export function lobbyCommand(cmd: Record<string, unknown>): void {
-  const command = cmd.command;
-  const gameid = cmd.gameid;
-  switch (command) {
-    case "swap-sides":
-      // Handled by lobby layer
-      break;
-    default:
-      // no-op for unhandled lobby commands
-      break;
-  }
+  const command = cmd.command as string | undefined;
+  if (!command) return;
+  const handler = lobbyCommandHandlers.get(command);
+  if (handler) handler(cmd);
 }
 
 // ---------------------------------------------------------------------------
@@ -165,9 +169,9 @@ export function commandSaveReplay(state: GameState, _side: string): void {
  * Mirrors `command-bug-report`.
  */
 export function commandBugReport(state: GameState, side: string): void {
-  state.bugReported = (state.bugReported ?? -1) + 1;
+  (state as any).bugReported = ((state as any).bugReported ?? -1) + 1;
   const gameid = state.gameId;
-  const bugNum = state.bugReported;
+  const bugNum = (state as any).bugReported;
   const title = "[EDITME] Please give a short description of your bug here";
   const body = `Link to bug replay: https://jinteki.net/bug-report/${gameid}?b=${bugNum}\n\nDescription:\n\n[EDITME] Please describe the steps to reproduce your bug and the resulting effect here.`;
   const encodedTitle = title.replace(/ /g, "%20");
@@ -239,7 +243,7 @@ function commandCounterSmart(
                 { timeOut: 0, closeButton: true },
               );
             } else {
-              update(
+              (update as any)(
                 s,
                 sid,
                 (card: Card) => {
@@ -358,7 +362,7 @@ export function commandCounter(
             target: Card,
             _targets: unknown[],
           ): void => {
-            update(
+            (update as any)(
               state,
               _side,
               (card: Card) => {
@@ -428,7 +432,7 @@ function rezAllTurnAgendasFaceup(cards: Card[]): Ability | null {
             _targets: unknown[],
           ): void => {
             for (const c of agendas) {
-              update(
+              (update as any)(
                 state,
                 side,
                 (card: Card) => {
@@ -901,7 +905,7 @@ export function commandInstallIce(state: GameState, side: string): void {
 export function commandPeek(state: GameState, side: string, n: number): void {
   const deck = side === CORP_SIDE ? state.corp.deck : state.runner.deck;
   const topCards = deck.slice(0, n);
-  const titles = topCards.map((c) => getTitle(c));
+  const titles = topCards.map((c) => getTitle(c) ?? "");
   const isPlural = n > 1;
 
   showPrompt(

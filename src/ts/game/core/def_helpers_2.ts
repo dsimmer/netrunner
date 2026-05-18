@@ -503,13 +503,13 @@ export function tutorAbi(
           (inner) => reveal(state, side, inner, target),
           () => {
             move(state, side, target, "hand");
-            shuffleDeck(state, side, "deck");
+            shuffleDeck(state, side);
             effectCompleted(state, side, eid);
           },
         );
       } else {
         move(state, side, target, "hand");
-        shuffleDeck(state, side, "deck");
+        shuffleDeck(state, side);
         effectCompleted(state, side, eid);
       }
     },
@@ -661,7 +661,7 @@ export function withRevealedHand(
       return;
     }
     const player = (state as any)[targetSide];
-    revealLoud(state, eventSide ?? side, eid, card, args, player?.hand ?? []);
+    revealLoud(state, eventSide ?? side, eid, card as Card, args, player?.hand ?? []);
   }
 
   return {
@@ -709,12 +709,13 @@ export function withRevealedHand(
 // ---------------------------------------------------------------------------
 
 export function placeAdvancementCounter(
-  advanceableOnly: boolean,
+  advanceableOnly: boolean | null,
   qty: number = 1,
   cardLine: string = "a card",
   pred: ((c: any) => boolean) | null = null,
 ): any {
-  const label = `Place ${quantify(qty, "advancement counter")} on ${cardLine}${advanceableOnly ? " that can be advanced" : ""}`;
+  const onlyAdvanceable = advanceableOnly === true;
+  const label = `Place ${quantify(qty, "advancement counter")} on ${cardLine}${onlyAdvanceable ? " that can be advanced" : ""}`;
   return {
     label,
     prompt: label,
@@ -731,7 +732,7 @@ export function placeAdvancementCounter(
           isCorp(target) &&
           isInstalled(target) &&
           (!pred || pred(target)) &&
-          (!advanceableOnly || canBeAdvanced(state, target))
+          (!onlyAdvanceable || canBeAdvanced(state, target))
         );
       },
     },

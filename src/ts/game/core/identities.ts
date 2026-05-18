@@ -89,7 +89,7 @@ function actualDisableIdentity(state: GameState, side: string): void {
 export function disableIdentity(state: GameState, side: string): void {
   const identity = getIdentity(state, side);
   if (!identity) return;
-  const disableCount = (identity.numDisables ?? 0) + 1;
+  const disableCount = ((identity as any).numDisables ?? 0) + 1;
   const id = updateIdentity(state, side, {
     ...identity,
     numDisables: disableCount,
@@ -105,10 +105,10 @@ export function disableIdentity(state: GameState, side: string): void {
  */
 export function disableCard(state: GameState, side: string, card: Card): void {
   deactivate(state, side, card);
-  const c = update(state, side, (c) => ({ ...c, disabled: true }), card);
+  const c: Card = ((update as any)(state, side, (c: Card) => ({ ...c, disabled: true }), card) as Card) ?? card;
   const cdef = getCardDef(c);
   if (cdef.disable) {
-    cdef.disable(state, side, makeEID(state), c, []);
+    (cdef.disable as any)(state, side, makeEID(state), c, []);
   }
 }
 
@@ -133,7 +133,7 @@ function actualEnableIdentity(state: GameState, side: string): void {
 export function enableIdentity(state: GameState, side: string): void {
   const identity = getIdentity(state, side);
   if (!identity) return;
-  const disableCount = (identity.numDisables ?? 1) - 1;
+  const disableCount = ((identity as any).numDisables ?? 1) - 1;
   const id = updateIdentity(state, side, {
     ...identity,
     numDisables: disableCount,
@@ -149,15 +149,15 @@ export function enableIdentity(state: GameState, side: string): void {
  */
 export function enableCard(state: GameState, side: string, card: Card): void {
   if (!card.disabled) return;
-  const c = update(
+  const c: Card | null = ((update as any)(
     state,
     side,
-    (c) => {
+    (c: Card) => {
       const { disabled, ...rest } = c;
-      return rest;
+      return rest as Card;
     },
     card,
-  );
+  ) as Card | null) ?? card;
   if (active(card)) {
     cardInit(state, side, c, { resolveEffect: false });
   }

@@ -80,11 +80,8 @@ export function createUser(
  * Returns the given user if it exists and is not banned.
  * Mirrors: active-user? [user]
  */
-export function activeUser(user?: User | null): User | undefined {
-  if (user && !user.banned) {
-    return user;
-  }
-  return undefined;
+export function activeUser(user?: User | null): user is User {
+  return !!user && !user.banned;
 }
 
 /**

@@ -3,7 +3,7 @@
 
 import type { Corp, GameState, Runner, ServerZone } from "./state";
 import type { Card, Zone } from "./card";
-import { CORP_SIDE, RUNNER_SIDE } from "./state";
+import { CORP_SIDE, RUNNER_SIDE, makeRID } from "./state";
 import {
   isCorp,
   isRunner,
@@ -204,7 +204,7 @@ export function allInstalledRunnerType(
  * Returns active installed cards for the given side.
  * Mirrors: all-active-installed in board.clj
  */
-export function allActiveInstalled(state: GameState, side: string): Card[] {
+export function allActiveInstalled(state: GameState, side: string, _ignored?: unknown): Card[] {
   return allInstalled(state, side).filter((c) =>
     side === RUNNER_SIDE ? !isFacedown(c) : isRezzed(c),
   );
@@ -282,7 +282,7 @@ export function serverToZone(state: GameState, server: string): Zone {
     case "Archives":
       return ["servers", "archives"];
     case "New remote": {
-      const rid = state.makeRID();
+      const rid = makeRID(state);
       return ["servers", remoteKey(rid)];
     }
     default: {
@@ -339,6 +339,67 @@ export function getZones(state: GameState): string[] {
 }
 
 /**
+ * Returns the remote-only zone keys.
+ * Mirrors: get-remote-zones in board.clj
+ */
+export function getRemoteZones(state: GameState): string[] {
+  return getZones(state).filter((z) => isRemoteZone(z));
+}
+
+/**
+ * Returns the sorted human-readable names of all remote servers.
+ * Mirrors: get-remote-names in board.clj
+ */
+export function getRemoteNames(state: GameState): string[] {
+  return zonesToSortedNamesLocal(getRemoteZones(state));
+}
+
+/**
+ * Returns the sorted human-readable names of all servers (including centrals).
+ * Mirrors: server-list in board.clj
+ */
+export function serverList(state: GameState): string[] {
+  return zonesToSortedNamesLocal(getZones(state));
+}
+
+/**
+ * Returns server names excluding the supplied list.
+ * Mirrors: server-list-exclude in board.clj
+ */
+export function serverListExclude(state: GameState, excludeList: string[]): string[] {
+  const exclude = new Set(excludeList);
+  return zonesToSortedNamesLocal(getZones(state).filter((z) => !exclude.has(z)));
+}
+
+function isRemoteZone(z: string): boolean {
+  return /^remote/.test(z) || /^:remote/.test(z);
+}
+
+function zoneSortKeyLocal(zone: string): number {
+  const s = String(zone).replace(/^:/, "").toLowerCase();
+  if (s === "archives" || s === "discard") return -3;
+  if (s === "rd" || s === "deck") return -2;
+  if (s === "hq" || s === "hand") return -1;
+  const m = s.match(/^remote(\d+)$/);
+  if (m) return Number(m[1]);
+  return 0;
+}
+
+function zoneDisplayLocal(zone: string): string {
+  const s = String(zone).replace(/^:/, "").toLowerCase();
+  if (s === "hq" || s === "hand") return "HQ";
+  if (s === "rd" || s === "deck") return "R&D";
+  if (s === "archives" || s === "discard") return "Archives";
+  const m = s.match(/^remote(\d+)$/);
+  if (m) return `Server ${m[1]}`;
+  return zone;
+}
+
+function zonesToSortedNamesLocal(zones: string[]): string[] {
+  return [...zones].sort((a, b) => zoneSortKeyLocal(a) - zoneSortKeyLocal(b)).map(zoneDisplayLocal);
+}
+
+/**
  * Removes remote servers with no content and no ice.
  * Mirrors: clear-empty-remotes in board.clj
  */
@@ -349,3 +410,50 @@ export function clearEmptyRemotes(state: GameState): void {
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// Installable servers
+// ---------------------------------------------------------------------------
+
+/**
+ * Get list of servers the specified card can be installed in.
+ * Mirrors: installable-servers in board.clj
+ */
+export function installableServers(
+  state: GameState,
+  card: Card,
+): string[] {
+  const baseList = ["HQ", "R&D", "Archives", ...getRemotes(state).map((k) => `Remote ${k}`)];
+  return baseList;
+}
+
+/** All scored agendas for a side. */
+export function getAgendas(state: GameState, side: string): Card[] {
+  const sideKey = String(side).replace(":", "");
+  return ((state as any)?.[sideKey]?.scored ?? []) as Card[];
+}
+
+/** Cards in a given zone (e.g., ["hand"], ["servers","hq","content"]). */
+export function getZoneCards(state: GameState, side: string, zone: string[]): Card[] {
+  let cur: any = (state as any)?.[String(side).replace(":", "")];
+  for (const seg of zone) {
+    if (!cur) return [];
+    cur = cur[seg];
+  }
+  return Array.isArray(cur) ? (cur as Card[]) : [];
+}
+
+/** First card in zone matching the cid. */
+export function getCardInZone(state: GameState, side: string, zone: string[], cid: string): Card | null {
+  return getZoneCards(state, side, zone).find((c) => c.cid === cid) ?? null;
+}
+
+import { getRunnableZones } from "./runs";
+
+/** Sorted names of zones the runner can currently run. */
+export function runnableServers(state: GameState, side?: string, eid?: any, card?: any): string[] {
+  const zones = getRunnableZones(state as any, (side ?? "runner") as any, eid as any, card as any, null);
+  return zonesToSortedNamesLocal(zones as unknown as string[]);
+}
+
+export { getZone } from "./card";

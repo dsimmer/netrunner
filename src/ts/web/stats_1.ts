@@ -5,7 +5,7 @@ import { dissocIn } from "../game/utils";
 import { AllCards } from "../jinteki/cards";
 import { chskSend } from "./ws";
 import { activeUser } from "./user";
-import { response, jsonResponse, mongoTimeToUtcString } from "./utils";
+import { response, jsonResponse, mongoTimeToUtcString, type HttpResponse } from "./utils";
 
 // ---- Types ----
 
@@ -578,7 +578,7 @@ export function stripOpponentDeckName(
  */
 export async function clearUserstatsHandler(
   req: RequestLike
-): Promise<{ status: number; body: Record<string, string> }> {
+): Promise<HttpResponse> {
   const db = req.system?.db;
   const userId = (req.user as any)?._id;
   if (!db || !userId) {

@@ -35,6 +35,7 @@ export interface Card {
   corpAbilities?: unknown[];
   cost?: number;
   counter?: Counter;
+  counters?: Record<string, number>;
   currentAdvancementRequirement?: number;
   currentPoints?: number;
   currentStrength?: number;
@@ -109,6 +110,16 @@ export function getTitle(card: Card | null): string | undefined {
   return card?.title ?? card?.printedTitle;
 }
 
+/** Get the type of a card (e.g. "Program", "Asset"). Mirrors Clojure card/type. */
+export function getType(card: Card | null): string | undefined {
+  return card?.type;
+}
+
+/** Get the side of a card ("Corp" or "Runner"). Mirrors Clojure card/side. */
+export function getSide(card: Card | null): string | undefined {
+  return card?.side;
+}
+
 // ---------------------------------------------------------------------------
 // Hosting / zone helpers
 // ---------------------------------------------------------------------------
@@ -176,22 +187,26 @@ export function inRoot(card: Card | null): boolean {
 }
 
 /** Checks if the card is protecting the archives. */
-export function protectingArchives(card: Card | null): boolean {
+export function protectingArchives(_stateOrCard: any, cardArg?: Card | null): boolean {
+  const card = cardArg !== undefined ? cardArg : _stateOrCard;
   return zoneEquals(card, ["servers", "archives", "ices"]);
 }
 
 /** Checks if the card is protecting HQ. */
-export function protectingHq(card: Card | null): boolean {
+export function protectingHq(_stateOrCard: any, cardArg?: Card | null): boolean {
+  const card = cardArg !== undefined ? cardArg : _stateOrCard;
   return zoneEquals(card, ["servers", "hq", "ices"]);
 }
 
 /** Checks if the card is protecting R&D. */
-export function protectingRd(card: Card | null): boolean {
+export function protectingRd(_stateOrCard: any, cardArg?: Card | null): boolean {
+  const card = cardArg !== undefined ? cardArg : _stateOrCard;
   return zoneEquals(card, ["servers", "rd", "ices"]);
 }
 
 /** Checks if the card is protecting any central. */
-export function protectingACentral(card: Card | null): boolean {
+export function protectingACentral(_stateOrCard: any, cardArg?: Card | null): boolean {
+  const card = cardArg !== undefined ? cardArg : _stateOrCard;
   return protectingArchives(card) || protectingHq(card) || protectingRd(card);
 }
 
@@ -476,15 +491,10 @@ export function canBeAdvanced(
   if (!baseCanAdvance) return false;
 
   // Two-arity: also check disabled registry
-  if (state !== null) {
+  if (state !== null && !agenda(c)) {
     // Only agendas are implicitly advanceable; other advanceable cards
     // must not have their ability disabled.
-    if (!agenda(c)) {
-      const disabledCardReg = (state as any).disabledCardReg as
-        | Record<string, boolean>
-        | undefined;
-      if (disabledCardReg?.[c.cid]) return false;
-    }
+    if (state.disabledCardReg?.has(c.cid)) return false;
   }
 
   return true;
@@ -719,6 +729,14 @@ export const isBasicAction = basicAction;
 export const isConditionCounter = conditionCounter;
 export const isFacedown = facedown;
 export const isInstalled = installed;
+export const isFaceup = faceup;
+export const inRFG = inRfg;
+export function isCounter(card: Card | null): boolean {
+  return card?.type === "Counter";
+}
+export function printedTitle(card: Card | null): string | undefined {
+  return card?.printedTitle ?? card?.title;
+}
 
 // Type constants
 export const TYPE_IDENTITY = "Identity";
@@ -730,4 +748,103 @@ export function inZone(card: Card | null, ...zones: string[]): boolean {
     if (z[i] !== zones[i]) return false;
   }
   return zones.length <= z.length;
+}
+
+// Re-export `getCard` here so callers using `coreCard.getCard(...)` (a common
+// shape inherited from the clj API surface) resolve. Definition lives in
+// finding.ts to avoid a cycle in card.ts itself.
+export { getCard, findCard } from "./finding";
+export { zoneLocked, inCorpScored } from "./flags";
+export { inHandStar, allCardsInHandStar } from "./def_helpers_1";
+export { updateCard } from "./update";
+export { getCardDef } from "./types";
+export { cardDef } from "./card_defs";
+export { asAgenda, forfeit, swapInstalled } from "./moving_2";
+export { swapCardsAsync } from "./installing_2";
+export { cancellable } from "./prompts";
+export { host } from "./hosting";
+
+export const isIce = ice;
+
+/** Credit cost of a card. */
+export function cost(card: Card | null): number {
+  return (card as any)?.cost ?? 0;
+}
+
+/**
+ * True when a card is installed in a server that has no ICE protecting it.
+ * Mirrors the `unprotected` binding from clj's req-macro.
+ */
+export function unprotected(state: GameState, sideOrCard?: any, maybeCard?: Card | null): boolean;
+export function unprotected(state: GameState, card: Card | null): boolean;
+export function unprotected(state: GameState, arg2: any, arg3?: Card | null): boolean {
+  // Accept (state, side, card) or (state, card)
+  const card: Card | null = arg3 !== undefined ? arg3 : arg2;
+  if (!card) return false;
+  const z = getZone(card);
+  const server = z[1];
+  if (!server) return false;
+  const ices = (state as any)?.corp?.servers?.[server]?.ices ?? [];
+  return ices.length === 0;
+}
+
+/** True if `card` has subtype `keyword`. */
+export function hasKeyword(card: Card | null, keyword: string): boolean {
+  return hasSubtype(card, keyword) !== undefined;
+}
+
+/** Number of times `keyword` appears in the subtype list. */
+export function getKeyword(card: Card | null, keyword: string): number {
+  if (!card) return 0;
+  const subs = ((card as any)?.subtypes ?? []) as string[];
+  let n = 0;
+  for (const s of subs) if (s === keyword) n++;
+  return n;
+}
+
+// ---------------------------------------------------------------------------
+// Constant exports referenced from cards / barrel module
+// ---------------------------------------------------------------------------
+
+export const SIDE_CORP = "Corp";
+export const SIDE_RUNNER = "Runner";
+
+export const TYPE_AGENDA = "Agenda";
+export const TYPE_ASSET = "Asset";
+export const TYPE_BASIC_ACT = "Basic Action";
+export const TYPE_COUNTER = "Counter";
+export const TYPE_EVENT = "Event";
+export const TYPE_FAKE_ID = "Fake-Identity";
+export const TYPE_HARDWARE = "Hardware";
+export const TYPE_ICE = "ICE";
+export const TYPE_OPERATION = "Operation";
+export const TYPE_PROGRAM = "Program";
+export const TYPE_RESOURCE = "Resource";
+export const TYPE_UPGRADE = "Upgrade";
+
+// Aliases for naming variants used elsewhere
+export const getCounter = getCounters;
+export const inRig = installed;
+export const inServers = inServer;
+export const isCorpInstallable = corpInstallableType;
+export const isUnique = unique;
+export const isInstallable = isInstalled;
+
+export function getRootZoneIndex(card: Card | null): number {
+  const z = getZone(card);
+  return z && z.length > 1 ? (typeof z[1] === "number" ? z[1] : 0) : 0;
+}
+
+export function isDisabled(card: Card | null): boolean {
+  return !!(card && (card as any).disabled);
+}
+
+export function isHosted(card: Card | null): boolean {
+  if (!card) return false;
+  const z = getZone(card);
+  return z?.[0] === "hosted" || !!(card as any).host;
+}
+
+export function isPlayable(card: Card | null): boolean {
+  return !!(card && (card as any).playable);
 }

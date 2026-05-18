@@ -57,8 +57,8 @@ interface QueueEntry {
   uid: string;
   format: string;
   side: string;
-  deck: Record<string, unknown>;
-  "run-info": Record<string, unknown>;
+  deck: Record<string, unknown> | unknown;
+  "run-info": Record<string, unknown> | unknown;
   "queue-start": Date;
 }
 
@@ -161,7 +161,7 @@ registerMsgHandler("angel-arena/start-run", async (msg: WSMessageWithReq) => {
 
     // when not already running on this side and format
     if (runs && !runs[format]?.[side]) {
-      await startRun(db, username, runs, deck);
+      await startRun(db, username, runs, deck as any);
     }
   } catch (e: any) {
     console.log("Caught exception while starting a new run: " + e.message);
@@ -191,7 +191,7 @@ registerMsgHandler("angel-arena/abandon-run", async (msg: WSMessageWithReq) => {
 
     // there's a run in this side and format
     if (runs[format]?.[side]) {
-      await finishRun(db, username, runs, deck);
+      await finishRun(db, username, runs, deck as any);
       chskSend(uid, ["angel-arena/run-update"]);
     }
   } catch (e: any) {
@@ -222,7 +222,7 @@ function addQueueTime(player: QueueEntry): void {
   const format = player.format;
   const queueTime = Date.now() - player["queue-start"].getTime();
 
-  const existing = arenaQueueTimes[format]?.[side] ?? [];
+  const existing = arenaQueueTimes[format]?.[side as "corp" | "runner"] ?? [];
   if (existing.length >= 5) {
     arenaQueueTimes[format] = {
       ...arenaQueueTimes[format],
@@ -502,7 +502,7 @@ registerMsgHandler("angel-arena/queue", async (msg: WSMessageWithReq) => {
         sendStateToParticipants(
           "game/start",
           lobbyExists,
-          publicStates(state),
+          publicStates(state) as unknown as Record<string, unknown>,
         );
       }
     } else {

@@ -72,6 +72,7 @@ function removeVirusCounters(
  * Purges virus counters from all installed cards.
  * Mirrors `purge` in purging.clj.
  */
+export function purge(state: any, side?: any, eid?: any): any;
 export function purge(state: GameState, side: string, eid: EID): void {
   // Build a map of cid -> purge prevention effect
   const purgePreventions: Record<string, PurgePrevention> = {};

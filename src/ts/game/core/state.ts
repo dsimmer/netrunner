@@ -184,6 +184,12 @@ export interface RegisteredEvent {
   once?: string;
   oncePer?: string;
   duration?: string;
+  // ability / handler are CLJS-style aliases — kept loose because callers
+  // poke them with arbitrary shapes (see engine_3.ts / events.ts).
+  ability?: unknown;
+  handler?: unknown;
+  unregisterOnceResolved?: boolean;
+  [key: string]: unknown;
 }
 
 export interface PhaseState {
@@ -233,6 +239,8 @@ export interface GameStats {
     ended?: Date;
     elapsed?: number;
   };
+  corp?: Record<string, unknown>;
+  runner?: Record<string, unknown>;
 }
 
 // ---------------------------------------------------------------------------
@@ -421,6 +429,9 @@ export interface GameState {
   clickState?: unknown;
   endRun?: unknown;
   bonus?: unknown;
+
+  // Breach state (set during a server breach; reset to null on end-breach-server)
+  breach?: Record<string, unknown> | null;
 
   // Typing indicators
   typing: string[];

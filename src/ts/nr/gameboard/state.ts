@@ -121,10 +121,9 @@ function displayServerToast(
   toastType: string,
   options?: Record<string, unknown>,
 ): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (window as any).toastr.options = toastrOptions(options ?? {});
+  window.toastr.options = toastrOptions(options ?? {});
   const actualType = toastType === "exception" ? "error" : toastType;
-  const f = (window as any).toastr[actualType];
+  const f = window.toastr[actualType];
   if (typeof f === "function") {
     const rendered = Array.isArray(msg)
       ? ReactDOMServer.renderToString(trSpan(msg))

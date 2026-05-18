@@ -55,7 +55,7 @@ function updateCard(card: DeckCardLine): DeckCardLine {
  * Update a deck by resolving all card data and identity from the global card registry.
  * Mirrors: (defn update-deck [deck] ...)
  */
-function updateDeck(deck: Record<string, unknown>): Record<string, unknown> {
+export function updateDeck(deck: Record<string, unknown>): Record<string, unknown> {
   const cards = (deck.cards as DeckCardLine[]) ?? [];
   const identity = deck.identity as { title?: string } | undefined;
   return {
@@ -254,7 +254,7 @@ export async function decksBulkDeleteHandler(
     }
 
     // Convert deck IDs to object IDs for MongoDB queries
-    const deckObjectIds = deckIds.map(toObjectId);
+    const deckObjectIds = deckIds.map(toObjectId).filter((id): id is ObjectId => !!id);
 
     // Perform atomic deletion: only delete decks that exist and are owned by user
     await db.collection("decks").deleteMany({

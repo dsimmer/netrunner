@@ -61,36 +61,77 @@ export function revealAndQueueEvent(
 
 /**
  * Trigger the event for revealing one or more cards.
- * Mirrors reveal.
+ * Mirrors reveal. Accepts either (state, side, eid, ...targets) or
+ * (state, side, ...targets) — in the latter form a fresh eid is created.
  */
 export function reveal(
   state: GameState,
   side: string,
   eid: EID,
   ...targets: (Card | Card[])[]
+): void;
+export function reveal(
+  state: GameState,
+  side: string,
+  ...targets: (Card | Card[])[]
+): void;
+export function reveal(
+  state: GameState,
+  side: string,
+  eidOrCard: EID | Card | Card[],
+  ...rest: (Card | Card[])[]
 ): void {
-  revealAndQueueEvent(state, side, targets);
+  let eid: EID;
+  let targets: (Card | Card[])[];
+  if (eidOrCard && typeof eidOrCard === "object" && "id" in (eidOrCard as any) && !("title" in (eidOrCard as any))) {
+    eid = eidOrCard as EID;
+    targets = rest;
+  } else {
+    eid = (require("./eid") as typeof import("./eid")).makeEID(state);
+    targets = [eidOrCard as Card | Card[], ...rest];
+  }
+  revealAndQueueEvent(state, side, ...targets);
   checkpoint(state, side, eid);
 }
 
 interface RevealLoudArgs {
   forced?: boolean;
   andThen?: string;
+  "and-then"?: string;
   noEvent?: boolean;
+  "no-event"?: boolean;
+  [key: string]: any;
 }
 
 /**
  * Trigger the event for revealing one or more cards, and also handle the log printout.
  * Mirrors reveal-loud.
  */
+export function revealLoud(state: GameState, side: string, card: Card, args: RevealLoudArgs | string | null, ...targets: (Card | Card[])[]): void;
+export function revealLoud(state: GameState, side: string, eid: EID, card: Card, args: RevealLoudArgs | string | null, ...targets: (Card | Card[])[]): void;
 export function revealLoud(
   state: GameState,
   side: string,
-  eid: EID,
-  card: Card,
-  args: RevealLoudArgs,
-  ...targets: (Card | Card[])[]
+  eidOrCard: EID | Card,
+  cardOrArgs: Card | RevealLoudArgs,
+  argsOrTarget?: RevealLoudArgs | Card | Card[],
+  ...rest: (Card | Card[])[]
 ): void {
+  let eid: EID, card: Card, args: RevealLoudArgs, targets: (Card | Card[])[];
+  // Detect EID by presence of `id` numeric field (Card has cid string)
+  if (eidOrCard && typeof eidOrCard === "object" && "id" in (eidOrCard as any) && !("title" in (eidOrCard as any))) {
+    eid = eidOrCard as EID;
+    card = cardOrArgs as Card;
+    const a = argsOrTarget;
+    args = typeof a === "string" ? { andThen: a } : ((a as RevealLoudArgs) ?? {});
+    targets = rest;
+  } else {
+    eid = (require("./eid") as typeof import("./eid")).makeEID(state);
+    card = eidOrCard as Card;
+    const a = cardOrArgs;
+    args = typeof a === "string" ? { andThen: a } : ((a as RevealLoudArgs) ?? {});
+    targets = argsOrTarget !== undefined ? [argsOrTarget as Card | Card[], ...rest] : rest;
+  }
   const { forced, andThen, noEvent } = args;
   const flatCards = flattenCards(targets);
 
@@ -145,3 +186,13 @@ export function revealLoud(
     effectCompleted(state, side, eid);
   }
 }
+
+/** Reveal a single card. Convenience wrapper around `reveal`. */
+export function revealCard(state: GameState, side: string, eid: any, card: any): void {
+  reveal(state, side, eid, card);
+}
+
+/** Stub for flipCards. */
+export function flipCards(_state: GameState, _side: string, _cards: any[]): void {}
+
+export { withRevealedHand } from "./def_helpers_2";

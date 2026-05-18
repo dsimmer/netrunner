@@ -12,8 +12,11 @@ import { stringToNum } from "../utils";
  * Returns the server keyword corresponding to the target of a run.
  * Mirrors `target-server`.
  */
-export function targetServer(run: { server?: Zone | null }): string | undefined {
-  return run?.server?.[0];
+export function targetServer(runOrState: { server?: Zone | null } | { run?: { server?: Zone | null } | null } | any): string | undefined {
+  // Accept either a run object or a state object with `.run`
+  if (!runOrState) return undefined;
+  const r = (runOrState as any).run !== undefined ? (runOrState as any).run : runOrState;
+  return r?.server?.[0];
 }
 
 /**
@@ -326,4 +329,13 @@ export function unknownToKw(nameOrKwOrZone: unknown): string {
   }
 
   return String(nameOrKwOrZone);
+}
+
+export { cardToServer, serverToZone, getRemoteNames, installableServers, serverListExclude } from "./board";
+export { protectingArchives, protectingACentral, protectingHq as protectingHQ, protectingRd as protectingRD } from "./card";
+
+/** Pretty name of a zone. Mirrors `zone->name`. */
+export function zoneName(side: unknown, zone?: unknown): string {
+  if (arguments.length === 1) return zoneToName(side) ?? "";
+  return nameZone(String(side), zone);
 }

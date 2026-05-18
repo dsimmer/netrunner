@@ -2,7 +2,7 @@
 // checkpoints, and payment processing.
 // Mirrors: src/clj/game/core/engine.clj
 
-import { randomUUID } from "crypto";
+import { randomUUID } from "node:crypto";
 import type { GameState, Prompt } from "./state";
 import type { Card, Zone } from "./card";
 import type { EID } from "./eid";
@@ -66,11 +66,12 @@ import { automaticPriority, buildEventAbility, cardForAbility, gatherEvents, get
  */
 export function triggerEventSync(
   state: GameState,
-  side: string,
+  side: string | null,
   eid: EID,
   event: string | null,
   ...targets: unknown[]
 ): void {
+  side = side ?? "";
   if (!event) {
     effectCompleted(state, side, eid);
     return;
@@ -203,9 +204,9 @@ function triggerEventSimultPlayer(
     const titles = nonSilent.map((h) => {
       const abiName = (h.ability as any)?.abilityName as string | undefined;
       const card = cardForAbility(state, h);
-      return abiName ?? card ?? { title: "unknown" } as Card;
+      return abiName ?? card ?? ({ title: "unknown" } as Card);
     });
-    const choices = [...titles.map((c) => getTitle(c) ?? ""), "Done"];
+    const choices = [...titles.map((c) => (typeof c === "string" ? c : (getTitle(c) ?? ""))), "Done"];
 
     return {
       prompt: "Choose a trigger to resolve",
@@ -215,7 +216,8 @@ function triggerEventSimultPlayer(
         const target = (eventTargets[0] as string) ?? "";
         if (target === "Done") {
           // Resolve remaining handlers automatically
-          for (const { handler } of handlers.filter(handlerSkippable)) {
+          for (const { handler: handlerAny } of handlers.filter(handlerSkippable) as any[]) {
+            const handler: any = handlerAny;
             if (handler.unregisterOnceResolved) {
               unregisterEventByUUID(state, side, handler.uuid);
             }
@@ -229,9 +231,9 @@ function triggerEventSimultPlayer(
               const pb = (b.ability as any)?.automatic;
               return (automaticPriority[pa ?? true] ?? 10) - (automaticPriority[pb ?? true] ?? 10);
             })
-            .map((h) => ({
+            .map((h: any) => ({
               ...h,
-              ability: { ...h.ability, silent: true, interactive: undefined },
+              ability: { ...(h.ability as object), silent: true, interactive: undefined },
             }));
 
           if (autoHandlers.length > 0) {
@@ -359,7 +361,7 @@ export function triggerEventSimult(
             { asyncResult: "result" },
             function (s2: GameState, _e2: EID, _b2: any) {
               if (afterActivePlayer) {
-                resolveAbility(s2, side, eid, afterActivePlayer, null, []);
+                (resolveAbility as any)(s2, side, eid, afterActivePlayer, null, []);
               }
               clearWaitPrompt(s2, opponent);
               showWaitPrompt(s2, activePlayer, `${sideStr(opponent)} to resolve ${eventTitle(event)} triggers`);
@@ -422,7 +424,7 @@ function gatherQueuedEventHandlers(
   for (const [event, contextMaps] of Object.entries(eventMaps)) {
     result.push({
       handlers: state.events.filter((e) => e.event === event),
-      contextMaps: [...contextMaps as unknown[]],
+      contextMaps: [...(contextMaps as unknown[][])],
     });
   }
   return result;
@@ -564,7 +566,7 @@ function triggerQueuedEventPlayer(
         async: true,
         prompt: "Choose a trigger to resolve",
         choices: choicesTitles,
-        effect: req(() => {
+        effect: req((_st: any, _sd: any, _eid: any, _c: any, eventTargets: any[]) => {
           const target = (eventTargets[0] as string) ?? "";
           if (target === "Done") {
             for (const { handler: h } of filtered.filter(handlerSkippable)) {
@@ -579,9 +581,9 @@ function triggerQueuedEventPlayer(
                 const pb = (b.handler.ability as any)?.automatic;
                 return (automaticPriority[pa ?? true] ?? 10) - (automaticPriority[pb ?? true] ?? 10);
               })
-              .map((h) => ({
+              .map((h: any) => ({
                 ...h,
-                handler: { ...h.handler, ability: { ...h.handler.ability, silent: true, interactive: undefined } },
+                handler: { ...h.handler, ability: { ...(h.handler.ability as object), silent: true, interactive: undefined } },
               }));
             if (autoHandlers.length > 0) {
               triggerQueuedEventPlayer(state, side, eid, autoHandlers as any, args);
@@ -627,7 +629,7 @@ function triggerQueuedEventPlayer(
  * Mark pending abilities (from queued events).
  * Mirrors `mark-pending-abilities`.
  */
-function markPendingAbilities(
+export function markPendingAbilities(
   state: GameState,
   eid: EID,
   _args: any,
@@ -649,7 +651,7 @@ function markPendingAbilities(
  * Trigger pending abilities at checkpoint.
  * Mirrors `trigger-pending-abilities`.
  */
-function triggerPendingAbilities(
+export function triggerPendingAbilities(
   state: GameState,
   eid: EID,
   handlers: Array<{ handler: RegisteredEvent; context: unknown[] }>,
@@ -671,3 +673,42 @@ function triggerPendingAbilities(
 
   const activePlayerHandlers = handlers.filter((h) => isPlayer(activePlayer, h));
   const opponentHandlers = handlers.filter((h) => isPlayer(opponent, h));
+
+  wait_for(
+    state,
+    [
+      { asyncResult: "result" },
+      function (s: GameState, _e: EID, _b: any) {
+        showWaitPrompt(s, opponent, `${sideStr(activePlayer)} to resolve pending triggers`);
+
+        wait_for(
+          s,
+          [
+            { asyncResult: "result" },
+            function (s2: GameState, _e2: EID, _b2: any) {
+              clearWaitPrompt(s2, opponent);
+              showWaitPrompt(s2, activePlayer, `${sideStr(opponent)} to resolve pending triggers`);
+
+              wait_for(
+                s2,
+                [
+                  { asyncResult: "result" },
+                  function (s3: GameState, _e3: EID, _b3: any) {
+                    clearWaitPrompt(s3, activePlayer);
+                    effectCompleted(s3, "", eid);
+                  },
+                ],
+                [triggerQueuedEventPlayer, s2, opponent, makeEID(state, eid), opponentHandlers, args],
+                { eid },
+              );
+            },
+          ],
+          [triggerQueuedEventPlayer, s, activePlayer, makeEID(state, eid), activePlayerHandlers, args],
+          { eid },
+        );
+      },
+    ],
+    [],
+    { eid },
+  );
+}

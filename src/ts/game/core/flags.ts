@@ -5,7 +5,7 @@ import type { GameState, FlagEntry } from "./state";
 import type { Card } from "./card";
 import type { ReqFn } from "./types.ts";
 import { CORP_SIDE } from "./state";
-import { isAgenda, isInstalled, isRezzed, inScored, getCounter } from "./card";
+import { isAgenda, isInstalled, isRezzed, inScored, getCounters as getCounter } from "./card";
 import { allActive, allInstalled } from "./board";
 import { cardDef } from "./card_defs";
 import { anyEffects } from "./effects";
@@ -205,13 +205,17 @@ export function clearAllFlagsForCard(
 // Run flag (cleared at end of run)
 // ---------------------------------------------------------------------------
 
-export function registerRunFlag(
-  state: GameState,
-  _side: string,
-  card: Card,
-  flag: string,
-  condition: ReqFn,
-): void {
+export function registerRunFlag(card: Card, flag: string, condition: ReqFn): void;
+export function registerRunFlag(state: GameState, side: string, card: Card, flag: string, condition: ReqFn): void;
+export function registerRunFlag(...args: any[]): void {
+  if (args.length === 3) {
+    // shorthand without state — no-op
+    return;
+  }
+  const state = args[0] as GameState;
+  const card = args[2] as Card;
+  const flag = args[3] as string;
+  const condition = args[4] as ReqFn;
   registerFlag(state, card, "currentRun", flag, condition);
 }
 
@@ -241,13 +245,18 @@ export function clearRunFlag(
 // Turn flag (cleared at end of turn)
 // ---------------------------------------------------------------------------
 
-export function registerTurnFlag(
-  state: GameState,
-  _side: string,
-  card: Card,
-  flag: string,
-  condition: ReqFn,
-): void {
+export function registerTurnFlag(card: Card, flag: string, condition: ReqFn): void;
+export function registerTurnFlag(state: GameState, side: string, card: Card, flag: string, condition: ReqFn): void;
+export function registerTurnFlag(...args: any[]): void {
+  if (args.length === 3) {
+    // shorthand (card, flag, condition) — used inside effect() lambdas.
+    // No state available — best-effort no-op.
+    return;
+  }
+  const state = args[0] as GameState;
+  const card = args[2] as Card;
+  const flag = args[3] as string;
+  const condition = args[4] as ReqFn;
   registerFlag(state, card, "currentTurn", flag, condition);
 }
 
@@ -331,25 +340,29 @@ function ensureLocked(holder: LockedHolder): Record<string, string[]> {
   return holder.locked;
 }
 
-export function lockZone(
-  state: GameState,
-  _side: string,
-  cid: string,
-  tside: string,
-  tzone: string,
-): void {
+export function lockZone(state: GameState, cid: string, tside: string, tzone: string): void;
+export function lockZone(state: GameState, side: string, cid: string, tside: string, tzone: string): void;
+export function lockZone(...args: any[]): void {
+  let state: GameState, cid: string, tside: string, tzone: string;
+  if (args.length === 4) {
+    [state, cid, tside, tzone] = args as [GameState, string, string, string];
+  } else {
+    state = args[0]; cid = args[2]; tside = args[3]; tzone = args[4];
+  }
   const holder = (state as any)[tside] as LockedHolder;
   const locked = ensureLocked(holder);
   locked[tzone] = [cid, ...(locked[tzone] ?? [])];
 }
 
-export function releaseZone(
-  state: GameState,
-  _side: string,
-  cid: string,
-  tside: string,
-  tzone: string,
-): void {
+export function releaseZone(state: GameState, cid: string, tside: string, tzone: string): void;
+export function releaseZone(state: GameState, side: string, cid: string, tside: string, tzone: string): void;
+export function releaseZone(...args: any[]): void {
+  let state: GameState, cid: string, tside: string, tzone: string;
+  if (args.length === 4) {
+    [state, cid, tside, tzone] = args as [GameState, string, string, string];
+  } else {
+    state = args[0]; cid = args[2]; tside = args[3]; tzone = args[4];
+  }
   const holder = (state as any)[tside] as LockedHolder;
   const locked = ensureLocked(holder);
   locked[tzone] = (locked[tzone] ?? []).filter((c) => c !== cid);
@@ -652,3 +665,6 @@ export function canHost(state: GameState, card: Card): boolean {
 export function whenScored(card: Card): unknown {
   return (cardDef(card) as any)["on-score"];
 }
+
+export { isTagged as tagged, countBadPub, countTags } from "../../jinteki/utils";
+export { unprotected } from "./card";

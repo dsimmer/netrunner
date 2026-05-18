@@ -72,13 +72,13 @@ function createGame(
       ];
       const newGame: Record<string, unknown> = {};
       for (const key of stateKeys) {
-        const val = (state.current as Record<string, unknown>)[key];
+        const val = (state.current as unknown as Record<string, unknown>)[key];
         if (val !== null && val !== undefined) {
           newGame[key] = val;
         }
       }
-      for (const key of Object.keys(options.current)) {
-        const val = (options.current as Record<string, unknown>)[key];
+      for (const key of Object.keys(options.current as object)) {
+        const val = (options.current as unknown as Record<string, unknown>)[key];
         if (val !== null && val !== undefined && !(key in newGame)) {
           newGame[key] = val;
         }
@@ -112,7 +112,7 @@ function createNewGame(
         : "";
     return {
       flashMessage: "",
-      format: defaultFormat || "standard",
+      format: (defaultFormat as string) || "standard",
       room: lobbyRoom as string,
       side: "Any Side",
       gatewayType: "Beginner",

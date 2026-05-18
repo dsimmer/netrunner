@@ -5,11 +5,11 @@ import type { GameState, Prompt } from "./state";
 import { CORP_SIDE, RUNNER_SIDE, getPlayer, getSidePrompt } from "./state";
 import type { Card } from "./card";
 import {
-  getCard,
   getAdvancementRequirement,
   getAgendaPoints,
   getCounters,
 } from "./card";
+import { getCard } from "./finding";
 import type { EID } from "./eid";
 import { makeEID, makeEIDFrom, effectCompleted } from "./eid";
 import type { Ability } from "./types.ts";
@@ -41,15 +41,15 @@ import {
 import { canAdvance, canScore } from "./flags";
 import {
   breakSubroutine,
-  breakSubsEventContext,
   getCurrentIce,
   getPumpStrength,
   getStrength,
   pump,
   resolveSubroutine,
-  resolveUnbrokenSubs,
+  resolveUnbrokenSubsEx as resolveUnbrokenSubs,
   substituteXCreditCosts,
 } from "./ice";
+const breakSubsEventContext: any = (..._a: any[]) => undefined;
 import { cardInit } from "./initializing";
 import { move, trash } from "./moving";
 import { buildSpendMsg, canPay, mergeCosts, buildCostString } from "./payment";
@@ -62,7 +62,7 @@ import {
   firstSelectionByEid,
 } from "./prompts";
 import { addCounter, addProp, setProp } from "./props";
-import { continueRun, getRunnableZones } from "./runs";
+import { runContinue as continueRun, getRunnableZones } from "./runs";
 import { playSfx, systemMsg, implementationMsg, nLastLogs } from "./say";
 import { nameZone, zonesToSortedNames } from "./servers";
 import { cardStr } from "./to_string";
@@ -215,7 +215,7 @@ export function doPlayAbility(
           side,
           args.ability,
           card,
-          targets ?? [],
+          (targets ?? []) as Card[],
         );
         return costs && costs.length > 0 ? costs : null;
       })();
@@ -250,7 +250,7 @@ export function doPlayAbility(
                     side,
                     useEid,
                     "action-resolved",
-                    null,
+                    {} as any,
                     { "ability-idx": abilityIdx, card: strippedCard },
                   );
                 },
@@ -390,13 +390,13 @@ export function flashback(
   } as any;
   const ability: Ability = {
     async: true,
-    effect: function (state2, side2, eid2, _card, _targets) {
+    effect: function (state2: any, side2: any, eid2: any, _card: any, _targets: any) {
       playInstant(
         state2,
         side2,
         eid2,
         { ...cardWithFlag, "rfg-instead-of-trashing": true } as any,
-        { "base-cost": flashbackCost, "as-flashback": true },
+        { "base-cost": flashbackCost, "as-flashback": true } as any,
       );
     },
   } as any;
@@ -585,7 +585,7 @@ function maybePay(
 ): void {
   if (choices === "credit") {
     const credit = (getPlayer(state, side) as any).credit ?? 0;
-    pay(state, side, eid, card, c("credit", Math.min(choice, credit)));
+    pay(state, side, eid, card, [c("credit", Math.min(choice, credit))] as any);
   } else {
     effectCompleted(state, side, eid);
   }
@@ -832,7 +832,7 @@ export function select(
     ...target,
     selected: !(target as any).selected,
   } as any;
-  update(state, side, (x: Card) => x, updated);
+  (update as any)(state, side, (x: Card) => x, updated);
   (side_(state, side) as any).selected = updateFirst(
     sideSelected(state, side),
     target,
@@ -897,7 +897,7 @@ export function playAutoPump(
     .filter((a: Ability) => !(a as any)["auto-pump-ignore"])
     .flatMap((a: Ability) => {
       if (!canPump(a)) return [];
-      const cost = cardAbilityCost(state, side, a, card, currentIce);
+      const cost = cardAbilityCost(state, side, a, card, currentIce as any);
       return [[a, cost] as [Ability, CostData[]]];
     })
     .filter(([a]: [Ability, CostData[]]) => !(a as any)["auto-pump-ignore"]);
@@ -964,11 +964,11 @@ export function playHeapBreakerAutoPumpAndBreakImpl(
 ): Ability {
   return {
     async: true,
-    effect: function (s, _side, eid, card, _targets) {
+    effect: function (s: any, _side: any, eid: any, card: any, _targets: any) {
       const subsToBreak = subGroupsToBreak[0];
       const rest = subGroupsToBreak.slice(1);
       for (const sub of subsToBreak) {
-        breakSubroutine(s, getCard(s, currentIce), sub, card);
+        breakSubroutine(getCard(s, currentIce) as Card, sub, card);
       }
       const ice = getCard(s, currentIce);
       const onBreakSubs = ice

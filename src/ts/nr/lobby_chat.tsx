@@ -1,7 +1,7 @@
 import * as React from "react";
-import { avatar } from "nr/avatar";
-import { tr, trElement } from "nr/translations";
-import { wsSend } from "nr/ws";
+import { Avatar } from "./avatar";
+import { tr, trElement } from "./translations";
+import { wsSend } from "./ws";
 
 interface User {
   __type?: string;
@@ -32,7 +32,7 @@ const send = (
   currentGame: CurrentGame
 ) => {
   if (typeof msg === "string" && msg.length > 0) {
-    wsSend(["lobby/say", { gameid: currentGame.gameid, text: msg }]);
+    wsSend("lobby/say", { gameid: currentGame.gameid, text: msg });
     setShouldScroll(true);
     setMsg("");
   }
@@ -72,7 +72,7 @@ export const lobbyChat = React.forwardRef<HTMLDivElement, LobbyChatProps>(
 
     return (
       <div className="chat-box">
-        {trElement("h3", tr(["lobby_chat", "Chat"]))}
+        {trElement("h3", ["lobby_chat", "Chat"])}
         <div className="message-list" ref={messageListEl}>
           {messages.map((msgItem) =>
             msgItem.user === "__system__" ? (
@@ -81,7 +81,7 @@ export const lobbyChat = React.forwardRef<HTMLDivElement, LobbyChatProps>(
               </div>
             ) : (
               <div key={msgItem.timestamp} className="message">
-                {avatar(msgItem.user as User, { opts: { size: 38 } })}
+                <Avatar user={msgItem.user as { emailhash?: string; username?: string }} opts={{ size: 38 }} />
                 <div className="content">
                   <div className="username">
                     {(msgItem.user as any).username}
@@ -101,7 +101,7 @@ export const lobbyChat = React.forwardRef<HTMLDivElement, LobbyChatProps>(
               value={msg}
               onChange={(e) => setMsg(e.target.value)}
             />
-            {trElement("button", tr(["chat_send", "Send"]))}
+            {trElement("button", ["chat_send", "Send"])}
           </form>
         </div>
       </div>

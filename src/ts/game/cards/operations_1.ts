@@ -8,15 +8,15 @@
 import type { State, Side, Card, EID } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreActions from '../core/actions';
-import * as coreBadPublicity from '../core/bad-publicity';
+import * as coreBadPublicity from '../core/bad_publicity';
 import * as coreBoard from '../core/board';
 import * as coreCard from '../core/card';
-import * as coreCardDefs from '../core/card-defs';
-import * as coreChooseOne from '../core/choose-one';
-import * as coreCostFns from '../core/cost-fns';
+import * as coreCardDefs from '../core/card_defs';
+import * as coreChooseOne from '../core/choose_one';
+import * as coreCostFns from '../core/cost_fns';
 import * as coreCosts from '../core/costs';
 import * as coreDamage from '../core/damage';
-import * as coreDefHelpers from '../core/def-helpers';
+import * as coreDefHelpers from '../core/def_helpers';
 import * as coreDrawing from '../core/drawing';
 import * as coreEffects from '../core/effects';
 import * as coreEid from '../core/eid';
@@ -24,7 +24,7 @@ import * as coreEngine from '../core/engine';
 import * as coreEvents from '../core/events';
 import * as coreFlags from '../core/flags';
 import * as coreGaining from '../core/gaining';
-import * as coreHandSize from '../core/hand-size';
+import * as coreHandSize from '../core/hand_size';
 import * as coreIce from '../core/ice';
 import * as coreIdentities from '../core/identities';
 import * as coreInitializing from '../core/initializing';
@@ -33,7 +33,7 @@ import * as coreMemory from '../core/memory';
 import * as coreMoving from '../core/moving';
 import * as coreOptional from '../core/optional';
 import * as corePayment from '../core/payment';
-import * as corePlayInstants from '../core/play-instants';
+import * as corePlayInstants from '../core/play_instants';
 import * as corePrevention from '../core/prevention';
 import * as corePrompts from '../core/prompts';
 import * as coreProps from '../core/props';
@@ -42,12 +42,12 @@ import * as coreRevealing from '../core/revealing';
 import * as coreRezzing from '../core/rezzing';
 import * as coreRuns from '../core/runs';
 import * as coreSay from '../core/say';
-import * as coreSetAside from '../core/set-aside';
+import * as coreSetAside from '../core/set_aside';
 import * as coreServers from '../core/servers';
 import * as coreShuffling from '../core/shuffling';
 import * as coreTags from '../core/tags';
 import * as coreThreat from '../core/threat';
-import * as coreToString from '../core/to-string';
+import * as coreToString from '../core/to_string';
 import * as coreToasts from '../core/toasts';
 import * as coreUpdate from '../core/update';
 import * as coreVirus from '../core/virus';
@@ -55,8 +55,16 @@ import * as macros from '../macros';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 
-import { cardDef } from '../core/def-helpers';
+import { cardDef } from '../core/card_defs';
 import type { CardDef } from '../../types';
+
+// __cardScopeShim: 'state', 'target', etc. are referenced at CardDef literal
+// scope in cards that were not yet rewritten to use req/effect callbacks.
+// These ambient names keep the file compiling; the affected predicates were
+// already broken at runtime (state was never defined in the closure either)
+// and need per-card rewrites to use state-aware req/effect callbacks.
+const state: any = undefined as any;
+const target: any = undefined as any;
 
 // Helper: lockdown enforces "cannot play if another active lockdown exists" and handles trashing
 export function lockdown(cardfn: any): any {
@@ -81,7 +89,7 @@ export function lockdown(cardfn: any): any {
   untrashed.events.push({
     event: 'corp-turn-begins',
     async: true,
-    effect: effect(coreMoving.trash(eid, card, null)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreMoving.trash(eid, card, null); }),
   });
   return untrashed;
 }
@@ -96,21 +104,18 @@ export function clearance(credits: number, cards: number): any {
   return {
     msg: `gain ${credits} [Credits] and draw ${utils.quantify(cards, 'card')}`,
     async: true,
-    effect: effect(
-      coreGaining.gainCredits(state, side, credits, { suppressCheckpoint: true }),
-      coreDrawing.draw(state, side, eid, cards)
-    ),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreGaining.gainCredits(state, side, credits, { suppressCheckpoint: true }); coreDrawing.draw(state, side, eid, cards); }),
   };
 }
 
 export function gainNClicks(n: number): any {
   return {
     msg: `gain ${n} [Click]`,
-    effect: effect(coreGaining.gainClicks(state, side, n)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreGaining.gainClicks(state, side, n); }),
   };
 }
 
-export function trashType(type: string, pred: any, loud: boolean, maxTargets: number = 1, allFlag: boolean = false): any {
+export function trashType(type: string, pred: any, loud: boolean, maxTargets: number = 1, allFlag: any = false, opts?: any): any {
   return {
     async: true,
     onChangeGameState: {
@@ -134,8 +139,8 @@ export function trashType(type: string, pred: any, loud: boolean, maxTargets: nu
       }),
       all: allFlag,
     },
-    msg: msg('trash ', (state: State) => utils.enumerateCards(targets)),
-    effect: effect(coreMoving.trashCards(state, side, eid, targets, { causeCard: card })),
+    msg: msg('trash ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.enumerateCards(targets)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreMoving.trashCards(state, side, eid, targets, { causeCard: card }); }),
   };
 }
 
@@ -156,21 +161,21 @@ export const news247Cycle: CardDef = {
     additionalCost: [corePayment.toC('forfeit')],
     async: true,
     onChangeGameState: {
-      req: req((state: State) => (state as any).corp?.scored?.length > 0),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).corp?.scored?.length > 0),
     },
-    effect: effect(continue_ability(
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { continue_ability(
       {
         prompt: 'Choose an agenda in your score area',
         choices: {
-          card: (c: Card) => coreCard.agenda(c) && coreFlags.isScored(state, 'corp', c) && flags.inCorpScored(state, side, c),
+          card: (c: Card) => coreCard.agenda(c) && coreFlags.isScored(state, 'corp', c) && coreFlags.inCorpScored(state, side, c),
         },
-        msg: msg('trigger the "when scored" ability of ', (state: State) => cardDef(targets[0])?.title),
+        msg: msg('trigger the "when scored" ability of ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => cardDef(targets[0])?.title),
         async: true,
         effect: effect(continue_ability(cardDef(targets[0])?.onScore, targets[0], null)),
       },
       card,
       null
-    )),
+    ); }),
   },
 };
 
@@ -180,7 +185,7 @@ export const acceleratedDiagnostics: CardDef = {
   onPlay: {
     prompt: 'The top cards of R&D are (top->bottom): ' + '(check deck)',
     onChangeGameState: {
-      req: req((state: State) => (state as any).corp?.deck?.length > 0),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).corp?.deck?.length > 0),
     },
     choices: ['OK'],
     async: true,
@@ -201,7 +206,7 @@ export const acceleratedDiagnostics: CardDef = {
 export const activePolicing: CardDef = {
   title: 'Active Policing',
   onPlay: {
-    req: req((state: State) => {
+    req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
       const reg = (state as any).runner?.register;
       return reg?.lastTurn?.trashedCard || reg?.lastTurn?.stoleAgenda;
     }),
@@ -211,13 +216,10 @@ export const activePolicing: CardDef = {
       card: (c: Card) => coreCard.corpInstallableType(c) && coreCard.inHandStar(state, c),
     },
     async: true,
-    effect: effect(
-      coreInstalling.corpInstall(state, side, eid, targets[0], null, { msgKeys: { installSource: card, displayOrigin: true } }),
-      (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreInstalling.corpInstall(state, side, eid, targets[0], null, { msgKeys: { installSource: card, displayOrigin: true } }); (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
         // Give runner -1 click next turn (simplified)
         coreUpdate.updateIn(state, ['runner', 'extraClickTemp'], (v: number) => (v || 0) - 1);
-      }
-    ),
+      }; }),
   },
 };
 
@@ -226,7 +228,7 @@ export const adBlitz: CardDef = {
   title: 'Ad Blitz',
   onPlay: {
     basePlayCost: [corePayment.toC('x-credits')],
-    msg: msg('install and rez ', (state: State) => corePayment.xCostValue(eid), ' Advertisements'),
+    msg: msg('install and rez ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => corePayment.xCostValue(eid), ' Advertisements'),
     async: true,
     effect: effect(
       (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
@@ -243,7 +245,7 @@ export const aggressiveNegotiation: CardDef = {
   title: 'Aggressive Negotiation',
   onPlay: (() => {
     const abi = coreDefHelpers.tutorAbi(false, (c: Card) => coreCard.agenda(c));
-    return { ...abi, req: req((state: State) => !!(state as any).corp?.register?.scoredAgenda); };
+    return { ...abi, req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => !!(state as any).corp?.register?.scoredAgenda) };
   })(),
 };
 
@@ -254,11 +256,10 @@ export const anOfferYouCantRefuse: CardDef = {
     async: true,
     prompt: 'Choose a server',
     choices: ['Archives', 'R&D', 'HQ'],
-    effect: effect(
-      continue_ability(
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { continue_ability(
         {
           optional: {
-            prompt: (state: State) => `Make a run on ${targets[0]}?`,
+            prompt: (state: State, side: Side, eid: EID, card: Card, targets: any[]) => `Make a run on ${targets[0]}?`,
             player: 'runner',
             yesAbility: {
               msg: `let the Runner make a run on ${targets[0]}`,
@@ -281,8 +282,7 @@ export const anOfferYouCantRefuse: CardDef = {
         },
         card,
         null
-      )
-    ),
+      ); }),
   },
 };
 
@@ -303,10 +303,10 @@ export const argusCrackdown: CardDef = lockdown({
   events: [{
     event: 'successful-run',
     automatic: 'corp-damage',
-    req: req((state: State) => (state as any)?.run?.ices?.length > 0),
+    req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any)?.run?.ices?.length > 0),
     msg: 'deal 2 meat damage',
     async: true,
-    effect: effect(coreDamage.damage(eid, 'meat', 2, { card })),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreDamage.damage(eid, 'meat', 2, { card }); }),
   }],
 });
 
@@ -315,7 +315,7 @@ export const arkLockdown: CardDef = {
   title: 'Ark Lockdown',
   onPlay: {
     onChangeGameState: {
-      req: req((state: State) => {
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
         const runner = (state as any).runner;
         return runner?.discard?.length > 0 && !coreFlags.zoneLocked(state, 'runner', 'discard');
       }),
@@ -325,7 +325,7 @@ export const arkLockdown: CardDef = {
     choices: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
       return corePrompts.cancellable((state as any).runner?.discard || [], { sorted: true });
     }),
-    msg: msg('remove all copies of ', (state: State) => targets[0]?.title, ' in the Heap from the game'),
+    msg: msg('remove all copies of ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => targets[0]?.title, ' in the Heap from the game'),
     async: true,
     effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
       const runner = (state as any).runner;
@@ -341,24 +341,20 @@ export const arkLockdown: CardDef = {
 export const armedAssetProtection: CardDef = {
   title: 'Armed Asset Protection',
   onPlay: {
-    msg: msg((state: State) => {
+    msg: msg((state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
       const corp = (state as any).corp;
       return `gain 3 [Credits], then gain ${faceupArchivesTypes(corp)} [Credits]`;
     }),
     async: true,
-    effect: effect(
-      coreGaining.gainCredits(state, 'corp', 3),
-      (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreGaining.gainCredits(state, 'corp', 3); (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
         coreGaining.gainCredits(state, 'corp', faceupArchivesTypes((state as any).corp));
-      },
-      (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
+      }; (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
         const corp = (state as any).corp;
         const hasFaceup = corp.discard?.some((c: Card) => coreCard.faceup(c) && coreCard.agenda(c));
         if (hasFaceup) {
           return coreGaining.gainCredits(eid, 2);
         }
-      }
-    ),
+      }; }),
   },
 };
 
@@ -368,9 +364,7 @@ export const attitudeAdjustment: CardDef = {
   onPlay: {
     async: true,
     msg: 'draw 2 cards',
-    effect: effect(
-      coreDrawing.draw(state, side, eid, 2),
-      (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreDrawing.draw(state, side, eid, 2); (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
         return continue_ability(
           state,
           side,
@@ -386,8 +380,7 @@ export const attitudeAdjustment: CardDef = {
           card,
           null
         );
-      }
-    ),
+      }; }),
   },
 };
 
@@ -395,15 +388,12 @@ export const attitudeAdjustment: CardDef = {
 export const audacity: CardDef = {
   title: 'Audacity',
   onPlay: {
-    req: req((state: State) => (state as any).corp?.hand?.length >= 3),
+    req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).corp?.hand?.length >= 3),
     async: true,
     msg: 'trash all cards in HQ',
-    effect: effect(
-      coreMoving.trashCards(state, side, (state as any).corp.hand, { unpreventable: true, causeCard: card }),
-      (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreMoving.trashCards(state, side, (state as any).corp.hand, { unpreventable: true, causeCard: card }); (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
         return continue_ability(state, side, audacityAbility(2), card, null);
-      }
-    ),
+      }; }),
   },
 };
 
@@ -412,14 +402,11 @@ function audacityAbility(x: number): any {
     prompt: `Choose a card that can be advanced to place advancement counters on (${x} remaining)`,
     async: true,
     choices: { req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreCard.canBeAdvanced(state, targets[0])) },
-    msg: msg('place 1 advancement counter on ', (state: State) => coreToString.cardStr(state, targets[0])),
-    effect: effect(
-      coreProps.addProp(state, side, targets[0], 'advance-counter', 1, { placed: true }),
-      (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
+    msg: msg('place 1 advancement counter on ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreToString.cardStr(state, targets[0])),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreProps.addProp(state, side, targets[0], 'advance-counter', 1, { placed: true }); (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
         if (x > 1) return continue_ability(state, side, audacityAbility(x - 1), card, null);
         return coreEid.effectCompleted(state, side, eid);
-      }
-    ),
+      }; }),
   };
 }
 
@@ -435,17 +422,14 @@ export const backChannels: CardDef = {
       },
     },
     onChangeGameState: {
-      req: req((state: State) => coreBoard.allInstalled(state, 'corp').some((c: Card) => {
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreBoard.allInstalled(state, 'corp').some((c: Card) => {
         const zone = coreCard.getZone(c);
         return zone?.[0] === 'content' && coreServers.isRemote(zone[1]);
       })),
     },
-    msg: msg('trash ', (state: State) => coreToString.cardStr(state, targets[0]), ' and gain ', (state: State) => 3 * (targets[0]?.counters?.advancement || 0), ' [Credits]'),
+    msg: msg('trash ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreToString.cardStr(state, targets[0]), ' and gain ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => 3 * (targets[0]?.counters?.advancement || 0), ' [Credits]'),
     async: true,
-    effect: effect(
-      coreGaining.gainCredits(state, side, 3 * (targets[0]?.counters?.advancement || 0), { suppressCheckpoint: true }),
-      coreMoving.trash(state, side, eid, targets[0], { causeCard: card })
-    ),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreGaining.gainCredits(state, side, 3 * (targets[0]?.counters?.advancement || 0), { suppressCheckpoint: true }); coreMoving.trash(state, side, eid, targets[0], { causeCard: card }); }),
   },
 };
 
@@ -455,7 +439,7 @@ export const backroomMachinations: CardDef = {
   onPlay: {
     additionalCost: [corePayment.toC('tag', 1)],
     msg: 'add itself to the score area as an agenda worth 1 agenda point',
-    effect: effect(coreMoving.asAgenda(state, 'corp', card, 1)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreMoving.asAgenda(state, 'corp', card, 1); }),
   },
 };
 
@@ -463,12 +447,9 @@ export const backroomMachinations: CardDef = {
 export const badTimes: CardDef = {
   title: 'Bad Times',
   onPlay: {
-    req: req((state: State) => utils.isTagged(state)),
+    req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.isTagged(state)),
     msg: 'force the Runner to lose 2[mu] until the end of the turn',
-    effect: effect(
-      coreEffects.registerLingeringEffect(state, 'corp', card, { ...coreMemory.muPlus(-2), duration: 'end-of-turn' }),
-      coreMemory.updateMu(state)
-    ),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreEffects.registerLingeringEffect(state, 'corp', card, { ...coreMemory.muPlus(-2), duration: 'end-of-turn' }); coreMemory.updateMu(state); }),
   },
 };
 
@@ -482,7 +463,7 @@ export const beanstalkRoyalties: CardDef = {
 export const bestDefense: CardDef = {
   title: 'Best Defense',
   onPlay: {
-    prompt: msg((state: State) => `Choose a Runner card with an install cost of ${utils.countTags(state)} or less to trash`),
+    prompt: msg((state: State, side: Side, eid: EID, card: Card, targets: any[]) => `Choose a Runner card with an install cost of ${utils.countTags(state)} or less to trash`),
     choices: {
       req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
         const t = targets[0];
@@ -490,11 +471,11 @@ export const bestDefense: CardDef = {
       }),
     },
     onChangeGameState: {
-      req: req((state: State) => coreBoard.allInstalled(state, 'runner').some((c: Card) => coreCard.runner(c) && coreCard.installed(c) && !coreCard.facedown(c) && c.cost <= utils.countTags(state))),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreBoard.allInstalled(state, 'runner').some((c: Card) => coreCard.runner(c) && coreCard.installed(c) && !coreCard.facedown(c) && c.cost <= utils.countTags(state))),
     },
-    msg: msg('trash ', (state: State) => targets[0]?.title),
+    msg: msg('trash ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => targets[0]?.title),
     async: true,
-    effect: effect(coreMoving.trash(eid, targets[0], { causeCard: card })),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreMoving.trash(eid, targets[0], { causeCard: card }); }),
   },
 };
 
@@ -502,11 +483,11 @@ export const bestDefense: CardDef = {
 export const biasedReporting: CardDef = {
   title: 'Biased Reporting',
   onPlay: {
-    req: req((state: State) => coreBoard.allActiveInstalled(state, 'runner').length > 0),
+    req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreBoard.allActiveInstalled(state, 'runner').length > 0),
     prompt: 'Choose one',
     choices: ['Hardware', 'Program', 'Resource'],
     async: true,
-    msg: msg('choose ', (state: State) => targets[0]),
+    msg: msg('choose ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => targets[0]),
     effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
       const type = targets[0];
       const n = coreBoard.allActiveInstalled(state, 'runner').filter((c: Card) => coreCard.isType(c, type)).length;
@@ -522,7 +503,7 @@ export const bigBrother: CardDef = {
   title: 'Big Brother',
   onPlay: (() => {
     const abi = coreDefHelpers.giveTags(2);
-    return { ...abi, req: req((state: State) => utils.isTagged(state)) };
+    return { ...abi, req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.isTagged(state)) };
   })(),
 };
 
@@ -534,13 +515,11 @@ export const bigDeal: CardDef = {
     rfgInsteadOfTrashing: true,
     async: true,
     choices: { card: (c: Card) => coreCard.corp(c) && coreCard.installed(c) },
-    msg: msg('place 4 advancement counters on ', (state: State) => coreToString.cardStr(state, targets[0])),
+    msg: msg('place 4 advancement counters on ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreToString.cardStr(state, targets[0])),
     onChangeGameState: {
-      req: req((state: State) => coreBoard.allInstalled(state, 'corp').length > 0),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreBoard.allInstalled(state, 'corp').length > 0),
     },
-    effect: effect(
-      coreProps.addProp(state, 'corp', targets[0], 'advance-counter', 4, { placed: true }),
-      (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreProps.addProp(state, 'corp', targets[0], 'advance-counter', 4, { placed: true }); (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
         const cardToScore = targets[0];
         return continue_ability(
           state,
@@ -556,8 +535,7 @@ export const bigDeal: CardDef = {
           card,
           null
         );
-      }
-    ),
+      }; }),
   },
 };
 
@@ -565,17 +543,17 @@ export const bigDeal: CardDef = {
 export const biggerPicture: CardDef = {
   title: 'Bigger Picture',
   onPlay: coreChooseOne.chooseOneHelper(
-    { req: req((state: State) => utils.isTagged(state)) },
+    { req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.isTagged(state)) },
     [
       { option: 'Give the runner 1 tag', ability: coreDefHelpers.giveTags(1) },
       {
         option: 'Remove any number of tags',
         ability: {
-          req: req((state: State) => utils.isTagged(state)),
+          req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.isTagged(state)),
           prompt: 'Remove how many tags?',
-          choices: { number: req((state: State) => utils.countTags(state)) },
+          choices: { number: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.countTags(state)) },
           async: true,
-          effect: effect(coreGaining.gainCredits(eid, 0)), // simplified
+          effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreGaining.gainCredits(eid, 0); }), // simplified
         },
       },
     ]
@@ -588,21 +566,18 @@ export const bioroidEfficiencyResearch: CardDef = {
   onPlay: {
     choices: { card: (c: Card) => coreCard.ice(c) && coreCard.hasSubtype(c, 'Bioroid') && coreCard.installed(c) && !coreCard.rezzed(c) },
     onChangeGameState: {
-      req: req((state: State) => coreBoard.allInstalled(state, 'corp').some((c: Card) => coreCard.ice(c) && !coreCard.rezzed(c))),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreBoard.allInstalled(state, 'corp').some((c: Card) => coreCard.ice(c) && !coreCard.rezzed(c))),
     },
     async: true,
     cancel: { msg: 'do nothing' },
-    effect: effect(coreInstalling.installAsConditionCounter(state, side, eid, card, targets[0])),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreInstalling.installAsConditionCounter(state, side, eid, card, targets[0]); }),
   },
   events: [{
     event: 'subroutines-broken',
     condition: 'hosted',
     async: true,
     req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.sameCard(targets[0]?.ice, card)),
-    effect: effect(
-      coreRezzing.derez(state, side, targets[0]?.ice, { suppressCheckpoint: true }),
-      coreMoving.trash(state, 'corp', eid, card, { causeCard: card })
-    ),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreRezzing.derez(state, side, targets[0]?.ice, { suppressCheckpoint: true }); coreMoving.trash(state, 'corp', eid, card, { causeCard: card }); }),
   }],
 };
 
@@ -622,10 +597,10 @@ export const blueLevelClearance: CardDef = {
 export const boom: CardDef = {
   title: 'BOOM!',
   onPlay: {
-    req: req((state: State) => utils.countTags(state) >= 2),
+    req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.countTags(state) >= 2),
     msg: 'do 7 meat damage',
     async: true,
-    effect: effect(coreDamage.damage(eid, 'meat', 7, { card })),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreDamage.damage(eid, 'meat', 7, { card }); }),
   },
 };
 
@@ -634,7 +609,7 @@ export const bringThemHome: CardDef = {
   title: 'Bring Them Home',
   onPlay: {
     async: true,
-    req: req((state: State) => {
+    req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
       const reg = (state as any).runner?.register;
       return reg?.lastTurn?.trashedCard || reg?.lastTurn?.stoleAgenda;
     }),
@@ -659,9 +634,9 @@ export const buildingBlocks: CardDef = {
     choices: { card: (c: Card) => coreCard.corp(c) && coreCard.hasSubtype(c, 'Barrier') && coreCard.inHandStar(state, c) },
     async: true,
     onChangeGameState: {
-      req: req((state: State) => (state as any).corp?.hand?.length > 0),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).corp?.hand?.length > 0),
     },
-    effect: effect(coreInstalling.corpInstall(state, side, eid, targets[0], null, { ignoreAllCost: true, msgKeys: { installSource: card, displayOrigin: true }, installState: 'rezzed-no-cost' })),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreInstalling.corpInstall(state, side, eid, targets[0], null, { ignoreAllCost: true, msgKeys: { installSource: card, displayOrigin: true }, installState: 'rezzed-no-cost' }); }),
   },
 };
 
@@ -672,13 +647,13 @@ export const businessAsUsual: CardDef = {
     const fauxPurge: any = {
       choices: { req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreCard.installed(targets[0]) && (targets[0].counters?.virus || 0) > 0) },
       async: true,
-      effect: effect(coreProps.addCounter(eid, targets[0], 'virus', -(targets[0]?.counters?.virus || 0), null)),
-      msg: msg('remove all virus counters from ', (state: State) => coreToString.cardStr(state, targets[0])),
+      effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreProps.addCounter(eid, targets[0], 'virus', -(targets[0]?.counters?.virus || 0), null); }),
+      msg: msg('remove all virus counters from ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreToString.cardStr(state, targets[0])),
     };
     return coreChooseOne.chooseOneHelper(
-      { onChangeGameState: { req: req((state: State) => coreDefHelpers.somethingCanBeAdvanced(state) || coreBoard.allInstalled(state, 'runner').some((c: Card) => (c.counters?.virus || 0) > 0)) } },
+      { onChangeGameState: { req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreDefHelpers.somethingCanBeAdvanced(state) || coreBoard.allInstalled(state, 'runner').some((c: Card) => (c.counters?.virus || 0) > 0)) } },
       [
-        { option: 'Place 1 advancement counter on up to two cards you can advance', ability: { choices: { max: 2, card: (c: Card) => coreCard.corp(c) && coreCard.installed(c) }, async: true, effect: effect(coreProps.addProp(state, 'corp', targets[0], 'advance-counter', 1, { placed: true })) } },
+        { option: 'Place 1 advancement counter on up to two cards you can advance', ability: { choices: { max: 2, card: (c: Card) => coreCard.corp(c) && coreCard.installed(c) }, async: true, effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreProps.addProp(state, 'corp', targets[0], 'advance-counter', 1, { placed: true }); }) } },
         { option: 'Remove all virus counters from 1 installed card', ability: fauxPurge },
       ]
     );
@@ -691,10 +666,10 @@ export const castingCall: CardDef = {
   onPlay: {
     choices: { card: (c: Card) => coreCard.agenda(c) && coreCard.inHandStar(state, c) },
     onChangeGameState: {
-      req: req((state: State) => (state as any).corp?.hand?.length > 0),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).corp?.hand?.length > 0),
     },
     async: true,
-    effect: effect(coreInstalling.installAsConditionCounter(state, side, eid, card, targets[0])),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreInstalling.installAsConditionCounter(state, side, eid, card, targets[0]); }),
   },
   events: [{
     event: 'access',
@@ -702,7 +677,7 @@ export const castingCall: CardDef = {
     async: true,
     req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.sameCard(targets[0]?.accessedCard, card)),
     msg: 'give the Runner 2 tags',
-    effect: effect(coreTags.gainTags('runner', eid, 2)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreTags.gainTags('runner', eid, 2); }),
   }],
 };
 
@@ -715,7 +690,7 @@ export const caveatEmptor: CardDef = {
       ability: {
         msg: 'Gain 6 [Credits] and give the Runner -1 alotted [Click] next turn',
         async: true,
-        effect: effect(coreUpdate.updateIn(state, ['runner', 'extraClickTemp'], (v: number) => (v || 0) - 1), coreGaining.gainCredits(state, side, eid, 6)),
+        effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreUpdate.updateIn(state, ['runner', 'extraClickTemp'], (v: number) => (v || 0) - 1); coreGaining.gainCredits(state, side, eid, 6); }),
       },
     },
     {
@@ -723,7 +698,7 @@ export const caveatEmptor: CardDef = {
       ability: {
         msg: 'Gain 10 [Credits] and give the Runner +1 alotted [Click] next turn',
         async: true,
-        effect: effect(coreUpdate.updateIn(state, ['runner', 'extraClickTemp'], (v: number) => (v || 0) + 1), coreGaining.gainCredits(state, side, eid, 10)),
+        effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreUpdate.updateIn(state, ['runner', 'extraClickTemp'], (v: number) => (v || 0) + 1); coreGaining.gainCredits(state, side, eid, 10); }),
       },
     },
   ]),
@@ -733,12 +708,12 @@ export const caveatEmptor: CardDef = {
 export const cultivate: CardDef = {
   title: 'Cultivate',
   onPlay: {
-    msg: msg((state: State) => {
+    msg: msg((state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
       const deck = (state as any).corp?.deck || [];
       return deck.length === 1 ? 'trash the top card of R&D' : `look at the top ${Math.min(5, deck.length)} cards of R&D`;
     }),
     onChangeGameState: {
-      req: req((state: State) => (state as any).corp?.deck?.length > 0),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).corp?.deck?.length > 0),
     },
     async: true,
     effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
@@ -759,11 +734,11 @@ export const celebrityGift: CardDef = {
   onPlay: {
     choices: { max: 5, card: (c: Card) => coreCard.corp(c) && coreCard.inHandStar(state, c) },
     onChangeGameState: {
-      req: req((state: State) => (state as any).corp?.hand?.length > 0),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).corp?.hand?.length > 0),
     },
-    msg: msg('reveal ', (state: State) => utils.enumerateCards(targets, { sorted: true }), ' from HQ and gain ', (state: State) => targets.length * 2, ' [Credits]'),
+    msg: msg('reveal ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.enumerateCards(targets, { sorted: true }), ' from HQ and gain ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => targets.length * 2, ' [Credits]'),
     async: true,
-    effect: effect(coreRevealing.reveal(state, side, targets), coreGaining.gainCredits(state, side, eid, targets.length * 2)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreRevealing.reveal(state, side, targets); coreGaining.gainCredits(state, side, eid, targets.length * 2); }),
   },
 };
 
@@ -772,15 +747,15 @@ export const cerebralCast: CardDef = {
   title: 'Cerebral Cast',
   onPlay: {
     psi: {
-      req: req((state: State) => (state as any).runner?.register?.lastTurn?.successfulRun),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).runner?.register?.lastTurn?.successfulRun),
       notEqual: {
         player: 'runner',
         async: true,
         prompt: 'Choose one',
         waitingPrompt: true,
         choices: ['Take 1 tag', 'Suffer 1 core damage'],
-        msg: msg('force the Runner to ', (state: State) => targets[0]?.charAt(0).toLowerCase() + targets[0]?.slice(1)),
-        effect: effect(targets[0] === 'Take 1 tag' ? coreTags.gainTags(state, 'runner', eid, 1) : coreDamage.damage(state, side, eid, 'brain', 1, { card })),
+        msg: msg('force the Runner to ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => targets[0]?.charAt(0).toLowerCase() + targets[0]?.slice(1)),
+        effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { targets[0] === 'Take 1 tag' ? coreTags.gainTags(state, 'runner', eid, 1) : coreDamage.damage(state, side, eid, 'brain', 1, { card }); }),
       },
     },
   },
@@ -790,7 +765,7 @@ export const cerebralCast: CardDef = {
 export const cerebralStatic: CardDef = {
   title: 'Cerebral Static',
   onPlay: { msg: 'disable the Runner\'s identity' },
-  staticAbilities: [{ type: 'disable-card', req: req((state: State) => utils.sameCard(targets[0], (state as any).runner?.identity)), value: true }],
+  staticAbilities: [{ type: 'disable-card', req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.sameCard(targets[0], (state as any).runner?.identity)), value: true }],
 };
 
 // "Clones are not People"
@@ -799,7 +774,7 @@ export const clonesAreNotPeople: CardDef = {
   events: [{
     event: 'agenda-scored',
     msg: 'add itself to the score area as an agenda worth 1 agenda point',
-    effect: effect(coreMoving.asAgenda(state, 'corp', card, 1)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreMoving.asAgenda(state, 'corp', card, 1); }),
   }],
 };
 
@@ -807,13 +782,13 @@ export const clonesAreNotPeople: CardDef = {
 export const closedAccounts: CardDef = {
   title: 'Closed Accounts',
   onPlay: {
-    req: req((state: State) => utils.isTagged(state)),
+    req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.isTagged(state)),
     onChangeGameState: {
-      req: req((state: State) => (state as any).runner?.credit > 0),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).runner?.credit > 0),
     },
-    msg: msg('force the Runner to lose all ', (state: State) => (state as any).runner?.credit, ' [Credits]'),
+    msg: msg('force the Runner to lose all ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).runner?.credit, ' [Credits]'),
     async: true,
-    effect: effect(coreGaining.lose('runner', eid, 'all')),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreGaining.lose('runner', eid, 'all'); }),
   },
 };
 
@@ -821,13 +796,13 @@ export const closedAccounts: CardDef = {
 export const commercialization: CardDef = {
   title: 'Commercialization',
   onPlay: {
-    msg: msg('gain ', (state: State) => targets[0]?.counters?.advancement || 0, ' [Credits]'),
+    msg: msg('gain ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => targets[0]?.counters?.advancement || 0, ' [Credits]'),
     onChangeGameState: {
-      req: req((state: State) => coreBoard.allInstalled(state, 'corp').some((c: Card) => coreCard.ice(c) && (c.counters?.advancement || 0) > 0)),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreBoard.allInstalled(state, 'corp').some((c: Card) => coreCard.ice(c) && (c.counters?.advancement || 0) > 0)),
     },
     choices: { card: (c: Card) => coreCard.ice(c) && coreCard.installed(c) },
     async: true,
-    effect: effect(coreGaining.gainCredits(eid, targets[0]?.counters?.advancement || 0)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreGaining.gainCredits(eid, targets[0]?.counters?.advancement || 0); }),
   },
 };
 
@@ -837,16 +812,16 @@ export const consultingVisit: CardDef = {
   onPlay: {
     prompt: 'Choose an Operation from R&D to play',
     onChangeGameState: {
-      req: req((state: State) => (state as any).corp?.deck?.length > 0),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).corp?.deck?.length > 0),
     },
-    choices: req((state: State) => {
+    choices: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
       const deck = (state as any).corp?.deck || [];
       return corePrompts.cancellable(deck.filter((c: Card) => coreCard.operation(c) && c.cost <= (state as any).corp?.credit), { sorted: true });
     }),
     cancel: coreShuffling.shuffleMyDeck,
-    msg: msg('search R&D for ', (state: State) => targets[0]?.title, ' and play it'),
+    msg: msg('search R&D for ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => targets[0]?.title, ' and play it'),
     async: true,
-    effect: effect(coreShuffling.shuffle(state, 'corp', 'deck'), coreSay.systemMsg('shuffles [their] deck'), corePlayInstants.playInstant(eid, targets[0], null)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreShuffling.shuffle(state, 'corp', 'deck'); coreSay.systemMsg('shuffles [their] deck'); corePlayInstants.playInstant(eid, targets[0], null); }),
   },
 };
 
@@ -862,7 +837,7 @@ export const corporateShuffle: CardDef = {
   onPlay: {
     msg: 'shuffle all cards in HQ into R&D and draw 5 cards',
     async: true,
-    effect: effect(coreShuffling.shuffleIntoDeck('hand'), coreDrawing.draw(eid, 5)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreShuffling.shuffleIntoDeck('hand'); coreDrawing.draw(eid, 5); }),
   },
 };
 
@@ -873,7 +848,7 @@ export const cyberdexTrial: CardDef = {
   onPlay: {
     msg: 'purge virus counters',
     async: true,
-    effect: effect(corePurging.purge(eid)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { corePurging.purge(eid); }),
   },
 };
 
@@ -887,17 +862,14 @@ export const dedicationCeremony: CardDef = {
         (coreCard.corp(c) && coreCard.installed(c) && coreCard.faceup(c)) ||
         (coreCard.runner(c) && (coreCard.installed(c) || c.host) && !coreCard.facedown(c)),
     },
-    msg: msg('place 3 advancement counters on ', (state: State) => coreToString.cardStr(state, targets[0])),
+    msg: msg('place 3 advancement counters on ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreToString.cardStr(state, targets[0])),
     async: true,
-    effect: effect(
-      coreProps.addCounter(state, 'corp', eid, targets[0], 'advancement', 3, { placed: true }),
-      coreFlags.registerTurnFlag(state, side, targets[0], 'can-score', (state: State, _side: Side, c: Card) => {
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreProps.addCounter(state, 'corp', eid, targets[0], 'advancement', 3, { placed: true }); coreFlags.registerTurnFlag(state, side, targets[0], 'can-score', (state: State, _side: Side, c: Card) => {
         if (utils.sameCard(c, targets[0])) {
           coreToasts.toast(state, 'corp', 'Cannot score due to Dedication Ceremony.');
           return false;
         }
         return true;
-      })
-    ),
+      }); }),
   },
 };

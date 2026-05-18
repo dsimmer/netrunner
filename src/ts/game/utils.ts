@@ -204,7 +204,7 @@ export function sameCard(
  * Makes a string plural based on the number n.
  * Mirrors pluralize.
  */
-export function pluralize(s: string, n: number, suffix = "s"): string;
+export function pluralize(s: string, n: number, suffix?: string): string;
 export function pluralize(
   s: string,
   singleSuffix: string,
@@ -255,11 +255,17 @@ export function enumerateStr(strings: string[], sep = "and"): string {
  */
 export function enumerateCards(
   cards: Card[],
-  sorted = false,
+  sorted: boolean | string | { sorted?: boolean } = false,
   sep = "and",
 ): string {
   let titles = cards.map((c) => c.title ?? "");
-  if (sorted) titles = [...titles].sort();
+  const sortFlag =
+    typeof sorted === "object" && sorted !== null
+      ? !!sorted.sorted
+      : typeof sorted === "string"
+        ? sorted === "sorted"
+        : !!sorted;
+  if (sortFlag) titles = [...titles].sort();
   return enumerateStr(titles, sep);
 }
 
@@ -281,4 +287,38 @@ export function positions<T>(pred: (v: T) => boolean, coll: T[]): number[] {
     if (pred(v)) out.push(i);
   });
   return out;
+}
+
+// Re-exports from jinteki/utils used pervasively by card files.
+export { isTagged, countTags, countBadPub, capitalize, makeLabel } from "../jinteki/utils";
+export { availableMu } from "./core/memory";
+export { sumTagEffects } from "./core/tags";
+
+/** Lowercases the first character. Mirrors clojure-side decapitalize. */
+export function decapitalize(s: string): string {
+  if (!s || s.length === 0) return s;
+  return s.charAt(0).toLowerCase() + s.slice(1);
+}
+
+/** Returns the ordinal suffix-form of n: 1 → "1st", 2 → "2nd", 3 → "3rd", ... */
+export function ordinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
+}
+
+/** Card types that show face-up in archives (corp). Mirrors clj `faceup-archives-types`. */
+export const faceupArchivesTypes: string[] = ["Agenda", "Operation"];
+
+/** Hand size of a side. Mirrors `hand-size`. */
+export function handSize(state: any, side: any): number {
+  const sideKey = String(side).replace(":", "");
+  return (state as any)?.[sideKey]?.handSize?.total ?? 0;
+}
+
+
+/** Split a string by a delimiter, returning an empty array for empty string. */
+export function safeSplit(s: string | null | undefined, delim: string | RegExp): string[] {
+  if (!s) return [];
+  return s.split(delim as any);
 }

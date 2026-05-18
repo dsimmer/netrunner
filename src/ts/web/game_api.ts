@@ -53,7 +53,7 @@ interface GameStateSide {
   user?: {
     username?: string;
   };
-  deckId?: string;
+  "deck-id"?: string;
   deck?: unknown[];
   hand?: unknown[];
   discard?: unknown[];
@@ -64,7 +64,7 @@ interface GameState {
   corp?: GameStateSide;
   runner?: GameStateSide;
   options?: {
-    apiAccess?: boolean;
+    "api-access"?: boolean;
     [key: string]: unknown;
   };
   log?: unknown[];
@@ -88,7 +88,7 @@ interface Game {
     deref(): GameState;
     [key: string]: unknown;
   };
-  apiAccess?: boolean;
+  "api-access"?: boolean;
   players?: GamePlayer[];
   deck?: {
     _id?: string;
@@ -119,21 +119,17 @@ function makeLink(host: string, path: string): string {
 
 function makeCardDetails(host: string, card: Card | undefined): Record<string, unknown> {
   if (!card) return {};
-  const {
-    _id,
-    images,
-    quantity,
-    format,
-    rotated,
-    normalizedtitle,
-    previousVersions,
-    ...rest
-  } = card;
-  const stockPath = (images?.en?.default?.stock as string) || "";
-  return {
-    ...rest,
-    image: makeLink(host, stockPath),
-  };
+  const stockPath = (card.images?.en?.default?.stock as string) || "";
+  const result: Record<string, unknown> = { ...card };
+  delete result._id;
+  delete result.images;
+  delete result.quantity;
+  delete result.format;
+  delete result.rotated;
+  delete result.normalizedtitle;
+  delete result["previous-versions"];
+  result.image = makeLink(host, stockPath);
+  return result;
 }
 
 function makeCardInfo(host: string, card: DeckCard): Record<string, unknown> {
@@ -149,7 +145,7 @@ function getDeckId(username: string, game: Game): string | undefined {
     const state = game.state?.deref();
     const side =
       username === state?.runner?.user?.username ? "runner" : "corp";
-    return (side === "runner" ? state?.runner : state?.corp)?.deckId;
+    return (side === "runner" ? state?.runner : state?.corp)?.["deck-id"];
   }
   const player = game.players?.find(
     (p: GamePlayer) => p.user?.username === username,
@@ -216,7 +212,7 @@ async function apiHandler(
   const game = uidPlayerToLobby(username) as Game | undefined;
   const state = game?.state?.deref();
   const inGameOptions = state?.options;
-  const allowAccess = game?.apiAccess || inGameOptions?.apiAccess;
+  const allowAccess = game?.["api-access"] || inGameOptions?.["api-access"];
 
   if (!game || !allowAccess) {
     return response(403, {
@@ -266,6 +262,9 @@ async function areaHandler(
 ): Promise<any> {
   return apiHandler(ctx, async (username, game, _ctx) => {
     const state = game.state?.deref();
+    if (!state) {
+      return response(204, { message: "No game state" });
+    }
     const side = getSide(username, state);
     if (!side) {
       return response(204, { message: "No deck selected" });
@@ -295,6 +294,6 @@ export async function discardHandler(ctx: RequestContext): Promise<any> {
 export async function logHandler(ctx: RequestContext): Promise<any> {
   return apiHandler(ctx, async (username, game, _ctx) => {
     const state = game.state?.deref();
-    return response(200, { messages: state.log || [] });
+    return response(200, { messages: state?.log || [] });
   });
 }

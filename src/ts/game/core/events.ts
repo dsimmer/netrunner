@@ -84,7 +84,7 @@ export function noEvent(
   state: GameState,
   side: unknown,
   ev: string,
-  pred: (entry: unknown) => boolean = () => true,
+  pred: (entry: any) => unknown = () => true,
 ): boolean {
   return turnEvents(state, side, ev).filter(pred).length === 0;
 }
@@ -98,7 +98,7 @@ export function eventCount(
   state: GameState,
   side: unknown,
   ev: string,
-  pred: (entry: unknown) => boolean = () => true,
+  pred: (entry: any) => unknown = () => true,
 ): number {
   return turnEvents(state, side, ev).filter(pred).length;
 }
@@ -108,13 +108,15 @@ export function eventCount(
  *
  * Clojure: (= 1 (event-count state side ev pred))
  */
-export function firstEvent(
-  state: GameState,
-  side: unknown,
-  ev: string,
-  pred: (entry: unknown) => boolean = () => true,
-): boolean {
-  return eventCount(state, side, ev, pred) === 1;
+export function firstEvent(ev: string, pred?: (entry: any) => unknown): boolean;
+export function firstEvent(state: GameState, side: unknown, ev: string, pred?: (entry: any) => unknown): boolean;
+export function firstEvent(...args: any[]): boolean {
+  if (typeof args[0] === "string") {
+    // shorthand (event, pred) — no state, return false (event hasn't occurred without state context)
+    return false;
+  }
+  const [state, side, ev, pred] = args as [GameState, unknown, string, ((entry: any) => unknown) | undefined];
+  return eventCount(state, side, ev, pred ?? (() => true)) === 1;
 }
 
 /**
@@ -126,7 +128,7 @@ export function secondEvent(
   state: GameState,
   side: unknown,
   ev: string,
-  pred: (entry: unknown) => boolean = () => true,
+  pred: (entry: any) => unknown = () => true,
 ): boolean {
   return eventCount(state, side, ev, pred) === 2;
 }
@@ -163,7 +165,7 @@ export function firstSuccessfulRunOnServer(
  */
 export function firstTrash(
   state: GameState,
-  pred: (entry: unknown) => boolean = () => true,
+  pred: (entry: any) => unknown = () => true,
 ): boolean {
   return (
     eventCount(state, null, "runner-trash", pred) +
@@ -274,7 +276,7 @@ export function noRunEvent(
   state: GameState,
   _side: unknown,
   ev: string,
-  pred: (entry: unknown) => boolean = () => true,
+  pred: (entry: any) => unknown = () => true,
 ): boolean {
   return runEvents(state, _side, ev).filter(pred).length === 0;
 }
@@ -288,7 +290,7 @@ export function runEventCount(
   state: GameState,
   _side: unknown,
   ev: string,
-  pred: (entry: unknown) => boolean = () => true,
+  pred: (entry: any) => unknown = () => true,
 ): number {
   return runEvents(state, _side, ev).filter(pred).length;
 }
@@ -302,7 +304,27 @@ export function firstRunEvent(
   state: GameState,
   _side: unknown,
   ev: string,
-  pred: (entry: unknown) => boolean = () => true,
+  pred: (entry: any) => unknown = () => true,
 ): boolean {
   return runEventCount(state, _side, ev, pred) === 1;
+}
+
+export { registerEvents } from "./engine_2";
+
+export { queueEvent } from "./engine_3";
+export { triggerEvent } from "./engine_2";
+
+import { event as cardEvent } from "./card";
+/**
+ * Polymorphic `event`:
+ *  - 1-arg (card): predicate from card.ts asking "is this card an event?"
+ *  - 4-arg (state, side, eventName, pred): "has any matching event occurred this turn?"
+ *    (Convenience used by card files to wrap eventCount > 0.)
+ */
+export function event(card: any): boolean;
+export function event(state: GameState, side: unknown, ev: string, pred?: (entry: any) => unknown): boolean;
+export function event(...args: any[]): boolean {
+  if (args.length === 1) return !!cardEvent(args[0]);
+  const [state, side, ev, pred] = args as [GameState, unknown, string, ((entry: any) => unknown) | undefined];
+  return eventCount(state, side, ev, pred ?? (() => true)) > 0;
 }

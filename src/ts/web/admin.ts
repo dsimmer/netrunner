@@ -201,10 +201,10 @@ registerMsgHandler("admin/edit-user", async (msg: WSMessageWithReq) => {
   const db = ringReq?.system?.db;
   const user = ringReq?.user;
   const data = msg.data as Record<string, unknown> | undefined;
-  const uid = msg.uid;
+  const uid = msg.uid ?? "";
 
   const action = data?.action;
-  const userType = data["user-type"];
+  const userType = data?.["user-type"];
   const username = data?.username as string | undefined;
 
   const userIsActive = activeUser(user as any);
@@ -268,7 +268,7 @@ registerMsgHandler("admin/look-up-ip", async (msg: WSMessageWithReq) => {
   const db = ringReq?.system?.db;
   const user = ringReq?.user;
   const data = msg.data as Record<string, unknown> | undefined;
-  const uid = msg.uid;
+  const uid = msg.uid ?? "";
   const username = data?.username as string | undefined;
 
   if (activeUser(user as any) && ((user as any)?.ismoderator || (user as any)?.isadmin)) {
@@ -300,7 +300,7 @@ registerMsgHandler("admin/fetch-ip-bans", async (msg: WSMessageWithReq) => {
   const ringReq = msg["ring-req"];
   const db = ringReq?.system?.db;
   const user = ringReq?.user;
-  const uid = msg.uid;
+  const uid = msg.uid ?? "";
 
   if (activeUser(user as any) && ((user as any)?.ismoderator || (user as any)?.isadmin)) {
     if (db) {
@@ -322,7 +322,7 @@ registerMsgHandler("admin/ip-ban-user", async (msg: WSMessageWithReq) => {
   const db = ringReq?.system?.db;
   const user = ringReq?.user;
   const data = msg.data as Record<string, unknown> | undefined;
-  const uid = msg.uid;
+  const uid = msg.uid ?? "";
   const username = data?.username as string | undefined;
 
   if (activeUser(user as any) && ((user as any)?.ismoderator || (user as any)?.isadmin)) {
@@ -356,7 +356,7 @@ registerMsgHandler("admin/ip-unban-user", async (msg: WSMessageWithReq) => {
   const db = ringReq?.system?.db;
   const user = ringReq?.user;
   const data = msg.data as Record<string, unknown> | undefined;
-  const uid = msg.uid;
+  const uid = msg.uid ?? "";
   const username = data?.username as string | undefined;
 
   if (activeUser(user as any) && ((user as any)?.ismoderator || (user as any)?.isadmin)) {
@@ -378,7 +378,7 @@ registerMsgHandler("admin/fetch-users", async (msg: WSMessageWithReq) => {
   const ringReq = msg["ring-req"];
   const db = ringReq?.system?.db;
   const user = ringReq?.user;
-  const uid = msg.uid;
+  const uid = msg.uid ?? "";
 
   if (activeUser(user as any) && ((user as any)?.ismoderator || (user as any)?.isadmin)) {
     if (db) {
@@ -394,9 +394,9 @@ registerMsgHandler("admin/fetch-users", async (msg: WSMessageWithReq) => {
         "tournament-organizer": 1, banned: 1,
       }).toArray();
 
-      const converted = users.map((u: WithId<Document>) => ({
+      const converted = users.map((u: Document) => ({
         ...u,
-        _id: String(u._id),
+        _id: String((u as WithId<Document>)._id),
       }));
 
       broadcastTo([uid], "admin/fetch-users", { success: converted });

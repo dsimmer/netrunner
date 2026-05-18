@@ -38,13 +38,21 @@ import { getCard } from "./finding";
 
 export interface PlayInstantArgs {
   ignoreCost?: boolean;
+  "ignore-cost"?: boolean;
   baseCost?: number;
+  "base-cost"?: any;
   noAdditionalCost?: boolean;
+  "no-additional-cost"?: boolean;
   cachedCosts?: CostData[];
+  "cached-costs"?: CostData[];
   costBonus?: number;
+  "cost-bonus"?: number;
   targets?: Card[];
   silent?: boolean;
   asFlashback?: boolean;
+  "as-flashback"?: boolean;
+  "no-toast"?: boolean;
+  [key: string]: any;
 }
 
 // ---------------------------------------------------------------------------
@@ -55,7 +63,7 @@ export interface PlayInstantArgs {
  * Move a card to RFG asynchronously.
  * Mirrors async-rfg in play_instants.clj.
  */
-function asyncRfg(
+export function asyncRfg(
   state: GameState,
   side: string,
   eid: EID,
@@ -318,7 +326,7 @@ export function playInstantCosts(
 
   const costs = mergeCosts([
     !ignoreCost ? ([baseCost, cost] as unknown as CostData[]) : [],
-    !(noAdditionalCost || ignoreCost) ? [additionalCosts] : [],
+    !(noAdditionalCost || ignoreCost) ? (additionalCosts as unknown as CostData[]) : [],
   ]);
 
   return removeNegativeCosts(costs);
@@ -524,7 +532,7 @@ function continuePlayInstant(
             side,
             {
               msg: msg("reveal that they are unable to play " + getTitle(card)),
-              cost: args.baseCost ? [args.baseCost] : undefined,
+              cost: args.baseCost ? ([args.baseCost] as any) : undefined,
               async: true,
               effect: req(
                 function (
@@ -570,13 +578,20 @@ function continuePlayInstant(
  * Plays an Event or Operation.
  * Mirrors play-instant in play_instants.clj.
  */
-export function playInstant(
-  state: GameState,
-  side: string,
-  eid: EID,
-  card: Card,
-  args: PlayInstantArgs = {},
-): void {
+export function playInstant(eid: EID, card: Card | null, args?: PlayInstantArgs | null): void;
+export function playInstant(state: GameState, side: string, eid: EID, card: Card | null, args?: PlayInstantArgs | null): void;
+export function playInstant(...rawArgs: any[]): void {
+  // shorthand (eid, card, args?) — no state, no-op
+  if (rawArgs.length <= 3 && rawArgs[0] && typeof rawArgs[0] === "object" && !("title" in (rawArgs[0] as any)) && !("activePlayer" in (rawArgs[0] as any))) {
+    return;
+  }
+  const state = rawArgs[0] as GameState;
+  const side = rawArgs[1] as string;
+  const eid = rawArgs[2] as EID;
+  const card = rawArgs[3] as Card | null;
+  let args = (rawArgs[4] as PlayInstantArgs | null | undefined) ?? null;
+  if (!card) return;
+  args = args ?? {};
   const eidWithSource = { ...eid, source: card, sourceType: "play" };
   const costs = playInstantCosts(state, side, card, {
     ...args,
@@ -638,7 +653,7 @@ export function playInstant(
               },
             },
             noAbility: {
-              cost: args.baseCost ? [args.baseCost] : undefined,
+              cost: args.baseCost ? ([args.baseCost] as any) : undefined,
               async: true,
               effect: function (
                 s: GameState,
@@ -672,7 +687,7 @@ export function playInstant(
       side,
       {
         msg: msg("reveal that they are unable to play " + getTitle(card)),
-        cost: args.baseCost ? [args.baseCost] : undefined,
+        cost: args.baseCost ? ([args.baseCost] as any) : undefined,
         async: true,
         // TODO - use reveal-explicit later?
         effect: function (

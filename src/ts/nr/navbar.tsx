@@ -5,6 +5,15 @@ import { useLocation, Link } from "react-router-dom";
 import { useAppState } from "./appstate";
 import { tr, trSpan } from "./translations";
 
+// Mirrors: navigate in navbar.cljs
+// cljs uses (.setToken history token) on a Closure Html5History; in TS we
+// push to window.history and dispatch popstate so react-router-dom picks up
+// the change without a full reload.
+export function navigate(token: string): void {
+  window.history.pushState({}, "", token);
+  window.dispatchEvent(new PopStateEvent("popstate"));
+}
+
 interface NavLink {
   title: [string, string];
   cls: string;

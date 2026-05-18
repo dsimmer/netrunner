@@ -3,8 +3,9 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { GET } from "./ajax";
-import { wsSend } from "./ws";
 import { authenticated } from "./auth";
+import { launchGame } from "./gameboard/actions";
+import type { GameStateData } from "./gameboard/state";
 
 function startReplayFromData(replayData: unknown, gameid?: string) {
   const replay = replayData as {
@@ -24,7 +25,7 @@ function startReplayFromData(replayData: unknown, gameid?: string) {
       spectatorhands: true,
     },
   };
-  wsSend("game/start", JSON.stringify(initState));
+  launchGame(initState as GameStateData);
 }
 
 function LocalReplayLoader(): React.ReactElement {

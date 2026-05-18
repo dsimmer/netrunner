@@ -13,7 +13,7 @@ import { move, swapCards } from "./moving";
 // ---------------------------------------------------------------------------
 
 function getPlayer(state: GameState, side: string): Record<string, unknown> {
-  return side === CORP_SIDE ? state.corp : state.runner;
+  return (side === CORP_SIDE ? state.corp : state.runner) as unknown as Record<string, unknown>;
 }
 
 function getSetAsideTracking(
@@ -109,7 +109,7 @@ export function cleanSetAside(state: GameState, side: string): void {
   const tracking = getSetAsideTracking(state, side);
   const toClear: string[] = [];
   for (const eid of Object.keys(tracking)) {
-    if (getSetAside(state, side, { id: eid }).length === 0) {
+    if (getSetAside(state, side, { id: eid } as any).length === 0) {
       toClear.push(eid);
     }
   }
@@ -169,7 +169,7 @@ export function swapSetAsideCards(
     addToSetAside(
       state,
       side,
-      { id: String(a.setAsideEid) } as EID,
+      { id: String(a.setAsideEid) } as unknown as EID,
       bMoved!,
       vis,
     );
@@ -183,7 +183,7 @@ export function swapSetAsideCards(
     addToSetAside(
       state,
       side,
-      { id: String(b.setAsideEid) } as EID,
+      { id: String(b.setAsideEid) } as unknown as EID,
       aMoved!,
       vis,
     );
@@ -191,3 +191,5 @@ export function swapSetAsideCards(
 
   return swappedCards;
 }
+
+export { removeFromCurrentlyDrawing } from "./moving_2";

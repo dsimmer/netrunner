@@ -88,7 +88,7 @@ onWSEvent("admin/look-up-ip", ({ success, error }: { success?: { username: strin
     const { username, "last-ip-address": lastIpAddress } = success;
     useUsersStore.setState({ "ip-lookup-name": username, "ip-lookup-result": lastIpAddress ?? "" });
   } else if (error) {
-    nonGameToast(error, undefined, undefined);
+    nonGameToast(error, "error", undefined);
   }
 });
 
@@ -100,7 +100,7 @@ onWSEvent("admin/ip-ban-user", ({ success, error }: { success?: { username: stri
       "ip-banned": [...useUsersStore.getState()["ip-banned"], { username, "ip-address": ipAddress }],
     });
   } else if (error) {
-    nonGameToast(error, undefined, undefined);
+    nonGameToast(error, "error", undefined);
   }
 });
 
@@ -111,7 +111,7 @@ onWSEvent("admin/ip-unban-user", ({ success, error }: { success?: { username: st
     const ipBanned = useUsersStore.getState()["ip-banned"];
     useUsersStore.setState({ "ip-banned": ipBanned.filter(m => m.username !== username) });
   } else if (error) {
-    nonGameToast(error, undefined, undefined);
+    nonGameToast(error, "error", undefined);
   }
 });
 
@@ -122,20 +122,21 @@ onWSEvent("admin/user-edit", ({ success, error }: { success?: { action?: string;
     return;
   }
   if (success) {
-    const { action, userType: userTypeKey, user } = success;
-    if (!user) return;
+    const { action, "user-type": userTypeKey, user } = success;
+    if (!user || !userTypeKey) return;
     const username = user.username;
+    const store = useUsersStore.getState() as unknown as Record<string, User[]>;
     switch (action) {
       case "admin/add-user": {
-        const current = useUsersStore.getState()[userTypeKey] ?? [];
-        useUsersStore.setState({ [userTypeKey]: [...current, user] });
+        const current = store[userTypeKey] ?? [];
+        useUsersStore.setState({ [userTypeKey]: [...current, user] } as Partial<UsersStore>);
         nonGameToast(`Updated ${username}`, "success", undefined);
         break;
       }
       case "admin/remove-user": {
-        const current = useUsersStore.getState()[userTypeKey] ?? [];
+        const current = store[userTypeKey] ?? [];
         const updated = current.filter((elt: User) => elt._id !== user._id);
-        useUsersStore.setState({ [userTypeKey]: updated });
+        useUsersStore.setState({ [userTypeKey]: updated } as Partial<UsersStore>);
         nonGameToast(`Removed ${username}`, "success", undefined);
         break;
       }

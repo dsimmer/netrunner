@@ -32,7 +32,7 @@ import {
   allowedInLobby,
 } from "./lobby";
 import { gameStarted } from "./stats";
-import { parseCommand } from "../game/core/commands";
+import { parseCommand, registerLobbyCommand } from "../game/core/commands";
 import {
   publicDiffs,
   publicStates,
@@ -124,7 +124,7 @@ registerMsgHandler("game/action", (msg: WSMessage) => {
   const data = msg.data as Record<string, unknown> | undefined;
   const gameid = data?.gameid as string | undefined;
   const command = data?.command as string | undefined;
-  const args = (data?.args as any[]) ?? [];
+  const args = (data?.args as Record<string, any>) ?? {};
   const timestamp = msg.timestamp ?? Date.now();
   const id = msg.id ?? "game/action";
 
@@ -500,12 +500,12 @@ export function switchSideForLobby(gameid: string): void {
   // Swap runner/corp user and options
   const newState = { ...state };
   const newRunner = {
-    ...newState.runner,
+    ...(newState.runner as Record<string, unknown>),
     user: (newState.corp as Record<string, unknown>)?.user,
     options: (newState.corp as Record<string, unknown>)?.options,
   };
   const newCorp = {
-    ...newState.corp,
+    ...(newState.corp as Record<string, unknown>),
     user: oldRunner,
     options: oldRunnerOptions,
   };
@@ -529,5 +529,9 @@ export function switchSideForLobby(gameid: string): void {
 // ---------------------------------------------------------------------------
 // Lobby command: :swap-sides
 // Mirrors: (defmethod commands/lobby-command :swap-sides ...)
-// The lobby-command dispatch in commands.ts handles this.
 // ---------------------------------------------------------------------------
+
+registerLobbyCommand("swap-sides", (cmd) => {
+  const gameid = cmd.gameid as string | undefined;
+  if (gameid) switchSideForLobby(gameid);
+});

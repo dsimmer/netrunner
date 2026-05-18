@@ -16,7 +16,7 @@ import {
   tournamentState,
 } from "./app_state";
 import { connectedUids, chskSend, registerMsgHandler, WSMessage } from "./ws";
-import { makeSystemMessage } from "../game/core/say";
+import { makeSystemMessage, type Message } from "../game/core/say";
 import { serverCard } from "../game/utils";
 import { selectNonNilKeys, sideFromStr, superuser, tournamentOrganizer } from "../jinteki/utils";
 import { allMatchups } from "../jinteki/preconstructed";
@@ -30,9 +30,9 @@ import type { PoolInfo } from './lobby_1';
  * Add a message to a lobby's messages.
  * Mirrors: (send-message lobby message)
  */
-export function sendMessage(lobby: Lobby, message: Record<string, unknown>): Lobby {
+export function sendMessage(lobby: Lobby, message: Record<string, unknown> | Message): Lobby {
   const messages = lobby.messages ?? [];
-  return { ...lobby, messages: [...messages, message] };
+  return { ...lobby, messages: [...messages, message as Record<string, unknown>] };
 }
 
 // ---- Try create lobby ----
@@ -201,7 +201,7 @@ export function firstPlayerInLobby(
  * Check if uid is a spectator in the given lobby.
  * Mirrors: (spectator? uid lobby)
  */
-function spectatorInLobby(
+export function spectatorInLobby(
   uid: string,
   lobby: Lobby,
 ): Record<string, unknown> | undefined {
@@ -283,7 +283,7 @@ export function handleSetLastUpdate(
 function handleLeaveLobby(
   lobbies: Record<string, Lobby>,
   uid: string,
-  leaveMessage: Record<string, unknown>,
+  leaveMessage: Record<string, unknown> | Message,
 ): Record<string, Lobby> {
   const appState = getAppState();
   const lobby = (appState.lobbies as any)[uid]?.__lobby ?? undefined;
@@ -620,7 +620,7 @@ registerMsgHandler("lobby/deck", (msg: WSMessage) => {
 export function handleSendMessage(
   lobbies: Record<string, Lobby>,
   gameid: string,
-  message: Record<string, unknown>,
+  message: Record<string, unknown> | Message,
 ): Record<string, Lobby> {
   const lobby = lobbies[gameid];
   if (!lobby) return lobbies;

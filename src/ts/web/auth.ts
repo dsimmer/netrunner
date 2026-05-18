@@ -241,7 +241,7 @@ export async function registerHandler(req: AuthRequest): Promise<HttpResponse> {
   const demoDecks = await deckCollection.find({ username: "__demo__" }).toArray();
 
   const newUser = createUser(username, password, email, { isadmin: firstUser });
-  await userCollection.insertOne(newUser);
+  await userCollection.insertOne(newUser as unknown as Document);
 
   // Copy demo decks if they exist
   if (demoDecks.length > 0) {
@@ -480,6 +480,10 @@ export async function changeEmailHandler(req: AuthRequest): Promise<HttpResponse
 
   if (!db) {
     return response(500, { message: "Database not available" });
+  }
+
+  if (!email) {
+    return response(400, { message: "Email is required" });
   }
 
   // Check if email is already in use

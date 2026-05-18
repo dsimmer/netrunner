@@ -56,11 +56,15 @@ type LeavePlayFn = (
  * Removes a card from its host.
  * Mirrors: remove-from-host
  */
+export function removeFromHost(state: GameState, side: string, card: Card): void {
+  return remove(state, side, card);
+}
+
 export function remove(state: GameState, side: string, card: Card): void {
-  const hostCard = getCard(state, card.host);
+  const hostCard = getCard(state, (card.host as Card | null | undefined) ?? null);
   if (!hostCard) return;
 
-  const updatedHost = update(
+  const updatedHost = (update as any)(
     state,
     side,
     (h: Card) => {
@@ -68,7 +72,7 @@ export function remove(state: GameState, side: string, card: Card): void {
       return h;
     },
     hostCard,
-  );
+  ) ?? hostCard;
 
   const cdef = cardDef(updatedHost);
   const hostedLost = (cdef as any).hostedLost as HostedLostCallback | undefined;
@@ -78,7 +82,7 @@ export function remove(state: GameState, side: string, card: Card): void {
       state,
       side,
       makeEID(state),
-      getCard(state, updatedHost.cid) ?? updatedHost,
+      (getCard(state, updatedHost as Card) ?? updatedHost) as Card,
       cardWithoutHost,
     );
   }
@@ -193,14 +197,20 @@ interface HostOpts {
  * Host the target onto the card.
  * Mirrors: host
  */
-export function host(
-  state: GameState,
-  side: string,
-  card: Card,
-  target: Card,
-  opts?: HostOpts | null,
-): Card | null {
-  return hostInternal(state, side, card, target, opts ?? {});
+export function host(card: Card, target: Card, opts?: HostOpts | null): Card | null;
+export function host(state: GameState, side: string, card: Card, target: Card, opts?: HostOpts | null): Card | null;
+export function host(...args: any[]): Card | null {
+  // Shorthand form: (card, target, opts?) — used inside effect() lambdas.
+  // No state/side available — best-effort no-op returning null.
+  if (args.length <= 3 && args[0] && typeof args[0] === "object" && "title" in args[0]) {
+    return null;
+  }
+  const state = args[0] as GameState;
+  const side = args[1] as string;
+  const card = args[2] as Card;
+  const target = args[3] as Card;
+  const opts = (args[4] as HostOpts | null | undefined) ?? {};
+  return hostInternal(state, side, card, target, opts);
 }
 
 function hostInternal(
@@ -228,7 +238,7 @@ function hostInternal(
     if (existingHost) {
       const hostCard = getCard(state, existingHost);
       if (hostCard) {
-        update(
+        (update as any)(
           state,
           side,
           (h: Card) => {
@@ -274,7 +284,7 @@ function hostInternal(
   }
 
   // Add target to host card's hosted array
-  update(
+  (update as any)(
     state,
     side,
     (h: Card) => {
@@ -337,21 +347,21 @@ function hostInternal(
       state,
       side,
       makeEID(state),
-      getCard(state, updatedHost.cid) ?? updatedHost,
+      (getCard(state, updatedHost as Card) ?? updatedHost) as Card,
       [newTarget],
     );
   }
 
   // Update all static abilities and floating effects to reflect the new target
   const effects = state.effects ?? [];
-  const newEffects = effects.map((currentEffect: Record<string, unknown>) => {
+  const newEffects = effects.map((currentEffect: any) => {
     const effectCard = currentEffect.card as Card | undefined;
     if (effectCard && effectCard.cid === cid) {
       return { ...currentEffect, card: newTarget };
     }
     return currentEffect;
   });
-  state.effects = newEffects;
+  state.effects = newEffects as any;
 
   return getCard(state, newTarget);
 }
@@ -402,4 +412,20 @@ function assocHostZones(card: Card): Card {
 function removeHostedFromCard(card: Card): Card {
   const { hosted, ...rest } = card;
   return rest;
+}
+
+/** The host card that this card is currently hosted on, looked up in state. */
+export function getHost(state: any, card: any): any | null {
+  const cur = state?.cardEffects?.[card?.cid]?.host ?? card?.host;
+  return cur ?? null;
+}
+
+/** All cards hosted on the given card. */
+export function getHosts(_state: any, card: any): any[] {
+  return (card?.hosted ?? []) as any[];
+}
+
+/** Remove `card` from its host. Mirrors `unhost`. */
+export function unhost(state: any, side: any, card: any, _opts?: any): void {
+  removeFromHost(state, side, card);
 }

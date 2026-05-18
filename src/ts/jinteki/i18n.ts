@@ -1,5 +1,33 @@
 // Mirrors: src/cljc/jinteki/i18n.cljc
 import { FluentBundle, FluentResource, type FluentVariable } from "@fluent/bundle";
+import * as fs from "fs";
+import * as path from "path";
+
+// List of supported language files (based on resources/public/i18n directory)
+const LANGUAGES = [
+  "en", "es", "ca", "fr", "it", "ja", "ko", "la-pig", "pl", "pt", "ru", "zh-simp", "zh-trad",
+] as const;
+
+/**
+ * Mirrors: load-dictionary!
+ * Loads all supported .ftl language files from the given directory.
+ * Returns an array of language codes that failed to load.
+ */
+export function loadDictionary(dir: string): string[] {
+  const errors: string[] = [];
+  for (const lang of LANGUAGES) {
+    const resPath = path.join(dir, `${lang}.ftl`);
+    try {
+      const content = fs.readFileSync(resPath, "utf-8");
+      if (content.trim().length > 0) {
+        insertLang(lang, content);
+      }
+    } catch {
+      errors.push(lang);
+    }
+  }
+  return errors;
+}
 
 interface LangEntry {
   content: string;

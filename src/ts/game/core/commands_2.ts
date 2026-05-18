@@ -44,7 +44,7 @@ import { psiGame } from "./psi";
 import { initTrace } from "./trace";
 import { sabotageAbility } from "./sabotage";
 import { identifyMark, setMark } from "./mark";
-import { isCentral, unknownToKW } from "./servers";
+import { isCentral, unknownToKw as unknownToKW } from "./servers";
 import { buildCard } from "./set_up";
 import { clearWin } from "./winning";
 import { removeFromPromptQueue } from "./prompt_state";
@@ -257,8 +257,8 @@ export function commandSwapSides(state: GameState, side: string): void {
             );
           } else if (choice === "Don't ask me again") {
             toast(state, otherS!, "your opponent does not wish to swap sides");
-            if (!sideObj.commandInfo) sideObj.commandInfo = {};
-            (sideObj.commandInfo as any).ignoreSwapSides = true;
+            if (!(sideObj as any).commandInfo) (sideObj as any).commandInfo = {};
+            ((sideObj as any).commandInfo as any).ignoreSwapSides = true;
           } else if (choice === "Accept") {
             systemMsg(
               state,
@@ -429,7 +429,7 @@ export function parseCommand(
       return commandChooseHqAccesses;
 
     case "/clear-win":
-      return (s: GameState, _sid: string) => clearWin(s);
+      return (s: GameState, sid: string) => clearWin(s, sid);
 
     case "/click":
       return (s: GameState, sid: string) => {
@@ -689,7 +689,7 @@ export function parseCommand(
         if (sid === CORP_SIDE) {
           psiGame(s, sid, makeCard({ title: "/psi command", side: sid }), {
             equal: { msg: "resolve equal bets effect" },
-            notEqual: { msg: "resolve unequal bets effect" },
+            unequal: { msg: "resolve unequal bets effect" },
           });
         }
       };
@@ -753,12 +753,12 @@ export function parseCommand(
                   target: Card,
                   _targets: unknown[],
                 ): void => {
-                  disableCard(target);
+                  disableCard(state, _side, target);
                   rez(state, _side, eid, target, {
                     ignoreCost: "all-costs",
                     force: true,
                   });
-                  enableCard(getCard(state, target)!);
+                  enableCard(state, _side, getCard(state, target)!);
                 },
               ),
             },
@@ -855,7 +855,7 @@ export function parseCommand(
                   targets: unknown[],
                 ): void => {
                   const t = targets as Card[];
-                  if (t.length >= 2) swapICE(t[0], t[1]);
+                  if (t.length >= 2) swapICE(state, _side, t[0], t[1]);
                 },
               ),
             },
@@ -888,7 +888,7 @@ export function parseCommand(
                   targets: unknown[],
                 ): void => {
                   const t = targets as Card[];
-                  if (t.length >= 2) swapInstalled(t[0], t[1]);
+                  if (t.length >= 2) swapInstalled(state, _side, t[0], t[1]);
                 },
               ),
             },
@@ -943,7 +943,7 @@ export function parseCommand(
       return (s: GameState, sid: string) => {
         if (sid === CORP_SIDE) {
           const clamped = constrainValue(value, -1000, 1000);
-          initTrace(s, sid, makeCard({ title: "/trace command", side: sid }), {
+          initTrace(s, sid, {} as any, makeCard({ title: "/trace command", side: sid }), {
             base: clamped,
             msg: "resolve successful trace effect",
           });
@@ -990,9 +990,9 @@ export function executeCommand(
       command,
       timestamp: new Date(),
     };
-    if (!state.commandLog) {
-      state.commandLog = [];
+    if (!(state as any).commandLog) {
+      (state as any).commandLog = [];
     }
-    state.commandLog.push(entry);
+    (state as any).commandLog.push(entry);
   }
 }

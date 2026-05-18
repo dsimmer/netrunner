@@ -35,8 +35,8 @@ const VIRUS: string = "virus";
 
 /** Predicates for non-regular mu types. Mirrors type-preds in memory.clj. */
 const typePreds: Record<string, (card: Card | null) => boolean> = {
-  [CAISSA]: (card) => hasSubtype(card, "Caïssa"),
-  [VIRUS]: (card) => isProgram(card) && hasSubtype(card, "Virus"),
+  [CAISSA]: (card) => !!hasSubtype(card, "Caïssa"),
+  [VIRUS]: (card) => isProgram(card) && !!hasSubtype(card, "Virus"),
 };
 
 // ---------------------------------------------------------------------------
@@ -401,4 +401,20 @@ export function initMuCost(state: GameState, card: Card): void {
     valueFn,
   );
   updateMu(state);
+}
+
+import { getXFn } from "./def_helpers_2";
+
+/** Resolved get-x-fn — see clojure `get-x-fn`. */
+export const getxFn = (state: any, side: any, eid: any, card: any, targets: any) =>
+  getXFn()(state, side, eid, card, targets);
+
+/** Returns total MU. Alias for availableMu summing. */
+export function getMemory(state: any): number {
+  return availableMu(state as any);
+}
+
+/** Returns MU value on a card. */
+export function getMu(card: any): number {
+  return card?.memoryunits ?? card?.memoryUnits ?? 0;
 }

@@ -39,9 +39,14 @@ import * as coreToasts from '../core/toasts';
 import * as coreUpdate from '../core/update';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
+import { morphIce } from './_helpers';
 import type { CardDef } from '../../types';
 
 import { addRunnerCardToGrip, bioraidBreak, corpsGainsAndRunnerLosesCredits, doPsi, endTheRun, forcedToAvoidTags, gainCreditsSub, installFromHqOrArchivesSub, runnerTrashProgramSub, takeBadPub, traceAbility, trashProgramSub, trashTypeOrEndTheRun } from './ice_1';
+
+// Stub helpers (to be ported from clj cards/*.clj)
+function spaceIce(..._args: any[]): any { return {}; }
+function variableSubsIce(_count?: any, _sub?: any): any { return {}; }
 
 // Aimor
 export const aimor: CardDef = {
@@ -49,7 +54,7 @@ export const aimor: CardDef = {
   subroutines: [{
     async: true,
     label: 'Trash the top 3 cards of the stack',
-    effect: req(function*(state: State, side: Side, eid: EID, card: Card) {
+    effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       const top3 = ((state as any).runner?.deck || []).slice(0, 3);
       coreSay.systemMsg(state, ':corp',
         `uses ${(card as any).title} to trash ${utils.enumerateCards(top3)} from the top of the stack and trash itself`);
@@ -65,7 +70,7 @@ export const aimor: CardDef = {
 
 // Akhet
 export const akhet: CardDef = (() => {
-  const breakableFn = req(function*(state: State, side: Side, eid: EID, card: Card) {
+  const breakableFn = req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
     if (coreCard.getCounters(card, ':advancement') >= 3 &&
       (card as any).title === 'Akhet' && !coreEffects.isDisabledReg(state, card)) {
       return ((card as any).subroutines || []).some((s: any) => s.broken && s.printed)
@@ -91,7 +96,7 @@ export const akhet: CardDef = (() => {
         prompt: 'Choose an installed card',
         choices: { card: (c: Card) => coreCard.installed(c) },
         async: true,
-        effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+        effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
           yield wait_for(state, [{ asyncResult: 'result' },
             coreProps.addProp(state, side, coreEid.makeEid(state, eid), targets[0], ':advance-counter', 1, { placed: true })], []);
           yield wait_for(state, [{ asyncResult: 'result' },
@@ -101,7 +106,7 @@ export const akhet: CardDef = (() => {
       Object.assign({}, endTheRun, { breakable: breakableFn }),
     ],
     'static-abilities': [coreIce.iceStrengthBonus(
-      req(function*(state: State, side: Side, eid: EID, card: Card) {
+      req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
         return coreCard.getCounters(card, ':advancement') >= 3;
       }),
       3
@@ -120,7 +125,7 @@ export const anansi: CardDef = (() => {
         async: true,
         cost: [corePayment.toC('credit', 2)],
         msg: 'draw 1 card',
-        effect: req(function*(state: State, side: Side, eid: EID) {
+        effect: req(function*(state: State, side: Side, eid: EID): Generator<any, any, any> {
           yield wait_for(state, [{ asyncResult: 'result' },
             coreDrawing.draw(state, ':runner', eid, 1)], []);
         }),
@@ -133,12 +138,12 @@ export const anansi: CardDef = (() => {
     subroutines: [
       {
         msg: 'rearrange the top 5 cards of R&D',
-        'change-in-game-state': { silent: true, req: req(function*(state: State) {
+        'change-in-game-state': { silent: true, req: req(function*(state: State): Generator<any, any, any> {
           return ((state as any).corp?.deck?.length ?? 0) > 0;
         })},
         async: true,
         'waiting-prompt': true,
-        effect: req(function*(state: State, side: Side, eid: EID, card: Card) {
+        effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
           const from = ((state as any).corp?.deck || []).slice(0, 5);
           if (from.length > 0) {
             yield wait_for(state, [{ asyncResult: 'result' },
@@ -153,7 +158,7 @@ export const anansi: CardDef = (() => {
       {
         label: 'Draw 1 card, runner draws 1 card',
         async: true,
-        effect: req(function*(state: State, side: Side, eid: EID, card: Card) {
+        effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
           yield wait_for(state, [{ asyncResult: 'result' },
             coreDrawing.maybeDraw(state, side, coreEid.makeEid(state, eid), card, 1)], []);
           yield wait_for(state, [{ asyncResult: 'result' },
@@ -164,7 +169,7 @@ export const anansi: CardDef = (() => {
     ],
     events: [Object.assign({}, coreDefHelpers.doNetDamage(3), {
       event: ':end-of-encounter',
-      req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+      req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         const ctx = targets[0];
         return coreCard.sameCard(ctx?.ice, card) &&
           ((ctx?.ice as any)?.subroutines || []).some((s: any) => !s.broken);
@@ -176,10 +181,10 @@ export const anansi: CardDef = (() => {
 // Archangel
 export const archangel: CardDef = {
   title: 'Archangel',
-  flags: { 'rd-reveal': req(function*() { return true; }) },
+  flags: { 'rd-reveal': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
   'on-access': {
     optional: {
-      req: req(function*(state: State, side: Side, eid: EID, card: Card) {
+      req: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
         return !coreCard.inDiscard(card);
       }),
       'waiting-prompt': true,
@@ -190,13 +195,13 @@ export const archangel: CardDef = {
         cost: [corePayment.toC('credit', 3)],
         async: true,
         msg: 'force the Runner to encounter it',
-        effect: req(function*(state: State, side: Side, eid: EID, card: Card) {
+        effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
           yield wait_for(state, [{ asyncResult: 'result' },
             coreRuns.forceIceEncounter(state, side, eid, card)], []);
         }),
       },
       'no-ability': {
-        effect: effect(function*(state: State, side: Side, eid: EID, card: Card) {
+        effect: effect(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
           coreSay.systemMsg(state, ':corp', `declines to use ${(card as any).title}`);
         }),
       },
@@ -218,7 +223,7 @@ export const architect: CardDef = {
   title: 'Architect',
   'static-abilities': [{
     type: ':cannot-be-trashed',
-    req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+    req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       return coreCard.sameCard(card, targets[0]);
     }),
     value: true,
@@ -226,7 +231,7 @@ export const architect: CardDef = {
   subroutines: [
     {
       async: true,
-      'change-in-game-state': { silent: true, req: req(function*(state: State) {
+      'change-in-game-state': { silent: true, req: req(function*(state: State): Generator<any, any, any> {
         return ((state as any).corp?.deck?.length ?? 0) > 0;
       })},
       label: 'Look at the top 5 cards of R&D',
@@ -237,10 +242,10 @@ export const architect: CardDef = {
       }),
       'waiting-prompt': true,
       choices: ['OK'],
-      req: req(function*(state: State) {
+      req: req(function*(state: State): Generator<any, any, any> {
         return ((state as any).corp?.deck?.length ?? 0) > 0;
       }),
-      effect: effect(function*(state: State, side: Side, eid: EID, card: Card) {
+      effect: effect(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
         const top5 = ((state as any).corp?.deck || []).slice(0, 5);
         yield wait_for(state, [{ asyncResult: 'result' },
           coreEngine.resolveAbility(state, side, {
@@ -248,7 +253,7 @@ export const architect: CardDef = {
             choices: coreRuns.cancellable(top5.filter((c: Card) => coreCard.corpInstallableType(c))),
             async: true,
             'waiting-prompt': true,
-            effect: effect(function*(s: State, sd: Side, e: EID, c: Card, tgts: any[]) {
+            effect: effect(function*(s: State, sd: Side, e: EID, c: Card, tgts: any[]): Generator<any, any, any> {
               const target = tgts[0];
               const idx = top5.findIndex((x: Card) => coreCard.sameCard(x, target));
               yield wait_for(s, [{ asyncResult: 'result' },
@@ -267,7 +272,7 @@ export const architect: CardDef = {
 // Ashigaru
 export const ashigaru: CardDef = {
   title: 'Ashigaru',
-  ...variableSubsIce((state: State) => ((state as any).corp?.hand?.length ?? 0), endTheRun),
+  ...variableSubsIce((state: State, side: Side, eid: EID, card: Card, targets: any[]) => ((state as any).corp?.hand?.length ?? 0), endTheRun),
 };
 
 // Assassin
@@ -284,7 +289,7 @@ export const attini: CardDef = (() => {
   const sub: any = {
     label: 'Do 1 net damage unless the Runner pays 2 [Credits]',
     async: true,
-    effect: req(function*(state: State, side: Side, eid: EID, card: Card) {
+    effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       if (coreThreat.threatLevel(3, state) && !coreEffects.isDisabledReg(state, card)) {
         yield wait_for(state, [{ asyncResult: 'result' },
           coreDamage.damage(state, side, eid, ':net', 1, { card })], []);
@@ -295,7 +300,7 @@ export const attini: CardDef = (() => {
             'waiting-prompt': true,
             player: ':runner',
             async: true,
-            choices: req(function*(s: State, sd: Side, e: EID, c: Card) {
+            choices: req(function*(s: State, sd: Side, e: EID, c: Card): Generator<any, any, any> {
               return [
                 'Take 1 net damage',
                 corePayment.canPay(s, ':runner',
@@ -307,7 +312,7 @@ export const attini: CardDef = (() => {
               return tgts[0] === 'Take 1 net damage'
                 ? 'do 1 net damage' : `force the runner to ${utils.decapitalize(tgts[0])}`;
             }),
-            effect: req(function*(s: State, sd: Side, e: EID, c: Card, tgts: any[]) {
+            effect: req(function*(s: State, sd: Side, e: EID, c: Card, tgts: any[]): Generator<any, any, any> {
               if (tgts[0] === 'Take 1 net damage') {
                 yield wait_for(s, [{ asyncResult: 'result' },
                   coreDamage.damage(s, ':corp', e, ':net', 1, { card: c })], []);
@@ -324,14 +329,14 @@ export const attini: CardDef = (() => {
     title: 'Attini',
     events: [{
       event: ':pre-resolve-subroutine',
-      req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+      req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         return coreThreat.threatLevel(3, state) && coreCard.sameCard((targets[0] as any)?.ice, card);
       }),
       silent: true,
-      effect: req(function*(state: State, side: Side, eid: EID, card: Card) {
+      effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
         coreEffects.registerLingeringEffect(state, side, card, {
           type: ':cannot-pay-credit',
-          req: req(function*(s: State, sd: Side) { return sd === ':runner'; }),
+          req: req(function*(s: State, sd: Side): Generator<any, any, any> { return sd === ':runner'; }),
           value: true,
           duration: ':subroutine-currently-resolving',
         });
@@ -346,14 +351,14 @@ export const authenticator: CardDef = {
   title: 'Authenticator',
   'on-encounter': {
     optional: {
-      req: req(function*(state: State, side: Side, eid: EID, card: Card) {
+      req: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
         return !(state as any).run?.bypass && !forcedToAvoidTags(state, side);
       }),
       player: ':runner',
       prompt: 'Take 1 tag to bypass Authenticator?',
       'yes-ability': {
         async: true,
-        effect: req(function*(state: State, side: Side, eid: EID, card: Card) {
+        effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
           coreSay.systemMsg(state, ':runner', 'takes 1 tag on encountering Authenticator to bypass it');
           coreRuns.bypassIce(state);
           yield wait_for(state, [{ asyncResult: 'result' },
@@ -384,7 +389,7 @@ export const bailiff: CardDef = (() => {
         return `gain ${n} [Credits] from the runner breaking subs`;
       }),
       async: true,
-      effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+      effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         const n = (targets[0]?.brokenSubs || []).length;
         bailiffGainCredits(state, side, eid, n);
       }),
@@ -405,7 +410,7 @@ export const bandwidth: CardDef = {
   subroutines: [{
     msg: 'give the Runner 1 tag',
     async: true,
-    effect: req(function*(state: State, side: Side, eid: EID, card: Card) {
+    effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       yield wait_for(state, [{ asyncResult: 'result' },
         coreTags.gainTags(state, ':corp', coreEid.makeEid(state, eid), 1)], []);
       coreEngine.registerEvents(state, side, card, [{
@@ -415,7 +420,7 @@ export const bandwidth: CardDef = {
         'unregister-once-resolved': true,
         async: true,
         msg: 'make the Runner lose 1 tag',
-        effect: effect(function*(s: State, sd: Side, e: EID) {
+        effect: effect(function*(s: State, sd: Side, e: EID): Generator<any, any, any> {
           yield wait_for(s, [{ asyncResult: 'result' },
             coreTags.loseTags(s, ':corp', e, 1)], []);
         }),
@@ -433,7 +438,7 @@ export const bathynomus: CardDef = {
   title: 'Bathynomus',
   subroutines: [coreDefHelpers.doNetDamage(3)],
   'static-abilities': [coreIce.iceStrengthBonus(
-    req(function*(state: State, side: Side, eid: EID, card: Card) {
+    req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       return coreCard.protectingArchives(card) ? 3 : 0;
     })
   )],
@@ -444,7 +449,7 @@ export const battlement: CardDef = { title: 'Battlement', subroutines: [endTheRu
 
 // Blockchain
 export const blockchain: CardDef = (() => {
-  const subCount = (state: State) => Math.floor(
+  const subCount = (state: State, side: Side, eid: EID, card: Card, targets: any[]) => Math.floor(
     ((state as any).corp?.discard || []).filter((c: Card) =>
       coreCard.isType(c, 'Operation') && coreCard.hasSubtype(c, 'Transaction') && coreCard.faceup(c)
     ).length / 2
@@ -454,10 +459,10 @@ export const blockchain: CardDef = (() => {
     title: 'Blockchain',
     'static-abilities': [{
       type: ':additional-subroutines',
-      req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+      req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         return coreCard.sameCard(card, targets[0]);
       }),
-      value: req(function*(state: State) {
+      value: req(function*(state: State): Generator<any, any, any> {
         return { position: ':front', subroutines: Array(subCount(state)).fill(sub) };
       }),
     }],
@@ -471,7 +476,7 @@ export const bloodletter: CardDef = {
   subroutines: [{
     async: true,
     label: 'Runner trashes 1 program or top 2 cards of the stack',
-    effect: req(function*(state: State, side: Side, eid: EID, card: Card) {
+    effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       const hasPrograms = coreBoard.allActiveInstalled(state, ':runner').some((c: Card) => coreCard.program(c));
       if (!hasPrograms) {
         coreSay.systemMsg(state, ':runner', 'trashes the top 2 cards of the stack');
@@ -483,7 +488,7 @@ export const bloodletter: CardDef = {
             'waiting-prompt': true,
             prompt: 'Choose one',
             async: true,
-            choices: req(function*(s: State) {
+            choices: req(function*(s: State): Generator<any, any, any> {
               return [
                 coreBoard.allActiveInstalled(s, ':runner').some((c: Card) => coreCard.program(c))
                   ? 'Trash 1 program' : null,
@@ -491,7 +496,7 @@ export const bloodletter: CardDef = {
                   ? 'Trash the top 2 cards of the stack' : null,
               ].filter(Boolean);
             }),
-            effect: req(function*(s: State, sd: Side, e: EID, c: Card, tgts: any[]) {
+            effect: req(function*(s: State, sd: Side, e: EID, c: Card, tgts: any[]): Generator<any, any, any> {
               if (tgts[0] === 'Trash 1 program') {
                 yield wait_for(s, [{ asyncResult: 'result' },
                   coreEngine.resolveAbility(s, ':runner', trashProgramSub, card, null)], []);
@@ -513,23 +518,23 @@ export const bloom: CardDef = {
   subroutines: [
     {
       label: 'Install a piece of ice from HQ protecting another server, ignoring all costs',
-      'change-in-game-state': { silent: true, req: req(function*(state: State) {
+      'change-in-game-state': { silent: true, req: req(function*(state: State): Generator<any, any, any> {
         return ((state as any).corp?.hand?.length ?? 0) > 0;
       })},
       prompt: 'Choose a piece of ice to install from HQ in another server',
       async: true,
       choices: { card: (c: Card) => coreCard.ice(c) && coreCard.inHand(c) },
-      effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+      effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         const thisServer = coreServers.zoneName((coreCard.getZone(card) as string[])?.[1]);
         const nice = targets[0];
         yield wait_for(state, [{ asyncResult: 'result' },
           coreEngine.resolveAbility(state, side, {
             prompt: `Choose a location to install ${(nice as any).title}`,
-            choices: req(function*(s: State) {
+            choices: req(function*(s: State): Generator<any, any, any> {
               return coreInstalling.installableServers(s, nice).filter((srv: string) => srv !== thisServer);
             }),
             async: true,
-            effect: effect(function*(s: State, sd: Side, e: EID, c: Card, tgts: any[]) {
+            effect: effect(function*(s: State, sd: Side, e: EID, c: Card, tgts: any[]): Generator<any, any, any> {
               yield wait_for(s, [{ asyncResult: 'result' },
                 coreInstalling.corpInstall(s, sd, e, nice, tgts[0], {
                   ignoreAllCost: true,
@@ -541,13 +546,13 @@ export const bloom: CardDef = {
     },
     {
       label: 'Install a piece of ice from HQ in the next innermost position, protecting this server, ignoring all costs',
-      'change-in-game-state': { silent: true, req: req(function*(state: State) {
+      'change-in-game-state': { silent: true, req: req(function*(state: State): Generator<any, any, any> {
         return ((state as any).corp?.hand?.length ?? 0) > 0;
       })},
       prompt: 'Choose a piece of ice to install from HQ in this server',
       async: true,
       choices: { card: (c: Card) => coreCard.ice(c) && coreCard.inHand(c) },
-      effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+      effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         const run = (state as any).run;
         const server = coreServers.zoneName(coreRuns.targetServer(run));
         const pos = Math.max(((state as any).run?.position ?? 1) - 1, 0);
@@ -577,11 +582,11 @@ export const borderControl: CardDef = {
     label: 'End the run',
     msg: 'end the run',
     async: true,
-    req: req(function*(state: State, side: Side, eid: EID, card: Card) {
+    req: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       return forms.thisServer(state, card) && !!(state as any).run;
     }),
     cost: [corePayment.toC('trash-can', 1)],
-    effect: effect(function*(state: State, side: Side, eid: EID, card: Card) {
+    effect: effect(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       yield wait_for(state, [{ asyncResult: 'result' },
         coreRuns.endRun(state, side, eid, card)], []);
     }),
@@ -593,7 +598,7 @@ export const borderControl: CardDef = {
         return `gain ${(coreBoard.cardToServer(state, card)?.ices || []).length} [Credits]`;
       }),
       async: true,
-      effect: req(function*(state: State, side: Side, eid: EID, card: Card) {
+      effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
         const n = (coreBoard.cardToServer(state, card)?.ices || []).length;
         yield wait_for(state, [{ asyncResult: 'result' },
           coreGaining.gainCredits(state, ':corp', eid, n)], []);
@@ -607,7 +612,7 @@ export const borderControl: CardDef = {
 export const boto: CardDef = (() => {
   const discardSub: any = {
     label: 'Trash 1 card from HQ to end the run',
-    'change-in-game-state': { silent: true, req: req(function*(state: State) {
+    'change-in-game-state': { silent: true, req: req(function*(state: State): Generator<any, any, any> {
       return ((state as any).corp?.hand?.length ?? 0) > 0;
     })},
     optional: {
@@ -616,7 +621,7 @@ export const boto: CardDef = (() => {
         cost: [corePayment.toC('trash-from-hand', 1)],
         msg: 'end the run',
         async: true,
-        effect: effect(function*(state: State, side: Side, eid: EID, card: Card) {
+        effect: effect(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
           yield wait_for(state, [{ asyncResult: 'result' },
             coreRuns.endRun(state, side, eid, card)], []);
         }),
@@ -626,7 +631,7 @@ export const boto: CardDef = (() => {
   return {
     title: 'Boto',
     'static-abilities': [coreIce.iceStrengthBonus(
-      req(function*(state: State) { return coreThreat.threatLevel(4, state) ? 2 : 0; })
+      req(function*(state: State): Generator<any, any, any> { return coreThreat.threatLevel(4, state) ? 2 : 0; })
     )],
     subroutines: [coreDefHelpers.doNetDamage(2), discardSub, discardSub],
   };
@@ -636,16 +641,16 @@ export const boto: CardDef = (() => {
 export const brainstorm: CardDef = {
   title: 'Brainstorm',
   'on-encounter': {
-    interactive: req(function*() { return true; }),
-    effect: req(function*(state: State, side: Side, eid: EID, card: Card) {
+    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       const subCount = ((state as any).runner?.hand?.length ?? 0);
       coreEffects.registerLingeringEffect(state, side, card, {
         type: ':additional-subroutines',
-        req: req(function*(s: State, sd: Side, e: EID, c: Card, tgts: any[]) {
+        req: req(function*(s: State, sd: Side, e: EID, c: Card, tgts: any[]): Generator<any, any, any> {
           return coreCard.sameCard(card, tgts[0]);
         }),
         duration: ':end-of-run',
-        value: req(function*() {
+        value: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> {
           return { subroutines: Array(subCount).fill(coreDefHelpers.doBrainDamage(1)) };
         }),
       });
@@ -661,13 +666,13 @@ export const builder: CardDef = (() => {
       return `place 1 advancement counter on ${coreToString.cardStr(state, targets[0])}`;
     }),
     choices: {
-      req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+      req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         const t = targets[0];
         return coreCard.ice(t) && coreCard.canBeAdvanced(state, t);
       }),
     },
     async: true,
-    effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+    effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       yield wait_for(state, [{ asyncResult: 'result' },
         coreProps.addProp(state, side, eid, targets[0], ':advance-counter', 1, { placed: true })], []);
     }),
@@ -679,11 +684,11 @@ export const builder: CardDef = (() => {
       label: 'Move this ice to the outermost position of any server',
       cost: [corePayment.toC('click', 1)],
       prompt: 'Choose a server',
-      choices: req(function*(state: State) { return forms.servers(state); }),
+      choices: req(function*(state: State): Generator<any, any, any> { return forms.servers(state); }),
       msg: msg(function(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
         return `move itself to the outermost position of ${targets[0]}`;
       }),
-      effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+      effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         const zone = [...coreServers.serverToZone(state, targets[0]), ':ices'];
         coreMoving.move(state, side, card, zone);
       }),
@@ -702,7 +707,7 @@ export const bumi10: CardDef = {
     choices: {
       card: (c: Card) => coreCard.installed(c) && coreCard.program(c) && coreCard.hasSubtype(c, 'Trojan'),
     },
-    req: req(function*(state: State, side: Side, eid: EID, card: Card) {
+    req: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       return !!(state as any).run && forms.thisServer(state, card) &&
         coreBoard.allInstalled(state, ':runner').some((c: Card) => coreCard.hasSubtype(c, 'Trojan'));
     }),
@@ -710,7 +715,7 @@ export const bumi10: CardDef = {
       return `trash ${(targets[0] as any)?.title}`;
     }),
     async: true,
-    effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+    effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       yield wait_for(state, [{ asyncResult: 'result' },
         coreMoving.trash(state, side, eid, targets[0], { causeCard: card })], []);
     }),
@@ -728,7 +733,7 @@ export const bran10: CardDef = {
       'show-discard': true,
       'waiting-prompt': true,
       choices: { card: (c: Card) => coreCard.ice(c) && (coreCard.inHand(c) || coreCard.inDiscard(c)) },
-      effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+      effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         const serverName = coreServers.zoneName((coreCard.getZone(card) as string[])?.[1]);
         yield wait_for(state, [{ asyncResult: 'result' },
           coreInstalling.corpInstall(state, ':corp', coreEid.makeEid(state, eid), targets[0],
@@ -752,15 +757,15 @@ export const bullfrog: CardDef = {
   subroutines: [doPsi({
     label: 'Move this ice to another server',
     prompt: 'Choose a server',
-    choices: req(function*(state: State) { return forms.servers(state); }),
-    'change-in-game-state': { silent: true, req: req(function*(state: State, side: Side, eid: EID, card: Card) {
+    choices: req(function*(state: State): Generator<any, any, any> { return forms.servers(state); }),
+    'change-in-game-state': { silent: true, req: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       return coreCard.installed(card);
     })},
     msg: msg(function(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
       return `move itself to the outermost position of ${targets[0]}`;
     }),
     async: true,
-    effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+    effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       const zone = [...coreServers.serverToZone(state, targets[0]), ':ices'];
       coreMoving.move(state, side, card, zone);
       coreRuns.redirectRun(state, side, targets[0]);
@@ -774,7 +779,7 @@ export const bulwark: CardDef = (() => {
   const sub: any = {
     msg: 'gain 2 [Credits] and end the run',
     async: true,
-    effect: req(function*(state: State, side: Side, eid: EID, card: Card) {
+    effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       yield wait_for(state, [{ asyncResult: 'result' },
         coreGaining.gainCredits(state, side, coreEid.makeEid(state, eid), 2)], []);
       yield wait_for(state, [{ asyncResult: 'result' },
@@ -785,12 +790,12 @@ export const bulwark: CardDef = (() => {
     title: 'Bulwark',
     'on-rez': takeBadPub,
     'on-encounter': {
-      req: req(function*(state: State) {
+      req: req(function*(state: State): Generator<any, any, any> {
         return coreBoard.allActiveInstalled(state, ':runner').some((c: Card) => coreCard.hasSubtype(c, 'AI'));
       }),
       msg: 'gain 2 [Credits] if there is an installed AI',
       async: true,
-      effect: effect(function*(state: State, side: Side, eid: EID, card: Card) {
+      effect: effect(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
         yield wait_for(state, [{ asyncResult: 'result' },
           coreGaining.gainCredits(state, side, eid, 2)], []);
       }),
@@ -817,16 +822,16 @@ export const caduceus: CardDef = {
 // Capacitor
 export const capacitor: CardDef = {
   title: 'Capacitor',
-  'static-abilities': [coreIce.iceStrengthBonus(req(function*(state: State) {
+  'static-abilities': [coreIce.iceStrengthBonus(req(function*(state: State): Generator<any, any, any> {
     return utils.isTagged(state) ? 2 : 0;
   }))],
   subroutines: [
     {
       label: 'Gain 1 [Credits] for each tag the Runner has',
       async: true,
-      'change-in-game-state': { silent: true, req: req(function*(state: State) { return utils.isTagged(state); }) },
+      'change-in-game-state': { silent: true, req: req(function*(state: State): Generator<any, any, any> { return utils.isTagged(state); }) },
       msg: msg(function(state: State) { return `gain ${utils.countTags(state)} [Credits]`; }),
-      effect: effect(function*(state: State, side: Side, eid: EID, card: Card) {
+      effect: effect(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
         yield wait_for(state, [{ asyncResult: 'result' },
           coreGaining.gainCredits(state, ':corp', eid, utils.countTags(state))], []);
       }),
@@ -841,7 +846,7 @@ export const cellPortal: CardDef = {
   subroutines: [{
     async: true,
     msg: 'make the Runner approach the outermost piece of ice',
-    effect: req(function*(state: State, side: Side, eid: EID, card: Card) {
+    effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       const server = coreServers.zoneName(coreRuns.targetServer(state));
       coreRuns.redirectRun(state, side, server, ':approach-ice');
       yield wait_for(state, [{ asyncResult: 'result' },
@@ -868,14 +873,14 @@ export const checkpoint: CardDef = {
     traceAbility(5, {
       label: 'Do 3 meat damage when this run is successful',
       msg: 'do 3 meat damage when this run is successful',
-      effect: effect(function*(state: State, side: Side, eid: EID, card: Card) {
+      effect: effect(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
         coreEvents.registerEvents(state, side, card, [{
           event: ':successful-run',
           automatic: ':corp-damage',
           duration: ':end-of-run',
           async: true,
           msg: 'do 3 meat damage',
-          effect: effect(function*(s: State, sd: Side, e: EID, c: Card) {
+          effect: effect(function*(s: State, sd: Side, e: EID, c: Card): Generator<any, any, any> {
             yield wait_for(s, [{ asyncResult: 'result' },
               coreDamage.damage(s, sd, e, ':meat', 3, { card: c })], []);
           }),
@@ -892,7 +897,7 @@ export const chetana: CardDef = {
     {
       msg: 'make each player gain 2 [Credits]',
       async: true,
-      effect: req(function*(state: State, side: Side, eid: EID, card: Card) {
+      effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
         yield wait_for(state, [{ asyncResult: 'result' },
           coreGaining.gainCredits(state, ':runner', coreEid.makeEid(state, eid), 2)], []);
         yield wait_for(state, [{ asyncResult: 'result' },
@@ -905,7 +910,7 @@ export const chetana: CardDef = {
       msg: msg(function(state: State) {
         return `do ${((state as any).runner?.hand?.length ?? 0)} net damage`;
       }),
-      effect: effect(function*(state: State, side: Side, eid: EID, card: Card) {
+      effect: effect(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
         const n = (state as any).runner?.hand?.length ?? 0;
         yield wait_for(state, [{ asyncResult: 'result' },
           coreDamage.damage(state, side, eid, ':net', n, { card })], []);
@@ -923,34 +928,34 @@ export const chimera: CardDef = {
     msg: msg(function(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
       return `make itself gain ${targets[0]}`;
     }),
-    effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+    effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       coreCard.updateCard(state, side, Object.assign({}, card, { subtypeTarget: targets[0] }));
     }),
   },
   'static-abilities': [{
     type: ':gain-subtype',
-    req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+    req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       return coreCard.sameCard(card, targets[0]) && !!(card as any).subtypeTarget;
     }),
-    value: req(function*(state: State, side: Side, eid: EID, card: Card) {
+    value: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       return (card as any).subtypeTarget;
     }),
   }],
   events: [
     {
       event: ':runner-turn-ends',
-      req: req(function*(state: State, side: Side, eid: EID, card: Card) { return coreCard.rezzed(card); }),
+      req: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> { return coreCard.rezzed(card); }),
       async: true,
-      effect: req(function*(state: State, side: Side, eid: EID, card: Card) {
+      effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
         yield wait_for(state, [{ asyncResult: 'result' },
           coreRezzing.derez(state, side, eid, card)], []);
       }),
     },
     {
       event: ':corp-turn-ends',
-      req: req(function*(state: State, side: Side, eid: EID, card: Card) { return coreCard.rezzed(card); }),
+      req: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> { return coreCard.rezzed(card); }),
       async: true,
-      effect: req(function*(state: State, side: Side, eid: EID, card: Card) {
+      effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
         yield wait_for(state, [{ asyncResult: 'result' },
           coreRezzing.derez(state, side, eid, card)], []);
       }),
@@ -963,7 +968,7 @@ export const chimera: CardDef = {
 export const chiyashi: CardDef = (() => {
   function chiyashiAutoTrash(state: State, side: Side, eid: EID, n: number): any {
     if (n > 0) {
-      return (async function*() {
+      return (function*(): Generator<any, any, any> {
         yield wait_for(state, [{ asyncResult: 'result' },
           coreMoving.mill(state, ':corp', ':runner', 2)], []);
         coreSay.systemMsg(state, side, 'uses Chiyashi to trash the top 2 cards of the Stack');
@@ -977,13 +982,13 @@ export const chiyashi: CardDef = (() => {
     title: 'Chiyashi',
     events: [{
       event: ':subroutines-broken',
-      req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+      req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         const context = targets[0];
         return coreCard.sameCard(card, context?.ice) &&
           coreBoard.allActiveInstalled(state, ':runner').some((c: Card) => coreCard.hasSubtype(c, 'AI'));
       }),
       async: true,
-      effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+      effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         const context = targets[0];
         yield wait_for(state, [{ asyncResult: 'result' },
           chiyashiAutoTrash(state, side, eid, (context?.brokenSubs ?? context?.['broken-subs'] ?? []).length)], []);

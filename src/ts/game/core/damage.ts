@@ -5,12 +5,12 @@ import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
 import { completeWithResult, effectCompleted, makeEIDFrom } from "./eid";
+import { checkpoint } from "./checkpoint";
 import {
-  checkpoint,
   queueEvent,
-  triggerEvent,
   triggerEventSimult,
-} from "./engine";
+} from "./engine_3";
+import { triggerEvent } from "./engine_2";
 import { trashCards, getTrashEvent } from "./moving";
 import { resolveDamagePrevention } from "./prevention";
 import { systemMsg, nLastLogs } from "./say";
@@ -239,8 +239,25 @@ export function damage(
   eid: EID,
   type: string,
   n: number,
-  args: DamageOpts = {},
-): void {
+  args?: DamageOpts | null,
+): void;
+export function damage(...rawArgs: any[]): void;
+export function damage(...rawArgs: any[]): void {
+  let state: GameState, side: string, eid: EID, type: string, n: number;
+  let args: DamageOpts = {};
+  if (rawArgs.length >= 5 && typeof rawArgs[1] === "string" && typeof rawArgs[3] === "string") {
+    // (state, side, eid, type, n, opts?)
+    [state, side, eid, type, n] = rawArgs as any;
+    args = (rawArgs[5] ?? {}) as DamageOpts;
+  } else if (rawArgs.length === 4 && typeof rawArgs[1] === "string" && rawArgs[1] !== "corp" && rawArgs[1] !== "runner") {
+    // (eid, type, n, opts) — legacy short form
+    eid = rawArgs[0]; type = rawArgs[1]; n = rawArgs[2]; args = (rawArgs[3] ?? {}) as DamageOpts;
+    state = (args as any).state; side = (args as any).side ?? "corp";
+  } else {
+    [state, side, eid, type, n] = rawArgs as any;
+    args = (rawArgs[5] ?? {}) as DamageOpts;
+  }
+  args = args ?? {};
   const { suppressCheckpoint } = args;
 
   wait_for(
@@ -276,3 +293,37 @@ export function damage(
     { eid },
   );
 }
+
+// Convenience wrappers for specific damage types.
+// Mirror net-damage / meat-damage / brain-damage helpers in clj.
+export function netDamage(
+  state: GameState,
+  side: string,
+  eid: EID,
+  n: number,
+  args?: DamageOpts | null,
+): void {
+  damage(state, side, eid, "net", n, args ?? undefined);
+}
+
+export function meatDamage(
+  state: GameState,
+  side: string,
+  eid: EID,
+  n: number,
+  args?: DamageOpts | null,
+): void {
+  damage(state, side, eid, "meat", n, args ?? undefined);
+}
+
+export function brainDamage(
+  state: GameState,
+  side: string,
+  eid: EID,
+  n: number,
+  args?: DamageOpts | null,
+): void {
+  damage(state, side, eid, "brain", n, args ?? undefined);
+}
+
+export { damageType, damageBoost } from "./prevention_1";

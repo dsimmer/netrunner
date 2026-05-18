@@ -2,7 +2,8 @@
 // Mirrors: src/clj/game/core/shuffling.clj
 
 import { randomBytes } from "crypto";
-import type { GameState, EID } from "./state";
+import type { GameState } from "./state";
+import type { EID } from "./eid";
 import type { Card, Zone } from "./card";
 import type { Ability } from "./types.ts";
 import { CORP_SIDE, RUNNER_SIDE } from "./state";
@@ -81,16 +82,33 @@ export function shuffle(
   opts?: { noSfx?: boolean },
 ): void;
 export function shuffle(zone: string): (state: GameState, side: string) => void;
+export function shuffle(state: GameState, zone: string): void;
+export function shuffle(side: string, zone: string): void;
 export function shuffle(
   stateOrZone: GameState | string,
-  side?: string,
+  sideOrZone?: string,
   zone?: string,
   opts?: { noSfx?: boolean },
 ): void | ((state: GameState, side: string) => void) {
   // single-arg factory: return a fn for use inside effect()
-  if (typeof stateOrZone === "string") {
+  if (typeof stateOrZone === "string" && sideOrZone === undefined) {
     return (s: GameState, sd: string) => shuffle(s, sd, stateOrZone, opts);
   }
+
+  // 2-arg (side, zone) form: no state — best-effort no-op.
+  if (typeof stateOrZone === "string" && typeof sideOrZone === "string") {
+    return;
+  }
+
+  // 2-arg (state, zone) form: infer side from active player.
+  if (sideOrZone !== undefined && zone === undefined) {
+    const s = stateOrZone as GameState;
+    const z = sideOrZone;
+    const sd = (s as any)?.activePlayer ?? "corp";
+    return shuffle(s, sd, z, opts);
+  }
+
+  const side = sideOrZone;
 
   const s = stateOrZone;
   const sd = kw(side!);
@@ -413,7 +431,7 @@ export function shuffleIntoRdEffect(
         },
       ),
       cancel: shuffleMyDeck,
-    } as Ability,
+    } as unknown as Ability,
     card,
     null,
   );
@@ -474,5 +492,7 @@ export function getSetAside(
 // Re-exports for backward compatibility with card imports
 // ---------------------------------------------------------------------------
 
-/** Alias: shuffleDeck is also exported as shuffle for the standalone form. */
-export { shuffleDeck as shuffleDeck };
+
+
+/** Alias for `shuffleIntoRdEffect`. */
+export const shuffleIntoRDEffect = shuffleIntoRdEffect;

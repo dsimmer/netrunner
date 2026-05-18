@@ -37,6 +37,9 @@ import { otherSide } from "../../jinteki/utils";
 interface DrawOpts {
   suppressEvent?: boolean;
   noUpdateDrawStats?: boolean;
+  suppressCheckpoint?: boolean;
+  "suppress-checkpoint"?: boolean;
+  [key: string]: any;
 }
 
 interface DrawUpToArgs extends DrawOpts {
@@ -55,7 +58,7 @@ function waitFor(
   next: (asyncResult: unknown, innerEid: EID) => void,
 ): void {
   const inner = makeEIDFrom(state, parentEid);
-  registerEIDCallback(state, inner, (_s, _side, completed) => {
+  registerEIDCallback(state, inner, (_s: any, _side: any, completed: any) => {
     next((completed as EID).result, completed as EID);
   });
   start(inner);
@@ -136,13 +139,33 @@ export function firstTimeDrawBonus(side: string, n: number): Ability {
 // ---------------------------------------------------------------------------
 
 /** Draw n cards from :deck to :hand. */
-export function draw(
-  state: GameState,
-  side: string,
-  eid: EID,
-  n: number,
-  opts: DrawOpts = {},
-): void {
+export function draw(state: GameState, side: string, eid: EID, n: number, opts?: DrawOpts): void;
+export function draw(state: GameState, side: string, n: number, opts?: DrawOpts): void;
+export function draw(eid: EID, n: number): void;
+export function draw(side: string, eid: EID, n: number): void;
+export function draw(...rawArgs: any[]): void {
+  // Shorthand (eid, n) — used inside effect() lambdas; no state, no-op.
+  if (rawArgs.length === 2 && typeof rawArgs[1] === "number") {
+    return;
+  }
+  // Shorthand (side, eid, n) — used in legacy card ports without state.
+  if (rawArgs.length === 3 && typeof rawArgs[0] === "string" && typeof rawArgs[2] === "number") {
+    return;
+  }
+  let state: GameState, side: string, eid: EID, n: number;
+  let opts: DrawOpts = {};
+  // Disambiguate by checking 3rd arg type
+  if (typeof rawArgs[2] === "object" && rawArgs[2] !== null && "id" in rawArgs[2]) {
+    [state, side, eid, n] = rawArgs as any;
+    opts = rawArgs[4] ?? {};
+  } else if (typeof rawArgs[2] === "number") {
+    state = rawArgs[0]; side = rawArgs[1]; n = rawArgs[2];
+    opts = rawArgs[3] ?? {};
+    eid = { id: 0, source: null } as unknown as EID;
+  } else {
+    [state, side, eid, n] = rawArgs as any;
+    opts = rawArgs[4] ?? {};
+  }
   if (n === 0) {
     effectCompleted(state, side, eid);
     return;
@@ -175,7 +198,8 @@ export function draw(
       }
 
       if (side === "corp" && deckCount < drawsAfterPrevent) {
-        if (winDecked(state) && !(state as any).winnerDeclared) {
+        winDecked(state);
+        if (!(state as any).winnerDeclared) {
           triggerEvent(state, "runner", "win", { winner: "runner" });
         }
       }
@@ -245,7 +269,7 @@ export function draw(
       waitFor(
         state,
         eid,
-        (inner) => checkpoint(state, null, inner, null),
+        (inner) => checkpoint(state, null, inner, undefined),
         () => {
           for (const c of getSetAside(state, side, setAsideEid)) {
             move(state, side, c, "hand");
@@ -319,14 +343,19 @@ export function maybeDraw(
 }
 
 /** Prompt to draw up to n cards. */
-export function drawUpTo(
-  state: GameState,
-  side: string,
-  eid: EID,
-  card: Card | null,
-  n: number,
-  args: DrawUpToArgs = { allowZeroDraws: true },
-): void {
+export function drawUpTo(state: GameState, side: string, card: Card | null, n: number): void;
+export function drawUpTo(state: GameState, side: string, eid: EID, card: Card | null, n: number, args?: DrawUpToArgs): void;
+export function drawUpTo(...rawArgs: any[]): void {
+  let state: GameState, side: string, eid: EID, card: Card | null, n: number;
+  let args: DrawUpToArgs = { allowZeroDraws: true };
+  if (rawArgs.length === 4) {
+    // shorthand (state, side, card, n) — synthesize eid
+    state = rawArgs[0]; side = rawArgs[1]; card = rawArgs[2]; n = rawArgs[3];
+    eid = makeEID(state);
+  } else {
+    state = rawArgs[0]; side = rawArgs[1]; eid = rawArgs[2]; card = rawArgs[3]; n = rawArgs[4];
+    args = rawArgs[5] ?? args;
+  }
   if (n === 0) {
     draw(state, side, eid, 0, args);
     return;
@@ -377,3 +406,4 @@ export function drawUpTo(
 
 // Resolve-ability re-export touchpoint (kept for parity with Clojure ns require list).
 export { resolveAbility };
+export { preventDraw } from "./flags";

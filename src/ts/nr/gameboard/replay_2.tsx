@@ -300,10 +300,10 @@ function stepLabelContent(stepType: string): React.ReactNode {
     case "run": return "\uD83C\uDFC3"; // 🏃
     case "install": return "\u25BC"; // ▼
     case "draw": return <div className="symbol" />;
-    case "credit": return renderMessage("[credit]");
+    case "credit": return renderMessage("[credit]") as React.ReactNode;
     case "advance": return "A";
     case "purge": return "\uD83D\uDEA8"; // 🚨
-    case "click": return renderMessage("[click]");
+    case "click": return renderMessage("[click]") as React.ReactNode;
     default: return "?";
   }
 }

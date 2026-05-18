@@ -7,6 +7,9 @@ import { trSpan } from "../translations";
 import { useGameBoard } from "./state";
 import { RunTimingPane, TurnTimingPane } from "./diagrams";
 import { zoomChannelPut } from "./card_preview";
+import GameLog from "./log";
+import SettingsPane from "./settings";
+import { NotesPane, NotesSharedPane } from "./replay";
 
 // jQuery is available globally via window.$ (loaded by the page)
 // Minimal type supporting the subset of jQuery used in this module (selector, css chaining, resizable).
@@ -24,32 +27,13 @@ interface TabConfig {
   label: [string, string];
 }
 
-// ---------------------------------------------------------------------------
-// Placeholder components for tabs whose source modules aren't fully ported yet.
-// Each will be replaced once the corresponding module exports the real component.
-// ---------------------------------------------------------------------------
-
-// From log.cljs  →  log-pane
-function LogPane(): ReactElement {
-  throw new Error("not implemented");
-}
-
-// From replay.cljs  →  notes-pane
-function NotesPane(): ReactElement {
-  throw new Error("not implemented");
-}
-
-// From replay.cljs  →  notes-shared-pane
-function NotesSharedPane(): ReactElement {
-  throw new Error("not implemented");
-}
-
-// RunTimingPane and TurnTimingPane are imported from ./diagrams
-
-// From settings.cljs  →  settings-pane
-function SettingsPane(): ReactElement {
-  throw new Error("not implemented");
-}
+// All tab components imported from their modules:
+//   GameLog        ← log.tsx
+//   NotesPane      ← replay.tsx (replay_2.tsx)
+//   NotesSharedPane← replay.tsx (replay_2.tsx)
+//   RunTimingPane  ← diagrams.tsx
+//   TurnTimingPane ← diagrams.tsx
+//   SettingsPane   ← settings.tsx
 
 // ---------------------------------------------------------------------------
 // available-tabs  (mirrors CLJS `available-tabs`)
@@ -57,7 +41,7 @@ function SettingsPane(): ReactElement {
 
 const availableTabs: Record<string, TabConfig> = {
   log: {
-    Component: LogPane,
+    Component: GameLog,
     label: ["log_game-log", "Game Log"],
   },
   notes: {

@@ -17,7 +17,7 @@ import { sameCard } from "../utils";
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-function isDisabledReg(state: GameState, card: Card | null): boolean {
+export function isDisabledReg(state: GameState, card: Card | null): boolean {
   if (!card) return false;
   return state.disabledCardReg.has(card.cid);
 }
@@ -45,7 +45,7 @@ function gatherEffects(state: GameState, effectType: string): Effect[] {
       stable.push(e);
     }
   }
-  return [...stable, ...active];
+  return [...active, ...stable];
 }
 
 function effectPred(
@@ -103,15 +103,55 @@ export function getEffects(
   state: GameState,
   side: string,
   effectType: string,
-  target: Card | null,
-  extraTargets: Card[],
+  target?: Card | null,
+  extraTargets?: Card[],
 ): unknown[] {
+  target = target ?? null;
+  extraTargets = extraTargets ?? [];
   const eid = makeEID(state);
   const targets: Card[] = target
     ? [target, ...extraTargets]
     : [...extraTargets];
   const maps = getEffectMaps(state, side, effectType, eid, targets);
   return maps.map((e) => getEffectValue(state, side, eid, targets, e));
+}
+
+/**
+ * Returns the resolved values of all matching effects, each tagged with the
+ * source card's cid and the effect's uuid.
+ * Mirrors: get-tagged-effects in effects.clj
+ */
+export function getTaggedEffects(
+  state: GameState,
+  side: string,
+  effectType: string,
+  target: Card | null,
+  extraTargets: Card[],
+): any[] {
+  const eid = makeEID(state);
+  const targets: Card[] = target
+    ? [target, ...extraTargets]
+    : [...extraTargets];
+  const maps = getEffectMaps(state, side, effectType, eid, targets);
+  return maps.map((e) => {
+    const raw =
+      typeof e.value === "function" ? e.value(state, side, eid, e.card, targets) : e.value;
+    const tagged: any =
+      raw && typeof raw === "object" ? { ...(raw as object) } : { value: raw };
+    tagged.cid = e.card?.cid;
+    tagged.uuid = e.uuid;
+    return tagged;
+  });
+}
+
+/**
+ * Refreshes an effect entry's :card pointer via getCard. Mirror of
+ * update-effect-card in effects.clj.
+ */
+export function updateEffectCard(state: GameState, ability: Effect): Effect {
+  if (!ability.card) return ability;
+  const refreshed = getCard(state, ability.card);
+  return { ...ability, card: refreshed ?? ability.card };
 }
 
 /**
@@ -125,8 +165,8 @@ export function sumEffects(
   target: Card | null,
   extraTargets: Card[],
 ): number {
-  return getEffects(state, side, effectType, target, extraTargets).reduce(
-    (sum, v) => (typeof v === "number" ? sum + v : sum),
+  return getEffects(state, side, effectType, target, extraTargets).reduce<number>(
+    (sum: number, v: unknown) => (typeof v === "number" ? sum + v : sum),
     0,
   );
 }
@@ -139,11 +179,23 @@ export function anyEffects(
   state: GameState,
   side: string,
   effectType: string,
-  pred: (v: unknown) => boolean,
-  target: Card | null,
-  extraTargets: Card[],
+  pred?: ((v: unknown) => boolean) | Card | null,
+  target?: Card | null,
+  extraTargets?: Card[],
 ): boolean {
-  return getEffects(state, side, effectType, target, extraTargets).some(pred);
+  // Support call forms (state, side, effectType) and (state, side, effectType, target)
+  let actualPred: (v: unknown) => boolean = () => true;
+  let actualTarget: Card | null = null;
+  let actualExtras: Card[] = [];
+  if (typeof pred === "function") {
+    actualPred = pred;
+    actualTarget = target ?? null;
+    actualExtras = extraTargets ?? [];
+  } else {
+    actualTarget = (pred ?? null) as Card | null;
+    actualExtras = (target ? [target as Card] : []);
+  }
+  return getEffects(state, side, effectType, actualTarget, actualExtras).some(actualPred);
 }
 
 /**
@@ -234,15 +286,64 @@ export function unregisterStaticAbilities(
  * Registers a lingering (duration-bound) effect.
  * Mirrors: register-lingering-effect in effects.clj
  */
+interface LingeringEffectSpec {
+  type: string;
+  duration?: string;
+  req?: ReqFn | null;
+  value: ValueFn | unknown;
+  ability?: unknown;
+}
+
+export function registerLingeringEffect(card: Card, spec: LingeringEffectSpec): Effect;
 export function registerLingeringEffect(
   state: GameState,
-  _side: string,
+  side: string,
+  card: Card,
+  spec: LingeringEffectSpec,
+): Effect;
+export function registerLingeringEffect(
+  state: GameState,
+  side: string,
   card: Card,
   effectType: string,
   duration: string,
   req: ReqFn | null,
   value: ValueFn,
-): Effect {
+): Effect;
+export function registerLingeringEffect(...args: any[]): Effect {
+  // Overload normalization
+  let state: GameState | undefined;
+  let card: Card;
+  let effectType: string;
+  let duration: string;
+  let req: ReqFn | null = null;
+  let value: ValueFn;
+  if (args.length === 2) {
+    // (card, spec)
+    card = args[0];
+    const spec = args[1] as LingeringEffectSpec;
+    effectType = spec.type;
+    duration = spec.duration ?? "true";
+    req = (spec.req ?? null) as ReqFn | null;
+    value = spec.value as ValueFn;
+  } else if (args.length === 4) {
+    // (state, side, card, spec)
+    state = args[0];
+    card = args[2];
+    const spec = args[3] as LingeringEffectSpec;
+    effectType = spec.type;
+    duration = spec.duration ?? "true";
+    req = (spec.req ?? null) as ReqFn | null;
+    value = spec.value as ValueFn;
+  } else {
+    // legacy positional (state, side, card, type, duration, req, value)
+    state = args[0];
+    card = args[2];
+    effectType = args[3];
+    duration = args[4];
+    req = args[5];
+    value = args[6];
+  }
   const e: Effect = {
     uuid: randomUUID(),
     type: effectType,
@@ -252,8 +353,10 @@ export function registerLingeringEffect(
     lingering: true,
     card,
   };
-  state.effects.push(e);
-  updateDisabledCards(state);
+  if (state) {
+    state.effects.push(e);
+    updateDisabledCards(state);
+  }
   return e;
 }
 
@@ -306,4 +409,18 @@ export function unregisterEffectsForCard(
     (e) => !(sameCard(card, e.card) && p(e)),
   );
   updateDisabledCards(state);
+}
+
+export { effectCompleted } from "./eid";
+export { makeIcon } from "./def_helpers_2";
+export { purge } from "./purging";
+
+/** Unregister a static-effect by its uuid. */
+export function unregisterEffectByUuid(state: any, uuidOrSide: string, maybeUuid?: string): void {
+  const uuid = maybeUuid !== undefined ? maybeUuid : uuidOrSide;
+  _unregisterEffectByUuid(state, uuid);
+}
+function _unregisterEffectByUuid(state: any, uuid: string): void {
+  const effects = state?.effects ?? [];
+  state.effects = effects.filter((e: any) => e?.uuid !== uuid);
 }

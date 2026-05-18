@@ -1,8 +1,10 @@
 // Auth modals (login, register, forgot) and auth menu.
 // Mirrors: src/cljs/nr/auth.cljs
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import { useAppState } from "./appstate";
 import { GET, POST } from "./ajax";
+import { removeSyncSettings } from "./local_storage";
+import { trSpan } from "./translations";
 
 // Modal visibility state — managed outside React to allow imperative show/hide
 // from any component (mirrors Clojure's (.modal (js/$ "#login-form") "show"))
@@ -293,6 +295,9 @@ function Avatar({ user }: { user: Record<string, unknown> }) {
 async function handleLogout(e: React.MouseEvent) {
   e.preventDefault();
   await POST("/logout", null);
+  // Mirrors (ls/remove-sync-settings!) — clear DB-sourced settings from
+  // localStorage so they don't leak to the next account.
+  removeSyncSettings();
   window.location.reload();
 }
 
@@ -308,11 +313,23 @@ function LoggedMenu({ user }: { user: Record<string, unknown> }) {
         </a>
         {open && (
           <div className="dropdown-menu blue-shade float-right">
-            {user.isadmin && <a className="block-link" href="/admin">[Admin]</a>}
-            {user.ismoderator && <a className="block-link">[Moderator]</a>}
-            {user.special && <a className="block-link">[Donor]</a>}
-            <a className="block-link" href="/account">Settings</a>
-            <a className="block-link" href="" onClick={handleLogout}>Jack out</a>
+            {!!user.isadmin && (
+              <a className="block-link" href="/admin">
+                [{trSpan(["menu_admin", "Admin"])}]
+              </a>
+            )}
+            {!!user.ismoderator && (
+              <a className="block-link">[{trSpan(["menu_moderator", "Moderator"])}]</a>
+            )}
+            {!!user.special && (
+              <a className="block-link">[{trSpan(["menu_donor", "Donor"])}]</a>
+            )}
+            <a className="block-link" href="/account">
+              {trSpan(["menu_settings", "Settings"])}
+            </a>
+            <a className="block-link" href="" onClick={handleLogout}>
+              {trSpan(["menu_logout", "Jack out"])}
+            </a>
           </div>
         )}
       </li>

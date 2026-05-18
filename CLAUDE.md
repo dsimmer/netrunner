@@ -1,6 +1,6 @@
 This repo is the web version of the netrunner card game.
 
-Never split work up into multiple agents.
+Never split work up into multiple agents. Never use type 'any', use a defined type
 
 Your job is to manage the conversion from clojure and clojurescript to typescript.
 

@@ -11,7 +11,7 @@ import { asset, conditionCounter, ice, rezzed, upgrade } from "./card";
 import { cardDef } from "./card_defs";
 import { rezAdditionalCostBonus, rezCost } from "./cost_fns";
 import {
-  isDisabled as isDisabledReg,
+  isDisabledReg,
   unregisterStaticAbilities,
   updateDisabledCards,
 } from "./effects";
@@ -32,6 +32,7 @@ import {
 } from "./engine";
 import { canHost, canRez } from "./flags";
 import { updateIceStrength } from "./ice";
+import { runContinue } from "./runs";
 import { cardInit, deactivate } from "./initializing";
 import { trashCards } from "./moving";
 import { buildSpendMsg, canPay, mergeCosts, toC } from "./payment";
@@ -52,7 +53,7 @@ import { getCard } from "./finding";
  *
  * Returns a CostData[] (cost vector).
  */
-function getRezCost(
+export function getRezCost(
   state: GameState,
   side: string,
   card: Card,
@@ -265,17 +266,19 @@ function completeRez(
         }
 
         // Mark card as rezzed (this-turn)
-        const newCard = args.disabled
-          ? updateCard(s, side, {
-              ...card,
-              rezzed: "this-turn",
-            } as unknown as Card)
-          : cardInit(
-              s,
-              side,
-              { ...card, rezzed: "this-turn" } as unknown as Card,
-              { resolveEffect: false, initData: true },
-            );
+        let newCard: Card;
+        if (args.disabled) {
+          const merged = { ...card, rezzed: "this-turn" } as unknown as Card;
+          updateCard(s, side, merged);
+          newCard = merged;
+        } else {
+          newCard = cardInit(
+            s,
+            side,
+            { ...card, rezzed: "this-turn" } as unknown as Card,
+            { resolveEffect: false, initData: true },
+          ) as Card;
+        }
 
         // Update hosted cards' zone info
         const hosted = newCard.hosted ?? [];
@@ -365,9 +368,7 @@ function completeRez(
                 checkpoint(s2, null, cpEid, { duration: "rez" });
               }
               if (args.pressContinue) {
-                // continue is a defmulti in runs; import the stub if available
-                const { continue: continueFn } = require("./runs");
-                if (continueFn) continueFn(s2, side, null);
+                runContinue(s2, side, null);
               }
               const finalCard = getCard(s2, refreshedCard);
               completeWithResult(s2, side, eid, { card: finalCard });
@@ -394,7 +395,7 @@ export function canPayToRez(
   args?: Record<string, unknown>,
 ): boolean {
   const eidWithSource = { ...eid, sourceType: "rez" };
-  const resolvedCard = getCard(state, card);
+  const resolvedCard = getCard(state, card) as Card;
   const costs = getRezCost(state, side, resolvedCard, args ?? {}) ?? [];
   const alternativeCost =
     resolvedCard && !isDisabledReg(state, resolvedCard)
@@ -410,12 +411,19 @@ export function canPayToRez(
       return true;
     }
   }
-  return canPay(state, side, eidWithSource, resolvedCard, null, costs);
+  return !!canPay(state, side, eidWithSource, resolvedCard, null, costs);
 }
 
 /**
  * rez: Rez a corp card.
  */
+export function rez(
+  state: any,
+  side?: any,
+  eid?: any,
+  card?: any,
+  args?: any,
+): any;
 export function rez(
   state: GameState,
   side: string,
@@ -519,7 +527,7 @@ function rezMultipleMessage(
   side: string,
   eid: EID,
   cards: Card[],
-  args: { msgKeys?: Record<string, unknown> } = {},
+  args: { msgKeys?: Record<string, unknown>; [key: string]: unknown } = {},
 ): void {
   const { msgKeys = {} } = args;
   const sourceCard =
@@ -626,18 +634,30 @@ function derezMessage(
 /**
  * derez: Derez a number of corp cards.
  */
+export function derez(state: GameState, side: string, cards: Card | Card[], args?: any): void;
+export function derez(state: GameState, side: string, eid: EID, cards: Card | Card[], args?: any): void;
 export function derez(
   state: GameState,
   side: string,
-  eid: EID,
-  cards: Card | Card[],
+  eidOrCards: EID | Card | Card[],
+  cardsOrArgs?: Card | Card[] | any,
   args?: {
     suppressCheckpoint?: boolean;
     noEvent?: boolean;
     noMsg?: boolean;
     msgKeys?: Record<string, unknown>;
+    [k: string]: any;
   },
 ): void {
+  let eid: EID, cards: Card | Card[];
+  if (eidOrCards && typeof eidOrCards === "object" && "id" in (eidOrCards as any) && !("title" in (eidOrCards as any)) && !Array.isArray(eidOrCards)) {
+    eid = eidOrCards as EID;
+    cards = cardsOrArgs as Card | Card[];
+  } else {
+    eid = makeEID(state);
+    cards = eidOrCards as Card | Card[];
+    args = cardsOrArgs as any;
+  }
   const opts = args ?? {};
 
   // Flatten and filter to only rezzed cards
@@ -672,7 +692,7 @@ export function derez(
     // derez-effect: currently only for lycian fixing subtypes on derez
     const derezEffect = (cdef as any)["derez-effect"];
     if (derezEffect) {
-      resolveAbility(state, "corp", derezEffect, getCard(state, c), cdef);
+      resolveAbility(state, "corp", derezEffect, getCard(state, c), cdef as any);
     }
 
     // Register derezzed events
@@ -707,3 +727,5 @@ export function derez(
     checkpoint(state, side, eid);
   }
 }
+
+export { canRez } from "./flags";

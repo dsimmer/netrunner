@@ -42,7 +42,7 @@ export interface ChooseOneArgs {
   event?: string;
   label?: string;
   changeInGameState?: boolean;
-  location?: string[][];
+  location?: string | string[] | string[][];
   additionalCost?: unknown[];
   duration?: string;
   waitingPrompt?: boolean;
@@ -66,8 +66,11 @@ export interface ChooseOneArgs {
  * @param xs     - List of choice options
  * @returns An Ability object describing the async choose-one prompt
  */
+export function chooseOneHelper(choices: ChoiceOption[]): Ability;
+export function chooseOneHelper(args: ChooseOneArgs, xs: ChoiceOption[]): Ability;
+export function chooseOneHelper(args?: ChooseOneArgs): Ability;
 export function chooseOneHelper(
-  args?: ChooseOneArgs,
+  args?: ChooseOneArgs | ChoiceOption[],
   xs?: ChoiceOption[],
 ): Ability {
   // If first arg looks like a choices array (no `prompt`, `count`, etc.)
@@ -95,10 +98,10 @@ function buildChooseOne(args: ChooseOneArgs, xs: ChoiceOption[]): Ability {
   const countIsFn = typeof args.count === "function";
 
   if (countIsFn) {
-    const countFn = args.count as NumberFn;
+    const countFn = args.count as (...a: any[]) => number;
     return {
       async: true,
-      effect: (state, side, eid, card, targets) => {
+      effect: (state: GameState, side: string, eid: EID, card: Card, targets: any[]) => {
         const newCount = countFn(state, side, eid, card, targets);
         continue_ability(
           state,
@@ -151,7 +154,7 @@ function buildChooseOne(args: ChooseOneArgs, xs: ChoiceOption[]): Ability {
   ): ChoiceOption | undefined => {
     if (
       !x.cost ||
-      canPay(state, args.player || side, eid, card, null, x.cost)
+      canPay(state, args.player || side, eid, card, null, x.cost as any)
     ) {
       return x;
     }
@@ -164,7 +167,7 @@ function buildChooseOne(args: ChooseOneArgs, xs: ChoiceOption[]): Ability {
     if (!x.cost) {
       choiceStr = x.option || "";
     } else {
-      const cs = buildCostString(x.cost);
+      const cs = buildCostString(x.cost as any) ?? "";
       choiceStr = x.option ? `${cs}: ${x.option}` : cs;
     }
 
@@ -197,7 +200,7 @@ function buildChooseOne(args: ChooseOneArgs, xs: ChoiceOption[]): Ability {
 
   // meaningful-req?: skips the prompt if only 'done' is available
   const meaningfulReq: ReqFn | undefined = args.requireMeaningfulChoice
-    ? (state, side, eid, card, targets) => {
+    ? (state: GameState, side: string, eid: EID, card: Card, targets: any[]) => {
         const cs = processedXs
           .map((x) => choicesFn(x, state, side, eid, card, targets))
           .filter(Boolean) as (string | { title: string })[];
@@ -205,7 +208,7 @@ function buildChooseOne(args: ChooseOneArgs, xs: ChoiceOption[]): Ability {
           cs.length !== 1 ||
           cs[0] !== "Done" ||
           !args.req ||
-          args.req(state, side, eid, card, targets)
+          (args.req as any)(state, side, eid, card, targets)
         );
       }
     : undefined;
@@ -232,8 +235,8 @@ function buildChooseOne(args: ChooseOneArgs, xs: ChoiceOption[]): Ability {
     if (target === firstStr) {
       const ability = {
         ...firstChoice.ability,
-        cost: firstChoice.cost,
-      };
+        cost: firstChoice.cost as any,
+      } as Ability;
       const abSide = firstChoice.player || side;
       const newEid = makeEID(state, eid);
 
@@ -242,7 +245,7 @@ function buildChooseOne(args: ChooseOneArgs, xs: ChoiceOption[]): Ability {
       const count = args.count as number | undefined;
       const remainingTarget = target;
 
-      registerEIDCallback(state, newEid, (newState, newSide, newEidInner) => {
+      registerEIDCallback(state, newEid, (newState: GameState, newSide: string, newEidInner: EID) => {
         if (count && count > 1 && remainingTarget !== "Done") {
           // The 'Done' is already there, so can dissoc optional
           const newArgs: ChooseOneArgs = {
@@ -257,7 +260,7 @@ function buildChooseOne(args: ChooseOneArgs, xs: ChoiceOption[]): Ability {
             newState,
             newSide,
             buildChooseOne(newArgs, newXs),
-            card,
+            card as Card,
             null,
           );
         } else {
@@ -265,7 +268,7 @@ function buildChooseOne(args: ChooseOneArgs, xs: ChoiceOption[]): Ability {
         }
       });
 
-      continue_ability(state, abSide, ability, card, targets);
+      continue_ability(state, abSide, ability, card as Card, targets);
 
       return;
     }
@@ -291,7 +294,7 @@ function buildChooseOne(args: ChooseOneArgs, xs: ChoiceOption[]): Ability {
 
   return {
     ...baseMap,
-    choices: (state, side, eid, card, targets) => {
+    choices: (state: GameState, side: string, eid: EID, card: Card, targets: any[]) => {
       return processedXs
         .map((x) => choicesFn(x, state, side, eid, card, targets))
         .filter(Boolean) as (string | { title: string })[];
@@ -302,15 +305,15 @@ function buildChooseOne(args: ChooseOneArgs, xs: ChoiceOption[]): Ability {
     async: true,
     interactive: args.interactive
       ? typeof args.interactive === "boolean"
-        ? (_state, _side, _eid, _card, _targets) => args.interactive
+        ? (_state: GameState, _side: string, _eid: EID, _card: Card, _targets: any[]) => args.interactive
         : args.interactive
       : undefined,
-    effect: (state, side, eid, card, targets) => {
+    effect: (state: GameState, side: string, eid: EID, card: Card, targets: any[]) => {
       // Compute the runtime prompt if it's a MsgFn
       let finalPrompt = promptWithCount;
       if (typeof args.prompt === "function") {
         finalPrompt =
-          args.prompt(state, side, eid, card, targets) || "Choose one";
+          (args.prompt as any)(state, side, eid, card, targets) || "Choose one";
         if (args.count && typeof args.count === "number" && args.count > 0) {
           finalPrompt += ` (${args.count} remaining)`;
         }
@@ -328,7 +331,7 @@ function buildChooseOne(args: ChooseOneArgs, xs: ChoiceOption[]): Ability {
           req: meaningfulReq || args.req,
           interactive: args.interactive
             ? typeof args.interactive === "boolean"
-              ? (_s, _si, _e, _c, _t) => args.interactive
+              ? (_s: any, _si: any, _e: any, _c: any, _t: any) => args.interactive
               : args.interactive
             : undefined,
         } as any;

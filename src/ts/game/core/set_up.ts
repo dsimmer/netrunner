@@ -92,7 +92,7 @@ export function mulligan(
   }
   (getPlayer(state, side) as any).keep = "mulligan";
   systemMsg(state, side, "takes a mulligan");
-  triggerEvent(state, side, "pre-first-turn", null, null);
+  triggerEvent(state, side, "pre-first-turn", null);
   if (side === "corp" && state.runner.identity?.title) {
     clearWaitPrompt(state, "runner");
     showWaitPrompt(state, "corp", "Runner to keep hand or mulligan");
@@ -113,7 +113,7 @@ export function keepHand(
 ): void {
   (getPlayer(state, side) as any).keep = "keep";
   systemMsg(state, side, "keeps [their] hand");
-  triggerEvent(state, side, "pre-first-turn", null, null);
+  triggerEvent(state, side, "pre-first-turn", null);
   if (side === "corp" && state.runner.identity?.title) {
     clearWaitPrompt(state, "runner");
     showWaitPrompt(state, "corp", "Runner to keep hand or mulligan");
@@ -223,8 +223,8 @@ function initGameState(game: GameData): GameState {
     },
   );
 
-  const corpQuote = makeQuote(corpIdentity, runnerIdentity);
-  const runnerQuote = makeQuote(runnerIdentity, corpIdentity);
+  const corpQuote = makeQuote(corpIdentity as any, runnerIdentity as any);
+  const runnerQuote = makeQuote(runnerIdentity as any, corpIdentity as any);
 
   const corp = newCorp(
     corpPlayer?.user ?? {},

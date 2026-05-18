@@ -155,7 +155,7 @@ export function sideWin(state: GameState, side: string): boolean {
  * Checks for a win by agenda points and records the result.
  * Mirrors: (check-win-by-agenda state)
  */
-export function checkWinByAgenda(state: GameState): void {
+export function checkWinByAgenda(state: GameState, _side?: unknown): void {
   const corpWin = sideWin(state, CORP_SIDE);
   const blockedCorp = anyEffects(
     state,

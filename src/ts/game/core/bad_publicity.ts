@@ -22,7 +22,7 @@ export interface BadPublicityArgs {
 export function badPublicityAvailable(state: GameState, side: string): number {
   if (side === "runner") {
     return (
-      (state.run as Record<string, number>)?.["bad-publicity-available"] ?? 0
+      (state.run as unknown as Record<string, number>)?.["bad-publicity-available"] ?? 0
     );
   }
   return 0;
@@ -42,7 +42,7 @@ async function resolveBadPublicity(
     if (args.suppressCheckpoint) {
       effectCompleted(state, side, eid);
     } else {
-      checkpoint(state, eid);
+      checkpoint(state, null, eid);
     }
   } else {
     effectCompleted(state, side, eid);
@@ -51,24 +51,25 @@ async function resolveBadPublicity(
 
 /** Attempts to give the corp n bad publicity, allowing for boosting/prevention effects. */
 export async function gainBadPublicity(
-  state: GameState,
-  side: string,
-  eid: EID | null,
-  n: number,
-  args?: BadPublicityArgs | null,
+  state: any,
+  side?: any,
+  eid?: any,
+  n?: any,
+  args?: any,
 ): Promise<void> {
-  const resolvedEid = eid ?? makeEID(state);
+  const resolvedEid = (eid && typeof eid === 'object' && 'id' in eid) ? eid : makeEID(state);
   const resolvedArgs = args ?? {};
-  const remaining = await resolveBadPubPrevention(state, side, n, resolvedArgs);
-  await resolveBadPublicity(state, side, resolvedEid, remaining, resolvedArgs);
+  const amount = typeof n === 'number' ? n : (typeof eid === 'number' ? eid : 0);
+  resolveBadPubPrevention(state, side, resolvedEid, amount, resolvedArgs);
+  await resolveBadPublicity(state, side, resolvedEid, amount, resolvedArgs);
 }
 
 export async function loseBadPublicity(
-  state: GameState,
-  side: string,
-  eid: EID | null,
-  n: number | "all",
-  args?: BadPublicityArgs | null,
+  state: any,
+  side?: any,
+  eid?: any,
+  n?: any,
+  args?: any,
 ): Promise<void> {
   const resolvedEid = eid ?? makeEID(state);
   const { noEvent } = args ?? {};
@@ -108,8 +109,16 @@ export function spendBadPublicity(
   amt: number,
 ): void {
   if (side === "runner" && badPublicityAvailable(state, side) > 0) {
-    const run = state.run as Record<string, number>;
+    const run = state.run as unknown as Record<string, number>;
     run["bad-publicity-available"] =
       (run["bad-publicity-available"] ?? 0) - amt;
   }
 }
+
+export { countBadPub, hasBadPub } from "../../jinteki/utils";
+
+/** Alias for countBadPub. */
+export { countBadPub as countBadPublicity } from "../../jinteki/utils";
+
+/** Alias for hasBadPub. */
+export { hasBadPub as hasBadPublicity } from "../../jinteki/utils";

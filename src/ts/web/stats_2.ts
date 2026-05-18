@@ -5,10 +5,11 @@ import { dissocIn } from "../game/utils";
 import { AllCards } from "../jinteki/cards";
 import { chskSend } from "./ws";
 import { activeUser } from "./user";
-import { response, jsonResponse, mongoTimeToUtcString } from "./utils";
+import { response, jsonResponse, mongoTimeToUtcString, type HttpResponse } from "./utils";
 
 import { filterLogForSide, stripOpponentDeckName, toObjectId } from "./stats_1";
 import type { Annotation, RequestLike } from "./stats_1";
+import { indexPage } from "./pages";
 
 /**
  * Clear deck stats.
@@ -16,7 +17,7 @@ import type { Annotation, RequestLike } from "./stats_1";
  */
 export async function clearDeckstatsHandler(
   req: RequestLike,
-): Promise<{ status: number; body: Record<string, string> }> {
+): Promise<HttpResponse> {
   const db = req.system?.db;
   const username = (req.user as any)?.username;
   const id = req["path-params"]?.id;
@@ -52,7 +53,7 @@ export async function clearDeckstatsHandler(
  */
 export async function historyHandler(
   req: RequestLike,
-): Promise<{ status: number; body: unknown }> {
+): Promise<HttpResponse> {
   const db = req.system?.db;
   const user = req.user as any;
   const username = user?.username;
@@ -95,7 +96,7 @@ export async function historyHandler(
  */
 export async function fetchLog(
   req: RequestLike,
-): Promise<{ status: number; body: unknown }> {
+): Promise<HttpResponse> {
   const db = req.system?.db;
   const username = (req.user as any)?.username;
   const gameid = req["path-params"]?.gameid;
@@ -131,11 +132,7 @@ export async function fetchLog(
  */
 export async function fetchAnnotations(
   req: RequestLike,
-): Promise<{
-  status: number;
-  body: unknown;
-  headers?: Record<string, string>;
-}> {
+): Promise<HttpResponse> {
   const db = req.system?.db;
   const user = req.user as any;
   const username = user?.username;
@@ -226,7 +223,7 @@ function checkAnnotationsSize(annotations: Record<string, unknown>): boolean {
  */
 export async function publishAnnotations(
   req: RequestLike,
-): Promise<{ status: number; body: Record<string, string> }> {
+): Promise<HttpResponse> {
   const db = req.system?.db;
   const username = (req.user as any)?.username;
   const gameid = req["path-params"]?.gameid;
@@ -306,7 +303,7 @@ export async function publishAnnotations(
  */
 export async function deleteAnnotations(
   req: RequestLike,
-): Promise<{ status: number; body: Record<string, string> }> {
+): Promise<HttpResponse> {
   const db = req.system?.db;
   const username = (req.user as any)?.username;
   const gameid = req["path-params"]?.gameid;
@@ -390,11 +387,7 @@ export async function deleteAnnotations(
  */
 export async function fetchReplay(
   req: RequestLike,
-): Promise<{
-  status: number;
-  body: unknown;
-  headers?: Record<string, string>;
-}> {
+): Promise<HttpResponse> {
   const db = req.system?.db;
   const username = (req.user as any)?.username;
   const gameid = req["path-params"]?.gameid;
@@ -455,7 +448,7 @@ export async function fetchReplay(
  */
 export async function shareReplay(
   req: RequestLike,
-): Promise<{ status: number; body: Record<string, string> }> {
+): Promise<HttpResponse> {
   const db = req.system?.db;
   const username = (req.user as any)?.username;
   const gameid = req["path-params"]?.gameid;
@@ -522,11 +515,7 @@ function getWinnerCard(
  */
 export async function replayHandler(
   req: RequestLike,
-): Promise<{
-  status: number;
-  body: unknown;
-  headers?: Record<string, string>;
-}> {
+): Promise<HttpResponse> {
   const db = req.system?.db;
   const gameid = req["path-params"]?.gameid;
   const bugid = req["path-params"]?.bugid;
@@ -586,64 +575,11 @@ export async function replayHandler(
     description: `${corpUser} (${corpId}) vs. ${runnerUser} (${runnerId})`,
   };
 
-  // Import pages module for index page rendering
-  // In the full implementation, this calls pages/index-page with OG data
-  const html = renderIndexPage(req, og, gameidStr);
-  return { status: 200, body: html, headers: { "Content-Type": "text/html" } };
+  // Use pages.indexPage to render with OG data, replay id, and CSRF token.
+  return indexPage(req as any, og as any, gameidStr);
 }
 
 /**
- * Render the index HTML page with OG meta tags and replay id.
- * Mirrors: index-page from web.pages
+ * Replay rendering now delegates to pages.indexPage; the duplicated render
+ * was removed in favor of the canonical implementation.
  */
-function renderIndexPage(
-  req: RequestLike,
-  og: Record<string, string>,
-  replayId?: string,
-): string {
-  const user = req.user || {};
-  const serverMode = (req.system as any)?.["server-mode"] || "prod";
-
-  const cssVersion =
-    serverMode === "dev"
-      ? ""
-      : `?v=${(req.system as any)?.["frontend-version"] || ""}`;
-  const jsVersion =
-    serverMode === "dev"
-      ? ""
-      : `?v=${(req.system as any)?.["frontend-version"] || ""}`;
-
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=0.6, minimal-ui">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta property="og:type" content="${og.type || "website"}">
-  <meta property="og:url" content="${og.url || "https://jinteki.net"}">
-  <meta property="og:image" content="${og.image || "https://www.jinteki.net/img/icons/jinteki_167.png"}">
-  <meta property="og:title" content="${og.title || "Play Netrunner in your browser"}">
-  <meta property="og:site_name" content="${og.site_name || "jinteki.net"}">
-  <meta property="og:description" content="${og.description || "Build Netrunner decks and test them online against other players."}">
-  <link rel="apple-touch-icon" href="/img/icons/jinteki_167.png">
-  <title>Jinteki</title>
-  <link rel="stylesheet" href="/lib/css/toastr.min.css">
-  <link rel="stylesheet" href="/css/netrunner.css${cssVersion}">
-</head>
-<body>
-  <div id="sente-csrf-token" style="display:hidden" data-csrf-token=""></div>
-  <div style="display:hidden" id="server-originated-data" data-version="${(req.system as any)?.["frontend-version"] || ""}" data-replay-id="${replayId || ""}"></div>
-  <div id="main-content"></div>
-  <audio id="ting">
-    <source src="/sound/ting.mp3" type="audio/mpeg">
-    <source src="/sound/ting.ogg" type="audio/ogg">
-  </audio>
-  <script src="https://code.jquery.com/jquery-2.1.1.min"></script>
-  <script src="https://code.jquery.com/ui/1.13.0/jquery-ui.min"></script>
-  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min"></script>
-  <script src="/lib/js/toastr.min"></script>
-  <script type="text/javascript">var user=${JSON.stringify(user)};</script>
-  <script src="/js/main.js${jsVersion}"></script>
-</body>
-</html>`;
-}

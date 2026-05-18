@@ -3,7 +3,7 @@ import * as crypto from 'crypto';
 export interface HttpResponse {
   status: number;
   body: any;
-  headers: Record<string, string>;
+  headers: Record<string, string | string[]>;
 }
 
 /**

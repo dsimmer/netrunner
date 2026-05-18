@@ -255,9 +255,14 @@ function checkPsi(
   state: GameState,
   side: string,
   ability: Ability,
-  card: Card,
+  card: Card | null,
   targets: unknown[],
 ): void {
+  if (!card) {
+    const eid = (ability as any).eid ?? makeEIDFrom(state, null);
+    effectCompleted(state, side, eid as EID);
+    return;
+  }
   const psi = ability.psi as PsiAbility | undefined;
   if (!psi) {
     const eid = (ability as any).eid ?? makeEIDFrom(state, null);

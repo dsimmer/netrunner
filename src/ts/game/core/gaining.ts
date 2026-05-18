@@ -21,6 +21,35 @@ export type GainAmount =
   | { base?: number; mod?: number; used?: number };
 
 // ---------------------------------------------------------------------------
+// Stats helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Bumps a nested stat counter at state.stats[side][...path] by delta.
+ * Creates intermediate objects as needed.
+ */
+function bumpStat(
+  state: GameState,
+  side: string,
+  path: string[],
+  delta: number,
+): void {
+  const root = (state as any).stats ?? ((state as any).stats = {});
+  let cur: any = (root[side] ??= {});
+  for (let i = 0; i < path.length - 1; i++) {
+    cur = cur[path[i]] ??= {};
+  }
+  const last = path[path.length - 1];
+  cur[last] = (cur[last] ?? 0) + delta;
+}
+
+/** Get current value of a resource for the given side. */
+function getResourceValue(state: GameState, side: string, resource: string): number {
+  const player: any = side === CORP_SIDE ? state.corp : state.runner;
+  return player[resource] ?? 0;
+}
+
+// ---------------------------------------------------------------------------
 // gain / lose / deduct (flat mutations)
 // ---------------------------------------------------------------------------
 
@@ -31,6 +60,7 @@ export type GainAmount =
  * When `amount` is a number the flat value is added.
  * When `amount` is a map the individual sub-attrs are added.
  */
+export function gain(state: any, side?: any, resource?: any, amount?: any): any;
 export function gain(
   state: GameState,
   side: string,
@@ -95,6 +125,9 @@ export function gain(
         break;
     }
   }
+
+  // Track stats: [:stats side :gain resource]
+  bumpStat(state, side, ["gain", resource], amount as number);
 }
 
 function gainSubAttr(
@@ -108,77 +141,96 @@ function gainSubAttr(
     const c = state.corp;
     switch (resource) {
       case "bad-publicity":
-        (c.badPublicity as Record<string, number>)[subattr] =
-          ((c.badPublicity as Record<string, number>)[subattr] ?? 0) + val;
+        (c.badPublicity as unknown as Record<string, number>)[subattr] =
+          ((c.badPublicity as unknown as Record<string, number>)[subattr] ?? 0) + val;
         break;
       case "hand-size":
-        (c.handSize as Record<string, number>)[subattr] =
-          ((c.handSize as Record<string, number>)[subattr] ?? 0) + val;
+        (c.handSize as unknown as Record<string, number>)[subattr] =
+          ((c.handSize as unknown as Record<string, number>)[subattr] ?? 0) + val;
         break;
     }
   } else {
     const r = state.runner;
     switch (resource) {
       case "tag":
-        (r.tag as Record<string, number>)[subattr] =
-          ((r.tag as Record<string, number>)[subattr] ?? 0) + val;
+        (r.tag as unknown as Record<string, number>)[subattr] =
+          ((r.tag as unknown as Record<string, number>)[subattr] ?? 0) + val;
         break;
       case "memory":
-        (r.memory as Record<string, number>)[subattr] =
-          ((r.memory as Record<string, number>)[subattr] ?? 0) + val;
+        (r.memory as unknown as Record<string, number>)[subattr] =
+          ((r.memory as unknown as Record<string, number>)[subattr] ?? 0) + val;
         break;
       case "hand-size":
-        (r.handSize as Record<string, number>)[subattr] =
-          ((r.handSize as Record<string, number>)[subattr] ?? 0) + val;
+        (r.handSize as unknown as Record<string, number>)[subattr] =
+          ((r.handSize as unknown as Record<string, number>)[subattr] ?? 0) + val;
         break;
     }
   }
+
+  // Track stats: [:stats side :gain resource subattr]
+  bumpStat(state, side, ["gain", resource, subattr], val);
 }
 
 /**
  * Reduces a resource (clamped at 0 for credits/clicks/link).
  * Mirrors: lose in gaining.clj
+ * 
+ * When `amount` is the string "all", loses the entire current value of the resource.
  */
+export function lose(
+  state: any,
+  side?: any,
+  resource?: any,
+  amount?: any,
+): any;
 export function lose(
   state: GameState,
   side: string,
   resource: string,
-  amount: number,
+  amount: number | "all",
 ): void {
+  const loseAmount: number =
+    amount === "all" ? getResourceValue(state, side, resource) : amount;
+
   if (side === CORP_SIDE) {
     const c = state.corp;
     switch (resource) {
       case "credit":
-        c.credit = Math.max(0, c.credit - amount);
+        c.credit = Math.max(0, c.credit - loseAmount);
         break;
       case "click":
-        c.click = Math.max(0, c.click - amount);
+        c.click = Math.max(0, c.click - loseAmount);
         break;
       case "bad-publicity":
-        c.badPublicity.base = Math.max(0, c.badPublicity.base - amount);
+        c.badPublicity.base = Math.max(0, c.badPublicity.base - loseAmount);
         break;
       case "hand-size":
-        c.handSize.total -= amount;
-        c.handSize.base -= amount;
+        c.handSize.total -= loseAmount;
+        c.handSize.base -= loseAmount;
         break;
     }
   } else {
     const r = state.runner;
     switch (resource) {
       case "credit":
-        r.credit = Math.max(0, r.credit - amount);
+        r.credit = Math.max(0, r.credit - loseAmount);
         break;
       case "click":
-        r.click = Math.max(0, r.click - amount);
+        r.click = Math.max(0, r.click - loseAmount);
         break;
       case "link":
-        r.link = Math.max(0, r.link - amount);
+        r.link = Math.max(0, r.link - loseAmount);
         break;
       case "hand-size":
-        r.handSize.total -= amount;
-        r.handSize.base -= amount;
+        r.handSize.total -= loseAmount;
+        r.handSize.base -= loseAmount;
         break;
     }
+  }
+
+  // Track stats: [:stats side :lose resource]
+  if (typeof amount === "number") {
+    bumpStat(state, side, ["lose", resource], amount);
   }
 }
 
@@ -193,9 +245,18 @@ export function lose(
 export function deduct(
   state: GameState,
   side: string,
-  resource: string,
-  amount: GainAmount,
+  resourceOrPair: string | [string, GainAmount],
+  amount?: GainAmount,
 ): void {
+  // Allow deduct(state, side, [resource, amount]) variant
+  let resource: string;
+  if (Array.isArray(resourceOrPair)) {
+    resource = resourceOrPair[0];
+    amount = resourceOrPair[1];
+  } else {
+    resource = resourceOrPair;
+  }
+  if (amount === undefined) return;
   // Map-style: iterate sub-attrs
   if (typeof amount === "object" && amount !== null) {
     for (const [subattr, val] of Object.entries(amount)) {
@@ -258,7 +319,7 @@ function deductSubAttr(
     const c = state.corp;
     switch (resource) {
       case "bad-publicity": {
-        const obj = c.badPublicity as Record<string, number>;
+        const obj = c.badPublicity as unknown as Record<string, number>;
         obj[subattr] = fn(obj[subattr] ?? 0);
         break;
       }
@@ -267,12 +328,12 @@ function deductSubAttr(
     const r = state.runner;
     switch (resource) {
       case "tag": {
-        const obj = r.tag as Record<string, number>;
+        const obj = r.tag as unknown as Record<string, number>;
         obj[subattr] = fn(obj[subattr] ?? 0);
         break;
       }
       case "memory": {
-        const obj = r.memory as Record<string, number>;
+        const obj = r.memory as unknown as Record<string, number>;
         obj[subattr] = fn(obj[subattr] ?? 0);
         break;
       }
@@ -293,8 +354,20 @@ export function gainCredits(
   side: string,
   eid: EID,
   amount: number,
-  card: Card | null,
-): void {
+  card?: Card | null,
+): void;
+export function gainCredits(...args: any[]): void;
+export function gainCredits(...args: any[]): void {
+  let state: GameState, side: string, eid: EID, amount: number, card: Card | null = null;
+  // Detect (state, side, eid, amount, card?) vs (state, side, amount, opts?)
+  if (args.length >= 4 && typeof args[2] === "object" && args[2] !== null && "id" in args[2]) {
+    state = args[0]; side = args[1]; eid = args[2]; amount = args[3];
+    if (args[4] && typeof args[4] === "object" && "cid" in args[4]) card = args[4];
+  } else {
+    state = args[0]; side = args[1]; amount = args[2] ?? 0;
+    eid = { id: 0, source: null } as unknown as EID;
+    if (args[3] && typeof args[3] === "object" && "cid" in args[3]) card = args[3];
+  }
   if (amount <= 0) {
     effectCompleted(state, side, eid);
     return;
@@ -309,13 +382,18 @@ export function gainCredits(
  * Removes credits and queues a :credit-lost event.
  * Mirrors: lose-credits in gaining.clj
  */
-export function loseCredits(
-  state: GameState,
-  side: string,
-  eid: EID,
-  amount: number,
-  card: Card | null,
-): void {
+export function loseCredits(state: GameState, side: string, eid: EID, amount: number, card?: Card | null): void;
+export function loseCredits(...args: any[]): void;
+export function loseCredits(...args: any[]): void {
+  let state: GameState, side: string, eid: EID, amount: number, card: Card | null = null;
+  if (args.length >= 4 && typeof args[2] === "object" && args[2] !== null && "id" in args[2]) {
+    state = args[0]; side = args[1]; eid = args[2]; amount = args[3];
+    if (args[4] && typeof args[4] === "object" && "cid" in args[4]) card = args[4];
+  } else {
+    state = args[0]; side = args[1]; amount = args[2] ?? 0;
+    eid = { id: 0, source: null } as unknown as EID;
+    if (args[3] && typeof args[3] === "object" && "cid" in args[3]) card = args[3];
+  }
   if (amount <= 0) {
     effectCompleted(state, side, eid);
     return;
@@ -326,6 +404,7 @@ export function loseCredits(
 }
 
 /** Gives clicks to the given side. */
+export function gainClicks(state: any, side?: any, amount?: any): any;
 export function gainClicks(
   state: GameState,
   side: string,
@@ -335,6 +414,7 @@ export function gainClicks(
 }
 
 /** Removes clicks (clamped at 0). */
+export function loseClicks(state: any, side?: any, amount?: any): any;
 export function loseClicks(
   state: GameState,
   side: string,
@@ -351,4 +431,21 @@ export function getCredits(state: GameState, side: string): number {
 /** Returns the current click total for the given side. */
 export function getClicks(state: GameState, side: string): number {
   return side === CORP_SIDE ? state.corp.click : state.runner.click;
+}
+
+/**
+ * Returns the value of properties using the `base` and `mod` system.
+ * Mirrors: base-mod-size in gaining.clj
+ */
+export function baseModSize(
+  state: GameState,
+  side: string,
+  prop: string,
+): number {
+  const player: any = side === CORP_SIDE ? state.corp : state.runner;
+  const obj = player?.[prop];
+  if (obj && typeof obj === "object") {
+    return (obj.base ?? 0) + (obj.mod ?? 0);
+  }
+  return 0;
 }

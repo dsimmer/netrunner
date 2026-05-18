@@ -7,7 +7,7 @@
 import type { GameState, Effect } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { Ability } from "../../jinteki/utils";
+import type { Ability } from "./types";
 import { allActive, allActiveInstalled } from "./board";
 import { getCard } from "./finding";
 import { installed, resource, rezzed, sameCard } from "./card";
@@ -15,7 +15,7 @@ import { cardDef } from "./card_defs";
 import { chooseOneHelper } from "./choose_one";
 import type { ChoiceOption } from "./choose_one";
 import { cardAbilityCost } from "./cost_fns";
-import { completeWithResult, effectCompleted } from "./eid";
+import { completeWithResult, effectCompleted, makeEID } from "./eid";
 import { anyEffects, getEffectMaps } from "./effects";
 import { resolveAbility, triggerEventSimult, triggerEventSync } from "./engine";
 import {
@@ -343,13 +343,11 @@ export function resolveEndRunPrevention(
  * Prevent the runner from jacking out.
  * Mirrors: prevent-jack-out
  */
-export const preventJackOut = function (
-  state: GameState,
-  side: string,
-  eid: EID,
-): void {
-  preventNumeric(state, side, eid, "jack-out", 1);
-};
+export function preventJackOut(state: GameState, side: string): void;
+export function preventJackOut(state: GameState, side: string, eid: EID): void;
+export function preventJackOut(state: GameState, side: string, eid?: EID): void {
+  preventNumeric(state, side, eid ?? makeEID(state), "jack-out", 1);
+}
 
 function resolveJackOutPreventionForSide(
   state: GameState,
@@ -444,8 +442,8 @@ export function preventExpose(
     resolveAbility(
       state,
       side,
-      eid,
       {
+        eid,
         prompt: "Prevent which card from being exposed?",
         choices: req(function (
           this: void,
@@ -479,9 +477,9 @@ export function preventExpose(
                 : 1;
           }
         }),
-      },
+      } as Ability,
       card,
-      null,
+      [],
     );
   }
 }

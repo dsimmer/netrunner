@@ -43,3 +43,21 @@ export function numberOfRunnerVirusCounters(state: GameState): number {
     0,
   );
 }
+
+import { addCounter } from "./props";
+
+/** Add n virus counters to a card. */
+export function addVirusCounter(state: any, side: any, eid: any, card: any, n: number): void {
+  addCounter(state, side, eid, card, ":virus", n);
+}
+
+/** Count virus counters on a card. */
+export function countVirusCounter(card: Card): number;
+export function countVirusCounter(state: GameState, card: Card): number;
+export function countVirusCounter(...args: any[]): number {
+  if (args.length === 1) {
+    // shorthand: just count counters directly on the card (no Hivemind lookup)
+    return getCounters(args[0] as Card, "virus") ?? 0;
+  }
+  return getVirusCounters(args[0] as GameState, args[1] as Card);
+}

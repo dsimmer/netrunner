@@ -48,9 +48,12 @@ export function DELETE(url: string): Promise<AjaxResponse> {
 // Mirrors: POST in ajax.cljs
 export function POST(
   url: string,
-  params: Record<string, unknown> | FormData | string,
+  params: Record<string, unknown> | FormData | string | null,
   format?: "json" | "form",
 ): Promise<AjaxResponse> {
+  if (params === null) {
+    return request("POST", url);
+  }
   if (format === "json") {
     return request("POST", url, JSON.stringify(params), {
       "Content-Type": "application/json",

@@ -23,13 +23,15 @@ import {
   getType,
   hasSubtype,
 } from "./card";
-import { cardDef, getCardDef } from "./types.ts";
+import { getCardDef } from "./types.ts";
+const cardDef = getCardDef;
 import {
   ignoreInstallCost,
   installAdditionalCostBonus,
   installCost,
 } from "./cost_fns";
-import { totalAvailableCredits, canPay, mergeCosts } from "./costs";
+import { totalAvailableCredits, canPay } from "./costs";
+import { mergeCosts } from "./payment";
 import {
   makeEID,
   effectCompleted,
@@ -240,6 +242,7 @@ function corpCanInstall(
     case true:
       return true;
   }
+  return true;
 }
 
 /**
@@ -592,7 +595,7 @@ function corpInstallContinue(
     updateAdvancementRequirement(state, movedCard);
   }
 
-  const refreshedCard = getCard(state, movedCard);
+  const refreshedCard = getCard(state, movedCard) as Card;
 
   unregisterEvents(state, CORP_SIDE, refreshedCard);
 
@@ -600,11 +603,11 @@ function corpInstallContinue(
     state,
     [
       [{ asyncResult: "result" }],
-      function (s: GameState, _e: EID, _binds: any) {
-        corpInstallPlaceCounters(s, CORP_SIDE, refreshedCard, args);
+      function (s: GameState, e: EID, _binds: any) {
+        corpInstallPlaceCounters(s, CORP_SIDE, e, refreshedCard, args as any);
       },
     ],
-    [corpInstallAssetAgenda, state, CORP_SIDE, refreshedCard, destZone, server],
+    [corpInstallAssetAgenda, state, CORP_SIDE, makeEID(state), refreshedCard, destZone, server],
     { eid },
   );
 
@@ -645,6 +648,8 @@ export function corpInstallCost(
     costBonus?: number;
     cachedCosts?: CostData[];
     ignoreIceCost?: boolean;
+    hostCard?: Card;
+    [key: string]: any;
   },
 ): CostData[] {
   if (opts.cachedCosts) return opts.cachedCosts;
@@ -698,7 +703,7 @@ export function corpCanPayAndInstall(
   return (
     corpCanInstall(state, CORP_SIDE, card, slot, {
       noToast: opts.noToast as boolean,
-    }) && canPay(state, CORP_SIDE, eidWithSource, card, null, costs)
+    }) && canPay(state, CORP_SIDE, eidWithSource, card, null, costs) != null
   );
 }
 
@@ -853,13 +858,14 @@ function corpInstallPay(
  * Installs a card in the chosen server.
  * Mirrors: corp-install
  */
+export function corpInstall(state: any, side?: any, eid?: any, card?: any, server?: any, opts?: any): any;
 export function corpInstall(
   state: GameState,
   _side: string,
   eid: EID,
   card: Card,
-  server: unknown,
-  opts?: Record<string, unknown>,
+  server?: unknown,
+  opts?: Record<string, unknown> | null,
 ): void {
   const args = { ...opts };
   const eidWithSource = { ...eid, sourceType: "corp-install" };
@@ -888,7 +894,7 @@ export function corpInstall(
     });
   } else {
     // A server was selected
-    dissocIn(state, ["corp", "install-list"]);
+    dissocIn(state as any, ["corp", "install-list"]);
     corpInstallPay(state, CORP_SIDE, eid, card, server as string, args);
   }
 }
@@ -1000,6 +1006,7 @@ export function runnerCanInstall(
     case true:
       return true;
   }
+  return true;
 }
 
 /**
@@ -1040,7 +1047,7 @@ export function runnerInstallMessage(
   const showOrigin =
     displayOrigin !== undefined
       ? displayOrigin
-      : card.previousZone !== ["hand"];
+      : !(Array.isArray(card.previousZone) && card.previousZone[0] === "hand");
 
   const discountStr = opts.ignoreAllCost
     ? " (ignoring all costs)"
@@ -1058,10 +1065,11 @@ export function runnerInstallMessage(
       : "a card facedown"
     : (card.title ?? "");
 
+  const prevZoneArr = Array.isArray(card.previousZone) ? card.previousZone : [];
   const origin =
-    showOrigin && card.previousZone !== ["onhost"]
+    showOrigin && prevZoneArr[0] !== "onhost"
       ? ` from${originIndex != null ? ` position ${originIndex + 1} of ` : ""}${
-          card.previousZone === ["set-aside"]
+          prevZoneArr[0] === "set-aside"
             ? "among the set-aside cards"
             : nameZone(RUNNER_SIDE, card.previousZone ?? [])
         }`
@@ -1070,7 +1078,7 @@ export function runnerInstallMessage(
   const preLhs =
     costStr && prependCostStr ? `${prependCostStr}, and then ` : "";
   const fromHost =
-    showOrigin && card.previousZone === ["onhost"] ? "hosted " : "";
+    showOrigin && prevZoneArr[0] === "onhost" ? "hosted " : "";
 
   const modifiedCostStr = !costStr
     ? prependCostStr

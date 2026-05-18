@@ -2,11 +2,10 @@
 // Mirrors: src/cljs/nr/utils.cljs
 import React from "react";
 import ReactDOMServer from "react-dom/server";
-import { format as jsFormat, parse, ZoneId, DateTimeFormatter, Locale } from "@js-joda/core";
-import { enUS } from "@js-joda/locale_en-us";
+import { ZoneId, ZonedDateTime, DateTimeFormatter } from "@js-joda/core";
+import { Locale } from "@js-joda/locale_en-us";
 import { useAppState } from "./appstate";
 import { tr, trSpan, trData } from "./translations";
-import { regexEscape } from "../../jinteki/utils";
 
 // ---------------------------------------------------------------------------
 // Zero-width space dot characters
@@ -77,7 +76,7 @@ export function rotatedSpan(): React.ReactElement {
   );
 }
 
-export function deckPointsCardSpan(points: number | undefined): React.ReactElement {
+export function deckPointsCardSpan(points?: number): React.ReactElement {
   const title = points != null ? `${tr(["deck-builder_deck-points", "Deck points"])}: ${points}` : undefined;
   return (
     <span className="legal" title={title}>
@@ -91,7 +90,7 @@ export function deckPointsCardSpan(points: number | undefined): React.ReactEleme
 // Influence / alliance dots
 // ---------------------------------------------------------------------------
 function makeDots(dot: string, n: number): string {
-  if (n <= 20) return `${n}${dot}`;
+  if (n >= 20) return `${n}${dot}`;
   return dot.repeat(n);
 }
 
@@ -157,7 +156,8 @@ export interface ToastrOptions {
   [key: string]: unknown;
 }
 
-export function toastrOptions(options: ToastrOptions): object {
+export function toastrOptions(options?: ToastrOptions | null): object {
+  options = options ?? {};
   return {
     closeButton: options["close-button"] ?? false,
     debug: false,
@@ -178,7 +178,7 @@ export function toastrOptions(options: ToastrOptions): object {
   };
 }
 
-export function nonGameToast(msg: string, toastType: string, options?: object): void {
+export function nonGameToast(msg: string, toastType: string, options?: object | null): void {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (window as any).toastr.options = toastrOptions(options as ToastrOptions ?? {});
   const f = (window as any).toastr[toastType];
@@ -188,59 +188,44 @@ export function nonGameToast(msg: string, toastType: string, options?: object): 
 export function trNonGameToast(
   trVec: string[],
   toastType: string,
-  options?: object,
+  options?: object | null,
 ): void;
 export function trNonGameToast(
   trVec: string[],
   trParams: Record<string, unknown> | undefined,
   toastType: string,
-  options?: object,
+  options?: object | null,
 ): void;
 export function trNonGameToast(
   trVec: string[],
-  maybeParams: Record<string, unknown> | string | object | undefined,
-  toastType?: string,
-  options?: object,
+  arg2: Record<string, unknown> | string | undefined,
+  arg3?: string | object | null,
+  arg4?: object | null,
 ): void {
   let trParams: Record<string, unknown> | undefined;
   let actualToastType: string;
   let actualOptions: object | undefined;
 
-  if (typeof maybeParams === "string") {
-    // (tr-non-game-toast tr-vec toast-type)
-    actualToastType = toastType!;
+  if (typeof arg2 === "string") {
+    // (tr-non-game-toast tr-vec toast-type) / (tr-non-game-toast tr-vec toast-type options)
+    actualToastType = arg2;
     trParams = undefined;
-    actualOptions = maybeParams;
-  } else if (Array.isArray(maybeParams)) {
-    // (tr-non-game-toast tr-vec toast-type options)
-    actualToastType = maybeParams as unknown as string; // shouldn't happen
-    actualToastType = toastType!;
-    trParams = undefined;
-    actualOptions = maybeParams as unknown as object;
+    actualOptions = (arg3 as object | null | undefined) ?? undefined;
   } else {
     // (tr-non-game-toast tr-vec tr-params toast-type options)
-    trParams = maybeParams as Record<string, unknown> | undefined;
-    actualToastType = toastType!;
-    actualOptions = options;
+    trParams = arg2;
+    actualToastType = arg3 as string;
+    actualOptions = arg4 ?? undefined;
   }
-
-  // Re-interpret with correct overloads
-  // Actually the cljs has 3 overloads:
-  //   ([tr-vec toast-type])
-  //   ([tr-vec toast-type options])
-  //   ([tr-vec tr-params toast-type options])
-  // Let's redo this properly with function overloading
 
   const opts = actualOptions ?? {};
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (window as any).toastr.options = toastrOptions(opts as ToastrOptions);
   const f = (window as any).toastr[actualToastType];
-  let msg: string;
-  if (trParams) {
-    msg = ReactDOMServer.renderToString(trSpan(trVec, trParams));
-  } else {
-    msg = ReactDOMServer.renderToString(trSpan(trVec));
-  }
+  const trResource = trVec as unknown as [string, string];
+  const msg = trParams
+    ? ReactDOMServer.renderToString(trSpan(trResource, trParams as Record<string, string>))
+    : ReactDOMServer.renderToString(trSpan(trResource));
   if (typeof f === "function") f(msg);
 }
 
@@ -286,14 +271,14 @@ export interface PatternPair {
   replacement: React.ReactElement;
 }
 
-function spanOf(icon: string): React.ReactElement {
+function spanOf(icon: string, title?: string): React.ReactElement {
   return (
-    <span className={`anr-icon ${icon}`} title={` ${icon}`} aria-label={icon} role="img" />
+    <span className={`anr-icon ${icon}`} title={title ?? ` ${icon}`} aria-label={icon} role="img" />
   );
 }
 
 function regexOf(iconCode: string): RegExp {
-  return new RegExp(`(?i)${regexEscapeJs(iconCode)}`);
+  return new RegExp(regexEscapeJs(iconCode), "i");
 }
 
 const iconPatterns: PatternPair[] = (() => {
@@ -373,9 +358,15 @@ function cardPatternsImpl(): PatternPair[] {
       trTitle: trData("title", c),
     }));
 
-  const entries = [
-    ...cards.map((c) => [c.title, spanOf(c.title, c.trTitle as string)] as PatternPair),
-    ...cards.map((c) => [c.trTitle as string, spanOf(c.title as string, c.trTitle as string)] as PatternPair),
+  const entries: PatternPair[] = [
+    ...cards.map((c): PatternPair => ({
+      regex: regexOf(c.title),
+      replacement: spanOf(c.title, c.trTitle as string),
+    })),
+    ...cards.map((c): PatternPair => ({
+      regex: regexOf(c.trTitle as string),
+      replacement: spanOf(c.title as string, c.trTitle as string),
+    })),
   ];
 
   // Deduplicate by regex source
@@ -390,19 +381,13 @@ function cardPatternsImpl(): PatternPair[] {
   return distinct.sort((a, b) => b.regex.source.length - a.regex.source.length);
 }
 
+const _cardPatternsCache = new Map<string, PatternPair[]>();
 function cardPatterns(): PatternPair[] {
   const cardsLoaded = useAppState.getState().cardsLoaded;
-  // Memoize based on cards-loaded
-  // For simplicity, re-read patterns each time cards loaded state changes
-  // In practice the memoization in cljs is based on the argument
   const key = `${cardsLoaded}`;
-  // Use a simple cache keyed by cardsLoaded
-  if (!_cardPatternsMemo || !useAppState.getState()._cardPatternsCache?.has(key)) {
+  if (!_cardPatternsMemo || !_cardPatternsCache.has(key)) {
     const result = cardPatternsImpl();
-    if (!useAppState.getState()._cardPatternsCache) {
-      (useAppState.getState() as unknown as Record<string, unknown>)._cardPatternsCache = new Map();
-    }
-    (useAppState.getState() as unknown as Record<string, unknown>)._cardPatternsCache.set(key, result);
+    _cardPatternsCache.set(key, result);
     _cardPatternsMemo = result;
   }
   return _cardPatternsMemo;
@@ -465,7 +450,16 @@ type FragmentElement = string | React.ReactElement | [string, ...unknown[]] | nu
 
 function replaceInElement(
   element: FragmentElement,
-  [regex, replacement]: PatternPair,
+  pair: PatternPair,
+): FragmentElement[] {
+  const { regex, replacement } = pair;
+  return _replaceInElement(element, regex, replacement);
+}
+
+function _replaceInElement(
+  element: FragmentElement,
+  regex: RegExp,
+  replacement: React.ReactElement,
 ): FragmentElement[] {
   if (typeof element !== "string") {
     return [element];
@@ -566,7 +560,7 @@ function applySingleTag(
   renderFn: (text: string) => FragmentElement[],
   text: string,
 ): (FragmentElement | [string, FragmentElement[]])[] {
-  const pattern = new RegExp(`(?s)<${tagName}>(.*?)</${tagName}>`);
+  const pattern = new RegExp(`<${tagName}>([\\s\\S]*?)</${tagName}>`, "g");
   // Use a regex approach to split while capturing groups
   const parts: string[] = [];
   let lastIndex = 0;
@@ -619,16 +613,18 @@ export function renderSafeHtml(text: string): FragmentElement[] | null {
     const liParts = applySingleTag("li", "li", renderIcons, inner);
     return [":ul", ...liParts];
   };
-  let result = applySingleTag("ul", "ul", ulRender, text);
+  let result: (FragmentElement | [string, FragmentElement[]])[] =
+    applySingleTag("ul", "ul", ulRender, text) as unknown as
+      (FragmentElement | [string, FragmentElement[]])[];
   result = expandTag("strong", "strong", result);
   result = expandTag("em", "em", result);
   result = result.map((seg) => {
     if (typeof seg === "string") {
-      return renderIcons(seg);
+      return renderIcons(seg) as unknown as FragmentElement;
     }
     return seg;
   });
-  return [":<>", ...result.flat()];
+  return [":<>", ...(result.flat() as FragmentElement[])];
 }
 
 export function renderMessage(input: string | FragmentElement[]): FragmentElement[] {
@@ -671,8 +667,8 @@ export function playerHighlightPatterns(
 
   const patterns: PatternPair[] = [];
   const entries: [string, string, string | undefined][] = [];
-  if (corp) entries.push(["corp", corp, timestamp]);
-  if (runner) entries.push(["runner", runner, timestamp]);
+  if (corp) entries.push(["corp", corp, timestamp ?? undefined]);
+  if (runner) entries.push(["runner", runner, timestamp ?? undefined]);
 
   const sorted = entries.sort((a, b) => b[1].length - a[1].length);
 
@@ -726,15 +722,16 @@ export function playerHighlightOptionClass(): string | undefined {
 // Conditional button components
 // ---------------------------------------------------------------------------
 export function condButton(
-  text: string,
+  text: string | React.ReactElement,
   cond: boolean,
   f: () => void,
   attrs?: Record<string, unknown>,
 ): React.ReactElement {
+  const keyStr = typeof text === "string" ? text : undefined;
   if (cond) {
-    return <button onClick={f} key={text} {...attrs}>{text}</button>;
+    return <button onClick={f} key={keyStr} {...attrs}>{text}</button>;
   }
-  return <button className="disabled" key={text} {...attrs}>{text}</button>;
+  return <button className="disabled" key={keyStr} {...attrs}>{text}</button>;
 }
 
 export function checkboxButton(
@@ -794,9 +791,9 @@ export function setScrollTop(node: HTMLElement | null, scrollTop: number): void 
 
 export function storeScrollTop(
   node: HTMLElement | null,
-  setter: (n: number) => void,
+  setter?: (n: number) => void,
 ): void {
-  if (node) {
+  if (node && setter) {
     setter(node.scrollTop);
   }
 }
@@ -813,8 +810,9 @@ export function getImagePath(
 ): string[] | null {
   if (depth >= 4) return null;
 
+  const langImages = images[lang] as Record<string, Record<string, unknown>> | undefined;
   const result =
-    (images[lang] as Record<string, unknown>)?.[res]?.[art] ??
+    (langImages?.[res] as Record<string, unknown> | undefined)?.[art] ??
     ((res !== "default" && getImagePath(images, lang, "default", art, depth + 1)) ??
      (lang !== "en" && getImagePath(images, "en", res, art, depth + 1)) ??
      (art !== "stock" && getImagePath(images, lang, res, "stock", depth + 1)) ??
@@ -829,10 +827,10 @@ export function imageOrFace(card: Record<string, unknown>): unknown {
   if (card.images) return card.images;
   if (card.face) {
     const faceKey = String(card.face);
-    const faces = card.faces as Record<string, unknown> | undefined;
+    const faces = card.faces as Record<string, Record<string, unknown>> | undefined;
     if (faces) return faces[faceKey]?.images;
   }
-  return (card.faces as Record<string, unknown>)?.front?.images;
+  return (card.faces as Record<string, Record<string, unknown>> | undefined)?.front?.images;
 }
 
 // ---------------------------------------------------------------------------
@@ -856,7 +854,7 @@ export function timeSpanString(delta: number): string {
 // ---------------------------------------------------------------------------
 // Date formatters using @js-joda
 // ---------------------------------------------------------------------------
-const _enUSLocale: Locale = (enUS as unknown as { Locale: Locale }).Locale;
+const _enUSLocale: Locale = Locale.US;
 
 const mdyFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM d YYYY")
   .withLocale(_enUSLocale);
@@ -868,12 +866,12 @@ const iSOIshFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("YYYY-MM-
   .withLocale(_enUSLocale);
 
 export function formatZonedDateTime(formatter: DateTimeFormatter, date: string): string {
-  return formatter.format(parse(date));
+  return formatter.format(ZonedDateTime.parse(date));
 }
 
 export function formatDateTime(formatter: DateTimeFormatter, date: string): string {
   try {
-    const parsed = parse(date);
+    const parsed = ZonedDateTime.parse(date);
     const defaultZone = ZoneId.systemDefault();
     const localTime = parsed.withZoneSameInstant(defaultZone);
     return formatter.format(localTime);

@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 // ---------------------------------------------------------------------------
 // update_alt_arts (mirrors tasks.update-alt-arts)
@@ -275,12 +275,14 @@ function getPromoPaths(): string[] {
  * Mirrors: update-promos
  */
 export async function updatePromos(
-	token: string,
+	tokenPath: string,
 	lang = "en",
 	force = false,
 	verbose = false,
 ): Promise<void> {
 	console.log("updating promo cards...");
+
+	const token = readFileSync(tokenPath, "utf-8").trim();
 
 	// Download the latest promos.edn from remote
 	const downloaded = await downloadGithubFile(token, "promos.edn", "data/promos.edn");
@@ -400,6 +402,6 @@ export function command(args: string[]): void {
 }
 
 // Allow running from command line: bun src/ts/tasks/update_alt_arts.ts ...
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (require.main === module) {
 	command(process.argv.slice(2));
 }

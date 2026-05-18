@@ -31,10 +31,11 @@ type State = {
 async function enterWinner(
   db: Db,
   player: Player,
-  game: { gameid?: string; endingPlayers?: EndingPlayer[]; state?: State }
+  game: { gameid?: string; "ending-players"?: EndingPlayer[]; state?: State }
 ): Promise<Runs | undefined> {
   try {
-    const { gameid, endingPlayers, state } = game;
+    const { gameid, state } = game;
+    const endingPlayers = game["ending-players"];
     const username = player.user.username;
     const otherPlayer = endingPlayers?.find(
       (p) => p.user.username !== username
@@ -86,9 +87,16 @@ async function enterWinner(
 
 export async function gameFinished(
   db: Db,
-  game: { endingPlayers?: EndingPlayer[]; originalPlayers?: Player[] }
+  game: {
+    gameid?: string;
+    "ending-players"?: EndingPlayer[];
+    "original-players"?: Player[];
+    state?: State;
+    [key: string]: unknown;
+  }
 ): Promise<void> {
-  const { endingPlayers, originalPlayers } = game;
+  const endingPlayers = game["ending-players"];
+  const originalPlayers = game["original-players"];
   for (const player of originalPlayers ?? []) {
     const username = player.user.username;
     const endPlayer = endingPlayers?.find(

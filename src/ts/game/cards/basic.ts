@@ -27,50 +27,38 @@ import * as utils from "../utils";
 import { req, effect, msg, wait_for } from "../macros";
 
 // Helper to build cost string
-function buildCostString(costs: any[]): string {
-  return corePayment.buildCostString(costs);
+function buildCostString(...args: any[]): string {
+  return (corePayment.buildCostString as any)?.(...args);
 }
 
 // Helper to check if can pay
-function canPay(
-  state: State,
-  side: Side,
-  eid: EID,
-  card: Card,
-  title: string,
-  costs: any[],
-): boolean {
-  return corePayment.canPay(state, side, eid, card, title, costs);
+function canPay(...args: any[]): boolean {
+  return (corePayment.canPay as any)?.(...args);
 }
 
 // Helper to merge costs
-function mergeCosts(costs: any[][]): any[] {
-  return corePayment.mergeCosts(costs);
+function mergeCosts(...args: any[]): any[] {
+  return (corePayment.mergeCosts as any)?.(...args);
 }
 
 // Helper to create credit cost
-function toC(type: string, ...values: number[]): any {
-  return corePayment.toC(type, ...values);
+function toC(...args: any[]): any {
+  return (corePayment.toC as any)?.(...args);
 }
 
 // Helper to get effects
-function getEffects(
-  state: State,
-  side: Side,
-  effectType: string,
-  card: Card,
-): any[] {
-  return coreEffects.getEffects(state, side, effectType, card);
+function getEffects(...args: any[]): any[] {
+  return (coreEffects.getEffects as any)?.(...args);
 }
 
 // Helper to get installed cards
-function allActiveInstalled(state: State, side: Side): Card[] {
-  return coreBoard.allActiveInstalled(state, side);
+function allActiveInstalled(...args: any[]): Card[] {
+  return (coreBoard.allActiveInstalled as any)?.(...args);
 }
 
 // Helper to get installable servers
-function installableServers(state: State, card: Card): string[] {
-  return coreBoard.installableServers(state, card);
+function installableServers(...args: any[]): string[] {
+  return (coreBoard.installableServers as any)?.(...args);
 }
 
 // Helper for in-hand check
@@ -107,7 +95,7 @@ export const corpBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         yield wait_for(
           state,
           [
@@ -118,8 +106,10 @@ export const corpBasicActionCard = {
           ],
           [coreSay.playSfx, state, side, "click-credit"],
         );
-        (state as any)[side].stats.click.credit =
-          ((state as any)[side].stats?.click?.credit ?? 0) + 1;
+        const stats = (state as any).stats ?? ((state as any).stats = {});
+        const sideStats = (stats[side] ??= {});
+        const clickStats = (sideStats.click ??= {});
+        clickStats.credit = (clickStats.credit ?? 0) + 1;
         coreSay.playSfx(state, side, "click-credit");
         return coreEid.effectCompleted(state, side, eid);
       }),
@@ -134,7 +124,7 @@ export const corpBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         const deck = (state as any)[side].deck;
         return deck && deck.length > 0;
       }),
@@ -147,14 +137,16 @@ export const corpBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         const deck = (state as any)[side].deck;
         const firstCard = deck[0];
         coreEngine.triggerEvent(state, side, ":corp-click-draw", {
           card: firstCard,
         });
-        (state as any)[side].stats.click.draw =
-          ((state as any)[side].stats?.click?.draw ?? 0) + 1;
+        const stats1 = (state as any).stats ?? ((state as any).stats = {});
+        const sideStats1 = (stats1[side] ??= {});
+        const clickStats1 = (sideStats1.click ??= {});
+        clickStats1.draw = (clickStats1.draw ?? 0) + 1;
         coreSay.playSfx(state, side, "click-card");
         coreDrawing.draw(state, side, eid, 1);
       }),
@@ -170,7 +162,7 @@ export const corpBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         const context = targets[0] || {};
         const targetCard = context.card
           ? coreCard.getCard(state, context.card)
@@ -232,7 +224,7 @@ export const corpBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         const context = targets[0] || {};
         const targetCard = context.card
           ? coreCard.getCard(state, context.card)
@@ -255,7 +247,7 @@ export const corpBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         const context = targets[0] || {};
         const targetCard = context.card
           ? coreCard.getCard(state, context.card)
@@ -279,7 +271,7 @@ export const corpBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         const context = targets[0] || {};
         const targetCard = context.card
           ? coreCard.getCard(state, context.card)
@@ -301,7 +293,7 @@ export const corpBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         const context = targets[0] || {};
         const targetCard = context.card
           ? coreCard.getCard(state, context.card)
@@ -317,7 +309,7 @@ export const corpBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         const context = targets[0] || {};
         const targetCard = context.card
           ? coreCard.getCard(state, context.card)
@@ -339,7 +331,7 @@ export const corpBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         return isTagged(state);
       }),
       prompt: "Choose a resource to trash",
@@ -349,7 +341,7 @@ export const corpBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         const target = targets[0];
         const targetCard =
           typeof target === "object" && target.uuid
@@ -364,7 +356,7 @@ export const corpBasicActionCard = {
           eid: EID,
           card: Card,
           targets: any[],
-        ) {
+        ): Generator<any, any, any> {
           const target = targets[0];
           const targetCard =
             typeof target === "object" && target.uuid
@@ -417,7 +409,7 @@ export const corpBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         const target = targets[0];
         const targetCard =
           typeof target === "object" && target.uuid
@@ -455,7 +447,7 @@ export const corpBasicActionCard = {
               eid: EID,
               card: Card,
               targets: any[],
-            ) {
+            ): Generator<any, any, any> {
               if (target === "No") {
                 coreSay.systemMsg(
                   state,
@@ -526,7 +518,7 @@ export const corpBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         coreSay.playSfx(state, side, "virus-purge");
         corePurging.purge(state, side, eid);
       }),
@@ -551,7 +543,7 @@ export const runnerBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         yield wait_for(
           state,
           [
@@ -562,8 +554,10 @@ export const runnerBasicActionCard = {
           ],
           [coreSay.playSfx, state, side, "click-credit"],
         );
-        (state as any)[side].stats.click.credit =
-          ((state as any)[side].stats?.click?.credit ?? 0) + 1;
+        const stats = (state as any).stats ?? ((state as any).stats = {});
+        const sideStats = (stats[side] ??= {});
+        const clickStats = (sideStats.click ??= {});
+        clickStats.credit = (clickStats.credit ?? 0) + 1;
         coreSay.playSfx(state, side, "click-credit");
         return coreEid.effectCompleted(state, side, eid);
       }),
@@ -578,7 +572,7 @@ export const runnerBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         const deck = (state as any).runner.deck;
         return deck && deck.length > 0;
       }),
@@ -591,14 +585,16 @@ export const runnerBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         const deck = (state as any).runner.deck;
         const firstCard = deck[0];
         coreEngine.triggerEvent(state, side, ":runner-click-draw", {
           card: firstCard,
         });
-        (state as any)[side].stats.click.draw =
-          ((state as any)[side].stats?.click?.draw ?? 0) + 1;
+        const stats2 = (state as any).stats ?? ((state as any).stats = {});
+        const sideStats2 = (stats2[side] ??= {});
+        const clickStats2 = (sideStats2.click ??= {});
+        clickStats2.draw = (clickStats2.draw ?? 0) + 1;
         coreSay.playSfx(state, side, "click-card");
         const bonusDraws = coreDrawing.useBonusClickDraws
           ? coreDrawing.useBonusClickDraws(state)
@@ -617,7 +613,7 @@ export const runnerBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         const context = targets[0] || {};
         const targetCard = context.card
           ? coreCard.getCard(state, context.card)
@@ -645,7 +641,7 @@ export const runnerBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         const context = targets[0] || {};
         const targetCard = context.card
           ? coreCard.getCard(state, context.card)
@@ -667,7 +663,7 @@ export const runnerBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         const context = targets[0] || {};
         const targetCard = context.card
           ? coreCard.getCard(state, context.card)
@@ -689,7 +685,7 @@ export const runnerBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         const context = targets[0] || {};
         const targetCard = context.card
           ? coreCard.getCard(state, context.card)
@@ -714,7 +710,7 @@ export const runnerBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         const context = targets[0] || {};
         coreRuns.makeRun(eid, context.server, null, { clickRun: true });
       }),
@@ -731,7 +727,7 @@ export const runnerBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         return isTagged(state);
       }),
       async: true,
@@ -741,7 +737,7 @@ export const runnerBasicActionCard = {
         eid: EID,
         card: Card,
         targets: any[],
-      ) {
+      ): Generator<any, any, any> {
         coreSay.playSfx("click-remove-tag");
         coreTags.loseTags(eid, 1);
       }),

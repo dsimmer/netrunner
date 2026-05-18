@@ -10,10 +10,10 @@ import * as coreAccess from '../core/access';
 import * as coreBadPublicity from '../core/bad_publicity';
 import * as coreBoard from '../core/board';
 import * as coreCard from '../core/card';
-import * as coreCostFns from '../core/cost-fns';
+import * as coreCostFns from '../core/cost_fns';
 import * as coreCosts from '../core/costs';
 import * as coreDamage from '../core/damage';
-import * as coreDefHelpers from '../core/def-helpers';
+import * as coreDefHelpers from '../core/def_helpers';
 import * as coreDrawing from '../core/drawing';
 import * as coreEffects from '../core/effects';
 import * as coreEid from '../core/eid';
@@ -22,13 +22,13 @@ import * as coreEvents from '../core/events';
 import * as coreFinding from '../core/finding';
 import * as coreFlags from '../core/flags';
 import * as coreGaining from '../core/gaining';
-import * as coreHandSize from '../core/hand-size';
+import * as coreHandSize from '../core/hand_size';
 import * as coreIce from '../core/ice';
 import * as coreInstalling from '../core/installing';
 import * as coreMoving from '../core/moving';
 import * as coreOptional from '../core/optional';
 import * as corePayment from '../core/payment';
-import * as corePlayInstants from '../core/play-instants';
+import * as corePlayInstants from '../core/play_instants';
 import * as corePrompts from '../core/prompts';
 import * as coreProps from '../core/props';
 import * as corePurging from '../core/purging';
@@ -40,7 +40,7 @@ import * as coreServers from '../core/servers';
 import * as coreShuffling from '../core/shuffling';
 import * as coreTags from '../core/tags';
 import * as coreThreat from '../core/threat';
-import * as coreToString from '../core/to-string';
+import * as coreToString from '../core/to_string';
 import * as coreToasts from '../core/toasts';
 import * as coreUpdate from '../core/update';
 import * as utils from '../utils';
@@ -62,7 +62,7 @@ export const cayambeGrid: CardDef = {
       }),
       label: 'place 1 advancement counter (start of turn)',
       async: true,
-      effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+      effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> { const target: any = (targets as any[])?.[0];
         const allInstalled = coreBoard.allInstalled(state, ':corp');
         const count = allInstalled.filter((c: Card) => coreCard.ice(c) && coreServers.sameServer(card, c)).length;
         if (count > 0) {
@@ -70,7 +70,7 @@ export const cayambeGrid: CardDef = {
             continue_ability(state, side, {
               prompt: `Place 1 advancement counter on an ice protecting ${coreServers.zoneToName((card as any).zone?.[1])}`,
               choices: { card: (c: Card) => coreCard.ice(c) && coreServers.sameServer(c, card) },
-              msg: msg((msgFn: any) => `place 1 advancement counter on ${coreToString.cardStr(state, target)}`),
+              msg: msg((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { const target: any = (targets as any[])?.[0]; return `place 1 advancement counter on ${coreToString.cardStr(state, target)}`; }),
               async: true,
               effect: effect(coreProps.addProp(eid, target, ':advance-counter', 1, { placed: true })),
             }, card, null)], []);
@@ -82,7 +82,7 @@ export const cayambeGrid: CardDef = {
       interactive: req(() => true),
       req: req(forms.thisServer),
       async: true,
-      effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+      effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> { const target: any = (targets as any[])?.[0];
         const runIces = coreIce.getRunIces(state);
         const cost = runIces.filter((c: Card) => coreCard.getCounters(c, ':advancement') > 0).length * 2;
         const choices: string[] = [];
@@ -97,9 +97,9 @@ export const cayambeGrid: CardDef = {
             'waiting-prompt': true,
             prompt: 'Choose one',
             choices,
-            msg: msg((msgFn: any) =>
+            msg: msg((state: State, side: Side, eid: EID, card: Card, targets: any[]) =>
               target === 'End the run' ? target.toLowerCase() : `force the Runner to ${target.toLowerCase()}`),
-            effect: effect(function*(s: State, sd: Side, eid2: EID, c2: Card, t: any[]) {
+            effect: effect(function*(s: State, sd: Side, eid2: EID, c2: Card, t: any[]): Generator<any, any, any> {
               if (target === 'End the run') {
                 yield wait_for(s, [{ asyncResult: 'result' }, coreRuns.endRun(s, sd, eid2, c2)], []);
               } else {
@@ -124,7 +124,7 @@ export const cayambeGrid: CardDef = {
       }),
       label: 'place 1 advancement counter (start of turn)',
       async: true,
-      effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+      effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> { const target: any = (targets as any[])?.[0];
         const allInstalled = coreBoard.allInstalled(state, ':corp');
         const count = allInstalled.filter((c: Card) => coreCard.ice(c) && coreServers.sameServer(card, c)).length;
         if (count > 0) {
@@ -132,7 +132,7 @@ export const cayambeGrid: CardDef = {
             continue_ability(state, side, {
               prompt: `Place 1 advancement counter on an ice protecting ${coreServers.zoneToName((card as any).zone?.[1])}`,
               choices: { card: (c: Card) => coreCard.ice(c) && coreServers.sameServer(c, card) },
-              msg: msg((msgFn: any) => `place 1 advancement counter on ${coreToString.cardStr(state, target)}`),
+              msg: msg((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { const target: any = (targets as any[])?.[0]; return `place 1 advancement counter on ${coreToString.cardStr(state, target)}`; }),
               async: true,
               effect: effect(coreProps.addProp(eid, target, ':advance-counter', 1, { placed: true })),
             }, card, null)], []);
@@ -169,7 +169,7 @@ export const codeReplicator: CardDef = {
       return coreCard.rezzed(passedIce);
     }),
     async: true,
-    effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+    effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       yield wait_for(state, [{ asyncResult: 'result' },
         coreMoving.trash(state, ':corp', coreEid.makeEid(state, eid), card, { causeCard: card })], []);
       yield wait_for(state, [{ asyncResult: 'result' },
@@ -225,7 +225,7 @@ export const coldSiteServer: CardDef = {
       coreCard.getCounters(card, ':power') > 0),
     msg: 'remove all hosted power counters',
     async: true,
-    effect: effect(coreProps.addCounter(eid, card, ':power', -coreCard.getCounters(card, ':power'), null)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreProps.addCounter(eid, card, ':power', -coreCard.getCounters(card, ':power'), null); }),
   }],
   abilities: [{
     action: true,
@@ -233,7 +233,7 @@ export const coldSiteServer: CardDef = {
     'keep-menu-open': ':while-clicks-left',
     msg: 'place 1 power counter on itself',
     async: true,
-    effect: effect(coreProps.addCounter(eid, card, ':power', 1, null)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreProps.addCounter(eid, card, ':power', 1, null); }),
   }],
 };
 
@@ -247,8 +247,8 @@ export const corporateTroubleshooter: CardDef = {
       const t = targets[0];
       return t && coreCard.ice(t) && coreCard.rezzed(t) && coreServers.protectingSameServer(card, t);
     }) },
-    msg: msg((msgFn: any) => `add ${corePayment.costValue(eid, ':x-credits')} strength to ${target.title}`),
-    effect: effect(coreIce.pumpIce(target, corePayment.costValue(eid, ':x-credits'), ':end-of-turn')),
+    msg: msg((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { const target: any = (targets as any[])?.[0]; return `add ${corePayment.costValue(eid, ':x-credits')} strength to ${target.title}`; }),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { const target: any = (targets as any[])?.[0]; coreIce.pumpIce(target, corePayment.costValue(eid, ':x-credits'), ':end-of-turn'); }),
   }],
 };
 
@@ -269,7 +269,7 @@ export const cyberdexVirusSuite: CardDef = {
   poison: true,
   'on-access': {
     async: true,
-    effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+    effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       if (canSmartPurge(state)) {
         yield wait_for(state, [{ asyncResult: 'result' },
           continue_ability(state, side, {
@@ -297,7 +297,7 @@ export const cyberdexVirusSuite: CardDef = {
     msg: 'purge virus counters',
     cost: [corePayment.toC('trash-can')],
     async: true,
-    effect: effect(corePurging.purge(eid)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { corePurging.purge(eid); }),
   }],
 };
 
@@ -319,7 +319,7 @@ export const danielaJorgeInácio: CardDef = {
       const ctx = forms.context(state, card, targets) || {};
       return coreCard.rezzed(card) && coreCard.sameCard(ctx['accessed-card'], card);
     }),
-    effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+    effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       yield wait_for(state, [{ asyncResult: 'result' },
         coreFlags.registerRunFlag(state, side, card, ':can-trash',
           (s: State, _s2: Side, c2: Card) => {
@@ -337,7 +337,7 @@ export const danielaJorgeInácio: CardDef = {
     req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) =>
       forms.run(state) && side === ':runner'),
     msg: 'force the Runner to add 2 random cards from the grip to the bottom of the stack as additional cost to trash it',
-    effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+    effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       yield wait_for(state, [{ asyncResult: 'result' },
         coreEngine.pay(state, ':runner', coreEid.makeEid(state, eid), card,
           [corePayment.toC('add-random-from-hand-to-bottom-of-deck', 2)])], []);
@@ -373,28 +373,28 @@ export const daruma: CardDef = {
     interactive: req(() => true),
     req: req(forms.thisServer),
     async: true,
-    effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+    effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> { const target: any = (targets as any[])?.[0];
       const chooseSwap = (toSwap: Card) => ({
         prompt: `Choose a card to swap with ${toSwap.title}`,
         choices: { 'not-self': true, card: (c: Card) =>
           coreCard.corp(c) && !coreCard.operation(c) && !coreCard.ice(c) &&
           (coreCard.inHand(c) || coreCard.installed(c)) },
         cost: [corePayment.toC('trash-can')],
-        msg: msg((msgFn: any) => `swap ${coreToString.cardStr(state, toSwap)} with ${coreToString.cardStr(state, target)}`),
+        msg: msg((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { const target: any = (targets as any[])?.[0]; return `swap ${coreToString.cardStr(state, toSwap)} with ${coreToString.cardStr(state, target)}`; }),
         async: true,
         effect: effect(coreInstalling.swapCardsAsync(eid, toSwap, target)),
       });
       const ability = {
         optional: {
           'waiting-prompt': true,
-          prompt: msg((msgFn: any) => `Trash ${card.title} to swap a card in this server?`),
+          prompt: msg((state: State, side: Side, eid: EID, card: Card, targets: any[]) => `Trash ${card.title} to swap a card in this server?`),
           'yes-ability': {
             async: true,
             prompt: 'Choose a card in this server to swap',
             choices: { req: req((s: State, sd: Side, eid2: EID, c2: Card, t: any[]) => {
               const tgt = t[0];
               return tgt && coreCard.installed(tgt) && coreServers.inSameServer(card, tgt);
-            } }, 'not-self': true },
+            }), 'not-self': true },
             effect: effect(continue_ability(state, side, chooseSwap(target), card, null)),
           },
           'no-ability': {
@@ -442,8 +442,8 @@ export const defenseConstruct: CardDef = {
         coreCard.getCounters(card, ':advancement')),
       card: (c: Card) => coreCard.corp(c) && !(c as any).seen && coreCard.inDiscard(c),
     },
-    msg: msg((msgFn: any) => `add ${utils.quantify(targets?.length || 0, 'facedown card')} in Archives to HQ`),
-    effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+    msg: msg((state: State, side: Side, eid: EID, card: Card, targets: any[]) => `add ${utils.quantify(targets?.length || 0, 'facedown card')} in Archives to HQ`),
+    effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       for (const c of (targets || [])) {
         yield wait_for(state, [{ asyncResult: 'result' }, coreMoving.move(state, side, c, 'hand')], []);
       }
@@ -462,7 +462,7 @@ export const disposableHQ: CardDef = {
       'yes-ability': {
         async: true,
         msg: 'add cards in HQ to the bottom of R&D',
-        effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+        effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> { const target: any = (targets as any[])?.[0];
           const corp = (state as any).corp;
           const hand = corp?.hand || [];
           const dhq = (i: number, n: number) => ({
@@ -471,7 +471,7 @@ export const disposableHQ: CardDef = {
             choices: { card: (c: Card) => coreCard.corp(c) && coreCard.inHand(c) },
             async: true,
             msg: 'add a card to the bottom of R&D',
-            effect: effect(function*(s: State, sd: Side, eid2: EID, c2: Card, t: any[]) {
+            effect: effect(function*(s: State, sd: Side, eid2: EID, c2: Card, t: any[]): Generator<any, any, any> {
               yield wait_for(s, [{ asyncResult: 'result' }, coreMoving.move(s, sd, target, 'deck')], []);
               if (i < n) {
                 yield wait_for(s, [{ asyncResult: 'result' },
@@ -499,7 +499,7 @@ export const djupstadGrid: CardDef = {
     }),
     interactive: req(() => true),
     async: true,
-    effect: effect(coreDamage.damage(eid, ':brain', 1, { card })),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreDamage.damage(eid, ':brain', 1, { card }); }),
   }],
 };
 
@@ -516,10 +516,10 @@ export const droneScreen: CardDef = {
       successful: {
         msg: 'do 1 meat damage',
         async: true,
-        effect: effect(coreDamage.damage(eid, ':meat', 1, {
+        effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreDamage.damage(eid, ':meat', 1, {
           card,
           unpreventable: true,
-        })),
+        }); }),
       },
     },
   }],
@@ -535,10 +535,10 @@ export const embolus: CardDef = {
       once: ':per-turn',
       async: true,
       label: 'Place 1 power counter (start of turn)',
-      effect: effect(continue_ability(
+      effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { continue_ability(
         {
           optional: {
-            prompt: msg((msgFn: any) => `Pay 1 [Credit] to place 1 power counter on ${card.title}?`),
+            prompt: msg((state: State, side: Side, eid: EID, card: Card, targets: any[]) => `Pay 1 [Credit] to place 1 power counter on ${card.title}?`),
             'yes-ability': {
               effect: effect(coreProps.addCounter(eid, card, ':power', 1, null)),
               async: true,
@@ -548,7 +548,7 @@ export const embolus: CardDef = {
           },
         },
         card, null,
-      )),
+      ); }),
     },
     {
       event: ':successful-run',
@@ -556,7 +556,7 @@ export const embolus: CardDef = {
         coreCard.getCounters(card, ':power') > 0),
       msg: 'remove 1 power counter from itself',
       async: true,
-      effect: effect(coreProps.addCounter(eid, card, ':power', -1, null)),
+      effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreProps.addCounter(eid, card, ':power', -1, null); }),
     },
   ],
   abilities: [
@@ -564,10 +564,10 @@ export const embolus: CardDef = {
       once: ':per-turn',
       async: true,
       label: 'Place 1 power counter (start of turn)',
-      effect: effect(continue_ability(
+      effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { continue_ability(
         {
           optional: {
-            prompt: msg((msgFn: any) => `Pay 1 [Credit] to place 1 power counter on ${card.title}?`),
+            prompt: msg((state: State, side: Side, eid: EID, card: Card, targets: any[]) => `Pay 1 [Credit] to place 1 power counter on ${card.title}?`),
             'yes-ability': {
               effect: effect(coreProps.addCounter(eid, card, ':power', 1, null)),
               async: true,
@@ -577,7 +577,7 @@ export const embolus: CardDef = {
           },
         },
         card, null,
-      )),
+      ); }),
     },
     {
       req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) =>
@@ -585,7 +585,7 @@ export const embolus: CardDef = {
       cost: [corePayment.toC('power', 1)],
       msg: 'end the run',
       async: true,
-      effect: effect(coreRuns.endRun(eid, card)),
+      effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreRuns.endRun(eid, card); }),
     },
   ],
 };
@@ -618,7 +618,7 @@ export const expoGrid: CardDef = {
     'automatic': ':gain-credits',
     label: 'Gain 1 [Credits] (start of turn)',
     async: true,
-    effect: effect(coreGaining.gainCredits(eid, 1)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreGaining.gainCredits(eid, 1); }),
   }],
   abilities: [{
     req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
@@ -632,7 +632,7 @@ export const expoGrid: CardDef = {
     'automatic': ':gain-credits',
     label: 'Gain 1 [Credits] (start of turn)',
     async: true,
-    effect: effect(coreGaining.gainCredits(eid, 1)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreGaining.gainCredits(eid, 1); }),
   }],
 };
 

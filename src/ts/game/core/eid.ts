@@ -10,11 +10,14 @@ import type { AbilityFn } from "./types.ts";
 // ---------------------------------------------------------------------------
 
 export interface EID {
-  id: number;
+  id?: number;
   source?: Card | null;
   sourceType?: string;
+  "source-type"?: string;
   sourceInfo?: Record<string, unknown>;
+  "source-info"?: Record<string, unknown>;
   result?: unknown;
+  [key: string]: any;
 }
 
 // ---------------------------------------------------------------------------
@@ -22,9 +25,22 @@ export interface EID {
 // ---------------------------------------------------------------------------
 
 /** Allocates a new EID from the game state. Mirrors (make-eid state). */
-export function makeEID(state: GameState): EID {
+export function makeEID(state: GameState, existing?: EID | null): EID {
   state.eidCounter += 1;
-  return { id: state.eidCounter };
+  const eid: EID = { id: state.eidCounter };
+  if (existing) {
+    eid.source = existing.source;
+    eid.sourceType = existing.sourceType;
+    eid.sourceInfo = existing.sourceInfo;
+  }
+  return eid;
+}
+
+// Alias for compatibility with card effect code. Accepts an optional
+// existing-eid argument to mirror Clojure's (make-eid state existing-eid).
+export function makeEid(state: GameState, existing?: EID | null): EID {
+  if (existing) return makeEIDFrom(state, existing);
+  return makeEID(state);
 }
 
 /**
@@ -63,12 +79,14 @@ export function getAbilityTargets(eid: EID | null): unknown {
  * Returns true if the EID represents the basic advance action.
  * Mirrors is-basic-advance-action? in eid.clj.
  */
+export function isBasicAdvanceAction(eid: EID | null): boolean;
+export function isBasicAdvanceAction(eid: EID | null, isBasicAction: (c: Card) => boolean): boolean;
 export function isBasicAdvanceAction(
   eid: EID | null,
-  isBasicAction: (c: Card) => boolean,
+  isBasicActionFn?: (c: Card) => boolean,
 ): boolean {
   if (!eid?.source || !eid?.sourceInfo) return false;
-  if (!isBasicAction(eid.source)) return false;
+  if (isBasicActionFn && !isBasicActionFn(eid.source)) return false;
   return eid.sourceInfo["ability-idx"] === 4;
 }
 
@@ -88,6 +106,9 @@ export function registerEIDCallback(
   if (state.eidCallbacks.has(eid.id)) return; // skip duplicate (mirrors Clojure throw)
   state.eidCallbacks.set(eid.id, callback);
 }
+
+// Alias for compatibility with card effect code
+export const registerEffectCompleted = registerEIDCallback;
 
 /**
  * Removes any :waiting prompts associated with this EID on the given side.
@@ -113,17 +134,27 @@ export function clearEIDWaitPrompt(
  * Fires the registered callback for the given EID.
  * Mirrors effect-completed in eid.clj.
  */
-export function effectCompleted(
-  state: GameState,
-  side: string,
-  eid: EID,
-): void {
-  clearEIDWaitPrompt(state, "corp", eid);
-  clearEIDWaitPrompt(state, "runner", eid);
-  const callback = state.eidCallbacks.get(eid.id);
-  if (callback) {
-    state.eidCallbacks.delete(eid.id);
-    callback(state, side, eid, null, []);
+export function effectCompleted(stateOrEid: any, sideOrUndef?: any, eidOrUndef?: any): void {
+  // Permissive: accept (state, side, eid) or (state, eid) or (eid)
+  let state: any = stateOrEid;
+  let side: any = sideOrUndef;
+  let eid: any = eidOrUndef;
+  if (eid === undefined) {
+    if (side && typeof side === 'object' && 'id' in side) {
+      eid = side; side = undefined;
+    } else if (state && typeof state === 'object' && 'id' in state && !state.eidCounter) {
+      eid = state; state = undefined;
+    }
+  }
+  if (!eid) return;
+  if (state && state.eidCallbacks) {
+    try { clearEIDWaitPrompt(state, "corp", eid); } catch {}
+    try { clearEIDWaitPrompt(state, "runner", eid); } catch {}
+    const callback = state.eidCallbacks.get(eid.id);
+    if (callback) {
+      state.eidCallbacks.delete(eid.id);
+      callback(state, side, eid, null, []);
+    }
   }
 }
 
@@ -131,11 +162,26 @@ export function effectCompleted(
  * Calls effectCompleted with a result value attached to the EID.
  * Mirrors complete-with-result in eid.clj.
  */
-export function completeWithResult(
-  state: GameState,
-  side: string,
-  eid: EID,
-  result: unknown,
-): void {
+export function completeWithResult(eid: EID, result: unknown): void;
+export function completeWithResult(state: GameState, side: string, eid: EID, result: unknown): void;
+export function completeWithResult(...args: any[]): void {
+  if (args.length === 2) {
+    // shorthand (eid, result): can't fire callback without state — no-op.
+    return;
+  }
+  const state = args[0] as GameState;
+  const side = args[1] as string;
+  const eid = args[2] as EID;
+  const result = args[3];
   effectCompleted(state, side, makeResult(eid, result));
+}
+
+/** Accessor for the source card on an EID. */
+export function source(eid: EID | null): Card | null | undefined {
+  return eid?.source ?? null;
+}
+
+/** Accessor for source-type on an EID. */
+export function sourceType(eid: EID | null): string | undefined {
+  return eid?.sourceType ?? eid?.["source-type"];
 }

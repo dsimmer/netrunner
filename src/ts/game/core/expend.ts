@@ -64,7 +64,7 @@ export function expend(ex: Ability | undefined): Ability {
           state,
           [
             () => queueEvent(state, "expend-resolved", { card }),
-            () => checkpoint(state, null, eid, null),
+            () => checkpoint(state, null, eid, undefined),
           ],
           [
             resolveAbility,

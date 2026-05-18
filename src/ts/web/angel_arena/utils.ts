@@ -10,8 +10,15 @@ import {
   DeckLine,
   CardData,
 } from "../../jinteki/validator";
+import { registerMsgHandler, chskSend, type WSMessage } from "../ws";
 
 export const SUPPORTED_FORMATS = ["standard", "startup", "eternal"];
+
+registerMsgHandler("angel-arena/formats", async (msg: WSMessage) => {
+  if (msg.uid) {
+    chskSend(msg.uid, ["angel-arena/formats", SUPPORTED_FORMATS]);
+  }
+});
 
 export const INACTIVE_PERIOD_WARNING = 30;
 

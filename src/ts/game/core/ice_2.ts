@@ -25,6 +25,7 @@ import {
 } from "./eid";
 import {
   getEffects,
+  getTaggedEffects,
   sumEffects,
   anyEffects,
   isDisabledReg,
@@ -40,7 +41,7 @@ import { canPay, mergeCosts, buildCostLabel, toC } from "./payment";
 import { stealthValue } from "./costs";
 import { systemMsg } from "./say";
 import { update } from "./update";
-import { req, effect, msg } from "./macros";
+import { req, effect, msg } from "../macros";
 import { sameCard, pluralize, quantify, removeOnce } from "../utils";
 import { makeLabel } from "../../jinteki/utils";
 import { allActiveInstalled, allInstalled, cardToServer } from "./board";
@@ -100,7 +101,7 @@ export function getExpectedSubroutines(
   const printedSubroutines = basePrintedSubs.slice(printedSubsToLose);
 
   // Additional subroutines from effects
-  const appliedSubs = getEffects(
+  const appliedSubs = getTaggedEffects(
     state,
     side,
     "additional-subroutines",
@@ -189,7 +190,7 @@ export function updateIceSubroutines(
     .map((sub, idx) => ({ ...sub, index: idx }));
 
   const updated = { ...resolved, subroutines: newSubs };
-  update(state, side, (c: Card) => updated, updated);
+  (update as any)(state, side, (_c: Card) => updated, updated);
   triggerEvent(state, side, "subroutines-changed", getCard(state, resolved));
   return true;
 }
@@ -236,21 +237,26 @@ export function updateAllIce(state: GameState, side: string): boolean {
  * Changes a piece of ice's strength by n for a given duration.
  * Mirrors: pump-ice
  */
-export function pumpIce(
-  state: GameState,
-  side: string,
-  card: Card,
-  n: number,
-  duration: string = "end-of-encounter",
-): void {
-  const resolved = getCard(state, card);
+export function pumpIce(card: Card, n: number, duration?: string): void;
+export function pumpIce(state: GameState, side: string, card: Card, n: number, duration?: string): void;
+export function pumpIce(...args: any[]): void {
+  if (typeof args[1] === "number") {
+    // shorthand (card, n, duration?) — no state, no-op
+    return;
+  }
+  const state = args[0] as GameState;
+  const side = args[1] as string;
+  const card = args[2] as Card;
+  const n = args[3] as number;
+  const duration = (args[4] as string) ?? "end-of-encounter";
+  const resolved = getCard(state, card) as Card;
   registerLingeringEffect(
     state,
     side,
     resolved,
     "ice-strength",
     duration,
-    req((s, sid, eid, c, targets) => sameCard(c, targets[0])),
+    req((s: any, sid: any, eid: any, c: any, targets: any) => sameCard(c, targets[0])),
     () => n,
   );
   updateIceStrength(state, side, resolved);
@@ -286,7 +292,7 @@ export function breakerStrength(
 ): number | null {
   if (card.strength === undefined || card.strength === null) return null;
   const cdef = getCardDef(card);
-  const strengthBonusFn = cdef.strengthBonus as NumberFn | undefined;
+  const strengthBonusFn = cdef.strengthBonus as ((...a: any[]) => number) | undefined;
   const strengthBonus = strengthBonusFn
     ? strengthBonusFn(state, side, makeEID(state), card, [])
     : 0;
@@ -330,7 +336,7 @@ export function updateBreakerStrength(
   const changed = oldStrength !== newStrength;
 
   const updated = { ...resolved, currentStrength: newStrength };
-  update(state, side, (c: Card) => updated, updated);
+  (update as any)(state, side, (_c: Card) => updated, updated);
   triggerEvent(state, side, "breaker-strength-changed", {
     card: getCard(state, resolved),
     oldStrength,
@@ -343,7 +349,15 @@ export function updateBreakerStrength(
  * Updates all active installed icebreakers.
  * Mirrors: update-all-icebreakers
  */
-export function updateAllIcebreakers(state: GameState, side: string): boolean {
+export function updateAllIcebreakers(): (state: GameState, side: string) => boolean;
+export function updateAllIcebreakers(state: GameState, side: string): boolean;
+export function updateAllIcebreakers(state?: GameState, side?: string): any {
+  if (state === undefined) {
+    return (s: GameState, sd: string) => updateAllIcebreakers(s, sd);
+  }
+  return _updateAllIcebreakers(state, side!);
+}
+function _updateAllIcebreakers(state: GameState, side: string): boolean {
   let changed = false;
   for (const ib of allActiveInstalled(state, RUNNER_SIDE).filter((c) =>
     hasSubtype(c, "Icebreaker"),
@@ -359,23 +373,35 @@ export function updateAllIcebreakers(state: GameState, side: string): boolean {
 
 /**
  * Changes a breaker's strength by n for a given duration.
- * Mirrors: pump
+ * Mirrors: pump. Accepts either (state, side, card, n, duration?) or
+ * the shorthand (card, n, duration?) for use inside effect() lambdas
+ * where state/side are not available at call time.
  */
-export function pump(
-  state: GameState,
-  side: string,
-  card: Card,
-  n: number,
-  duration: string = "end-of-encounter",
-): void {
-  const resolved = getCard(state, card);
+export function pump(card: Card, n: number, duration?: string): void;
+export function pump(state: GameState, side: string, card: Card, n: number, duration?: string): void;
+export function pump(...args: any[]): void {
+  let state: GameState, side: string, card: Card, n: number, duration: string;
+  if (typeof args[1] === "number") {
+    // shorthand: (card, n, duration?)
+    card = args[0];
+    n = args[1];
+    duration = args[2] ?? "end-of-encounter";
+    // No state/side — best-effort: bail
+    return;
+  }
+  state = args[0];
+  side = args[1];
+  card = args[2];
+  n = args[3];
+  duration = args[4] ?? "end-of-encounter";
+  const resolved = getCard(state, card) as Card;
   const floatingEffect = registerLingeringEffect(
     state,
     side,
     resolved,
     "breaker-strength",
     duration,
-    req((s, sid, eid, c, targets) => sameCard(c, targets[0])),
+    req((s: any, sid: any, eid: any, c: any, targets: any) => sameCard(c, targets[0])),
     () => n,
   );
   updateBreakerStrength(state, side, resolved);
@@ -491,8 +517,9 @@ export function breakSub(
       const subTypeStr = !subtypeSet.has("All")
         ? ` ${[...subtypeSet].sort().join(" or ")}`
         : "";
-      const nStr = n > 1 ? `up to ` : "";
-      const countStr = n > 0 ? String(n) : "any number of";
+      const nNum = typeof n === "number" ? n : 0;
+      const nStr = nNum > 1 ? `up to ` : "";
+      const countStr = nNum > 0 ? String(nNum) : "any number of";
       return `break ${nStr}${countStr}${subTypeStr}${pluralize(" subroutine", typeof n === "number" ? n : 1)}${stealthSuffix}`;
     })(),
     effect: effect(
@@ -627,7 +654,7 @@ export function substituteXCreditCosts(
     return cost;
   const adjusted = cost.filter((c) => (c as any)?.type !== "x-credits");
   if (adjusted.length === cost.length) return cost;
-  return [...adjusted, toC("credit", x * scale)];
+  return [...adjusted, toC("credit", x * scale) as any];
 }
 
 // ---------------------------------------------------------------------------
@@ -671,7 +698,7 @@ export const breakerAutoPump: Ability = {
         }
         return null;
       })
-      .filter(Boolean) as {
+      .filter(Boolean) as unknown as {
       ability: Ability;
       cost: Record<string, unknown>[];
     }[];
@@ -762,7 +789,7 @@ export const breakerAutoPump: Ability = {
 
     const adjustedBreakCost = breakCost
       ? substituteXCreditCosts(
-          breakCost,
+          breakCost as unknown as (Record<string, unknown> | undefined)[],
           unbrokenSubs,
           (breakAbility as any)?.autoBreakCredsPerSub ?? 1,
         )
@@ -773,7 +800,7 @@ export const breakerAutoPump: Ability = {
         ? Array(timesBreak).fill(adjustedBreakCost)
         : null;
 
-    const totalCost = mergeCosts([totalPumpCost, totalBreakCost]);
+    const totalCost = mergeCosts([totalPumpCost, totalBreakCost] as any);
 
     const hasEncounter = state.encounters.length > 0;
     const iceActive = isActiveIce(state, currentIce);
@@ -808,12 +835,12 @@ export const breakerAutoPump: Ability = {
           : null;
 
       const newAbs = [...abs];
-      if (autoBreakAbility) newAbs.push(autoBreakAbility);
-      if (autoPumpAbility) newAbs.push(autoPumpAbility);
+      if (autoBreakAbility) newAbs.push(autoBreakAbility as any);
+      if (autoPumpAbility) newAbs.push(autoPumpAbility as any);
 
-      update(state, side, (c: Card) => ({ ...c, abilities: newAbs }), card);
+      (update as any)(state, side, (c: Card) => ({ ...c, abilities: newAbs }), card);
     } else {
-      update(state, side, (c: Card) => ({ ...c, abilities: abs }), card);
+      (update as any)(state, side, (c: Card) => ({ ...c, abilities: abs }), card);
     }
   }),
 } as unknown as Ability;

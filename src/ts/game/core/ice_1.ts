@@ -40,7 +40,7 @@ import { canPay, mergeCosts, buildCostLabel, toC } from "./payment";
 import { stealthValue } from "./costs";
 import { systemMsg } from "./say";
 import { update } from "./update";
-import { req, effect, msg } from "./macros";
+import { req, effect, msg } from "../macros";
 import { sameCard, pluralize, quantify, removeOnce } from "../utils";
 import { makeLabel } from "../../jinteki/utils";
 import { allActiveInstalled, allInstalled, cardToServer } from "./board";
@@ -97,7 +97,7 @@ export function getCurrentIce(state: GameState): Card | null {
   if (resolved) return resolved;
 
   const run = state.run;
-  const currentIceCid = run?.currentIce as string | undefined;
+  const currentIceCid = (run as any)?.currentIce as string | undefined;
   if (currentIceCid) {
     // Try to find card by cid
     const all = allActiveInstalled(state, CORP_SIDE);
@@ -202,7 +202,7 @@ export function buildSub(
  * Adds a subroutine to an ice card.
  * Mirrors: add-sub
  */
-function addSub(
+export function addSub(
   ice: Card,
   sub: Record<string, unknown>,
   cid?: string,
@@ -268,7 +268,7 @@ export function breakSubroutineEx(
   const resolved = getCard(state, ice);
   if (!resolved) return;
   const updated = breakSubroutine(resolved, sub, breaker);
-  update(state, CORP_SIDE, (c: Card) => updated, updated);
+  (update as any)(state, CORP_SIDE, (_c: Card) => updated, updated);
 }
 
 /**
@@ -296,14 +296,15 @@ export function breakAllSubroutinesEx(
   const resolved = getCard(state, ice);
   if (!resolved) return;
   const updated = breakAllSubroutines(resolved, breaker);
-  update(state, CORP_SIDE, (c: Card) => updated, updated);
+  (update as any)(state, CORP_SIDE, (_c: Card) => updated, updated);
 }
 
 /**
  * Returns true if any subroutine is broken.
  * Mirrors: any-subs-broken?
  */
-export function anySubsBroken(ice: Card): boolean {
+export function anySubsBroken(ice: Card | null): boolean {
+  if (!ice) return false;
   const subs = (ice.subroutines as RuntimeSubroutine[]) ?? [];
   return subs.some((s) => s.broken);
 }
@@ -312,7 +313,8 @@ export function anySubsBroken(ice: Card): boolean {
  * Returns true if all subroutines are broken.
  * Mirrors: all-subs-broken?
  */
-export function allSubsBroken(ice: Card): boolean {
+export function allSubsBroken(ice: Card | null): boolean {
+  if (!ice) return false;
   const subs = (ice.subroutines as RuntimeSubroutine[]) ?? [];
   return subs.length > 0 && subs.every((s) => s.broken);
 }
@@ -365,7 +367,7 @@ export function dontResolveSubroutineEx(
   const resolved = getCard(state, ice);
   if (!resolved) return;
   const updated = dontResolveSubroutine(resolved, sub);
-  update(state, CORP_SIDE, (c: Card) => updated, updated);
+  (update as any)(state, CORP_SIDE, (_c: Card) => updated, updated);
 }
 
 /**
@@ -388,7 +390,7 @@ export function dontResolveAllSubroutinesEx(state: GameState, ice: Card): void {
   const resolved = getCard(state, ice);
   if (!resolved) return;
   const updated = dontResolveAllSubroutines(resolved);
-  update(state, CORP_SIDE, (c: Card) => updated, updated);
+  (update as any)(state, CORP_SIDE, (_c: Card) => updated, updated);
 }
 
 /**
@@ -411,7 +413,7 @@ export function resetAllSubsEx(state: GameState, ice: Card): void {
   const resolved = getCard(state, ice);
   if (!resolved) return;
   const updated = resetAllSubs(resolved);
-  update(state, CORP_SIDE, (c: Card) => updated, updated);
+  (update as any)(state, CORP_SIDE, (_c: Card) => updated, updated);
 }
 
 /**
@@ -485,6 +487,10 @@ export function breakableSubroutinesChoice(
  * Marks a subroutine as fired.
  * Mirrors: resolve-subroutine (data transform)
  */
+export function resolveSubroutine(ice: Card, sub: RuntimeSubroutine): Card {
+  return resolveSubroutineData(ice, sub);
+}
+
 function resolveSubroutineData(ice: Card, sub: RuntimeSubroutine): Card {
   const subs = [...((ice.subroutines as RuntimeSubroutine[]) ?? [])];
   if (sub.index !== undefined) {
@@ -508,7 +514,7 @@ export function resolveSubroutineEx(
   if (!sub.externalTrigger) {
     const resolved = getCard(state, ice);
     if (resolved) {
-      update(
+      (update as any)(
         state,
         CORP_SIDE,
         (c: Card) => resolveSubroutineData(c, sub),
@@ -673,17 +679,26 @@ export function getPumpStrength(
  * Mirrors: ice-strength-bonus
  */
 export function iceStrengthBonus(
-  reqFn: ReqFn,
-  bonus: number | ValueFn,
+  reqFnOrBonus: ReqFn | number | ValueFn,
+  bonus?: number | ValueFn,
 ): Ability {
+  // Single-arg form: the lone arg is a function that returns the bonus value
+  // (and the req is just "is this the ice being evaluated").
+  const isSingleArg = bonus === undefined;
+  const effectiveReq: ReqFn = isSingleArg
+    ? (() => true) as ReqFn
+    : (reqFnOrBonus as ReqFn);
+  const effectiveBonus: number | ValueFn = isSingleArg
+    ? (reqFnOrBonus as number | ValueFn)
+    : (bonus as number | ValueFn);
   return {
     type: "ice-strength" as any,
     req: req(
       (state, side, eid, card, targets) =>
         sameCard(card, (targets as Card[])[0]) &&
-        reqFn(state, side, eid, card, targets),
+        effectiveReq(state, side, eid, card, targets),
     ),
-    value: typeof bonus === "function" ? bonus : () => bonus,
+    value: typeof effectiveBonus === "function" ? effectiveBonus : () => effectiveBonus,
   } as unknown as Ability;
 }
 
@@ -724,7 +739,7 @@ export function iceStrength(
 ): number | null {
   if (!isICE(ice)) return null;
   const cdef = getCardDef(ice);
-  const strengthBonusFn = cdef.strengthBonus as NumberFn | undefined;
+  const strengthBonusFn = cdef.strengthBonus as ((...a: any[]) => number) | undefined;
   const strengthBonus = strengthBonusFn
     ? strengthBonusFn(state, side, null, ice, [])
     : 0;
@@ -739,8 +754,9 @@ export function iceStrength(
 export function updateIceStrength(
   state: GameState,
   side: string,
-  ice: Card,
+  ice: Card | null,
 ): boolean {
+  if (!ice) return false;
   const resolved = getCard(state, ice);
   if (!resolved) return false;
   const oldStrength = getStrength(resolved);
@@ -750,7 +766,7 @@ export function updateIceStrength(
 
   if (isActiveIce(state, resolved)) {
     const updated = { ...resolved, currentStrength: newStrength };
-    update(state, side, (c: Card) => updated, updated);
+    (update as any)(state, side, (_c: Card) => updated, updated);
     triggerEvent(state, side, "ice-strength-changed", {
       card: getCard(state, resolved),
       strength: newStrength,

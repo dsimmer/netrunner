@@ -14,7 +14,7 @@ function Bullet({ tag, trVec }: { tag: number; trVec: [string, string] }): React
         <label>{letter + ") "}</label>
       </td>
       <td>
-        <div data-i18n-key={trVec[0]}>{renderIcons(tr(trVec))}</div>
+        <div data-i18n-key={trVec[0]}>{renderIcons(tr(trVec)) as React.ReactNode}</div>
       </td>
     </div>
   );

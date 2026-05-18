@@ -33,13 +33,11 @@ import {
   registerEvents,
   registerDefaultEvents,
   unregisterEvents,
-  registerStaticAbilities,
-  unregisterStaticAbilities,
   registerPendingEvent,
   queueEvent,
   dissocReq,
 } from "./engine";
-import { isDisabledReg } from "./effects";
+import { isDisabledReg, registerStaticAbilities, unregisterStaticAbilities } from "./effects";
 import {
   effectCompleted,
   completeWithResult,
@@ -212,7 +210,7 @@ function isActive(card: Card | null): boolean {
 }
 
 /** Setter on side.register.currentlyDrawing (last element of the queue). */
-function pop<T>(arr: T[]): T[] {
+export function pop<T>(arr: T[]): T[] {
   return arr.slice(0, -1);
 }
 export function peek<T>(arr: T[]): T | undefined {
@@ -356,7 +354,7 @@ function getMovedCard(
       zone: ["onhost"],
       host: { ...(h.host as Card), zone: newz },
     };
-    updateCard(state, side, (c: any) => c, newh);
+    updateCard(state, side, newh);
     if (isActive(newh)) {
       unregisterEvents(state, side, h);
       registerDefaultEvents(state, side, newh);
@@ -553,12 +551,20 @@ function updateRunPosition(
 // ---------------------------------------------------------------------------
 
 export function move(
+  state: any,
+  side: any,
+  card: any,
+  to?: any,
+  opts?: any,
+): any;
+export function move(
   state: GameState,
   side: string,
   card: Card,
   to: string | Zone,
-  opts: MoveCardOpts = {},
+  opts: MoveCardOpts | null = {},
 ): Card | null {
+  opts = opts ?? {};
   const {
     front,
     index,
@@ -758,6 +764,12 @@ registerMoveStar("move", (state, side, _eid, _action, card, args) => {
 // move-zone — moves all cards in a zone to another (Chronos Project).
 // ---------------------------------------------------------------------------
 
+export function moveZone(
+  state: any,
+  side?: any,
+  server?: any,
+  to?: any,
+): any;
 export function moveZone(
   state: GameState,
   side: string,

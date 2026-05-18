@@ -81,7 +81,7 @@ function getCardName(defcard: string): string {
 }
 
 // Allow running from command line
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (require.main === module) {
   splitEm();
   console.log("Done.");
 }

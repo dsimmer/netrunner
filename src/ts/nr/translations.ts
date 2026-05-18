@@ -8,25 +8,44 @@ import { format as i18nFormat } from "../jinteki/i18n";
 // language-cursor: a getter that returns the current language from appstate
 // ---------------------------------------------------------------------------
 function getLanguage(): string | null {
-  return useAppState.getState().options?.language ?? "en";
+  return (useAppState.getState().options?.language as string | undefined) ?? "en";
 }
 
 // ---------------------------------------------------------------------------
 // tr-with-info: calls i18n.format with the language cursor
 // ---------------------------------------------------------------------------
+// Translation resource: either a key or a [key, fallback] tuple.
+// Single-element arrays like ["foo"] (legacy CLJS-style) are coerced to "foo".
+export type TrResource = string | string[] | [string] | [string, string];
+
+function normalizeResource(resource: TrResource): string | [string, string] {
+  if (typeof resource === "string") return resource;
+  if (resource.length === 0) return "";
+  if (resource.length === 1) return resource[0]!;
+  return [resource[0]!, resource[1]!];
+}
+
 export function trWithInfo(
-  resource: string | [string, string],
-  params?: Record<string, string>,
+  resource: TrResource,
+  params?: Record<string, string> | string,
 ): { translation: string; targetLanguage: boolean } {
-  return i18nFormat(getLanguage, resource, params);
+  const normalized = normalizeResource(resource);
+  const normalizedParams = typeof params === "string" || params == null
+    ? undefined
+    : params;
+  const result = i18nFormat(getLanguage, normalized, normalizedParams);
+  return {
+    translation: result.translation ?? (typeof params === "string" ? params : ""),
+    targetLanguage: !!result.targetLanguage,
+  };
 }
 
 // ---------------------------------------------------------------------------
 // tr: extracts just the translation string
 // ---------------------------------------------------------------------------
 export function tr(
-  resource: string | [string, string],
-  params?: Record<string, string>,
+  resource: TrResource,
+  params?: Record<string, string> | string,
 ): string {
   return trWithInfo(resource, params).translation;
 }
@@ -90,13 +109,13 @@ function embedContent(
 // ---------------------------------------------------------------------------
 export function trElementWithEmbeddedContent(
   element: string,
-  resource: string | [string, string],
+  resource: TrResource,
   content?: Record<string, React.ReactElement>,
-  params?: Record<string, string>,
+  params?: Record<string, string> | string,
 ): React.ReactElement {
   // Handle nil/empty resource (mirrors: if (seq resource))
   if ((typeof resource === "string" && resource.length === 0) ||
-      (Array.isArray(resource) && resource.length === 0)) {
+      (Array.isArray(resource) && (resource as unknown[]).length === 0)) {
     return React.createElement(element, { "data-i18n-failure": true }, "[no resource]");
   }
 
@@ -105,10 +124,14 @@ export function trElementWithEmbeddedContent(
     "data-i18n-key": typeof resource === "string" ? resource : resource[0],
     "data-i18n-success": targetLanguage,
   };
-  const paramAttrs = i18nKeys(params);
+  const paramAttrs = i18nKeys(typeof params === "string" ? undefined : params);
 
+  // Mirrors: (or (embed-content translation content) "-")
+  // embed-content returns the bare translation string when there's nothing to
+  // embed; only fall back to "-" when both the translation and the embedded
+  // form are empty.
   const embedded = embedContent(translation, content);
-  const body = embedded ?? "-";
+  const body: React.ReactNode = embedded ?? translation ?? "-";
 
   return React.createElement(element, { ...dataAttrs, ...paramAttrs }, body);
 }
@@ -120,8 +143,8 @@ export function trElementWithEmbeddedContent(
 // ---------------------------------------------------------------------------
 export function trElement(
   element: string,
-  resource: string | [string, string],
-  params?: Record<string, string>,
+  resource: TrResource,
+  params?: Record<string, string> | string,
 ): React.ReactElement {
   return trElementWithEmbeddedContent(element, resource, undefined, params);
 }
@@ -130,8 +153,8 @@ export function trElement(
 // tr-span: convenience wrapper
 // ---------------------------------------------------------------------------
 export function trSpan(
-  resource: string | [string, string],
-  params?: Record<string, string>,
+  resource: TrResource,
+  params?: Record<string, string> | string,
 ): React.ReactElement {
   return trElement("span", resource, params);
 }

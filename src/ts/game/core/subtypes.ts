@@ -16,7 +16,7 @@ function flatten<T>(arr: unknown[]): T[] {
   const out: T[] = [];
   for (const item of arr) {
     if (Array.isArray(item)) {
-      out.push(...flatten(item));
+      out.push(...flatten<T>(item));
     } else if (item !== undefined && item !== null) {
       out.push(item as T);
     }
@@ -99,7 +99,7 @@ export function updateSubtypesForCard(
 
   if (changed) {
     const updatedCard = { ...current, subtypes: newSubtypes };
-    updateCard(state, toKeyword(current.side ?? ""), updatedCard);
+    updateCard(state, toKeyword(current.side ?? ""), updatedCard as Card);
   }
 
   return changed;

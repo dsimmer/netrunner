@@ -114,8 +114,14 @@ export function pay(
   side: string,
   eid: EID,
   card: Card | null,
-  costs: CostData[],
+  ...costsArgs: (CostData | CostData[])[]
 ): void {
+  // Accept either pay(state, side, eid, card, [cost1, cost2]) or pay(state, side, eid, card, cost1, cost2)
+  const costs: CostData[] = [];
+  for (const c of costsArgs) {
+    if (Array.isArray(c)) costs.push(...c);
+    else if (c) costs.push(c);
+  }
   const flattened: CostData[] = [];
   for (const c of costs) {
     if (Array.isArray(c)) {
@@ -130,7 +136,7 @@ export function pay(
     side,
     eid,
     card,
-    card ? getTitle(card) : "",
+    card ? (getTitle(card) ?? "") : "",
     flattened,
   );
   if (!checkable || checkable.length === 0) {
@@ -145,16 +151,16 @@ export function pay(
     if (currentCosts.length === 0) {
       const paymentResult = msgs;
       queueEvent(state, "costs-paid", { side, payment: paymentResult });
-      checkpoint(state, null, makeEID(state, eid), null);
+      checkpoint(state, null, makeEID(state, eid), undefined);
       const msg = enumerateStr(
         paymentResult
           .filter((m: any) => m && m["paid/msg"])
           .map((m: any) => m["paid/msg"]),
       );
       const costPaid: Record<string, unknown> = {};
-      for (const item of paymentResult) {
-        if (item && item["paid/type"] && Object.keys(item).length > 1) {
-          costPaid[item["paid/type"]] = item;
+      for (const item of paymentResult as any[]) {
+        if (item && (item as any)["paid/type"] && Object.keys(item).length > 1) {
+          costPaid[(item as any)["paid/type"]] = item;
         }
       }
       completeWithResult(state, side, eid, { msg, costPaid });
@@ -289,7 +295,7 @@ function shouldTrigger(
  * Checks that a :once ability has not already fired.
  * Mirrors `not-used-once?`.
  */
-function notUsedOnce(
+export function notUsedOnce(
   state: GameState,
   ability: Ability,
   card: Card | null,
@@ -420,16 +426,27 @@ export function isFaceupCard(card: Card | null): boolean {
  * Top-level ability resolution.  If no `eid` is provided one is created.
  * Mirrors `resolve-ability`.
  */
-export function resolveAbility(
-  state: GameState,
-  side: string,
-  ability: Ability,
-  card: Card | null,
-  targets: unknown[],
-): void {
-  const eid = (ability as any).eid ?? makeEID(state);
+export function resolveAbility(state: GameState, side: string, ability: Ability, card: Card | null, targets?: unknown[] | null): void;
+export function resolveAbility(state: GameState, side: string, eid: EID, ability: Ability, card: Card | null, targets?: unknown[] | null): void;
+export function resolveAbility(...args: any[]): void {
+  let state: GameState, side: string, ability: Ability, card: Card | null;
+  let targets: unknown[] | null = null;
+  let eidExplicit: EID | undefined;
+  // Distinguish (state, side, eid, ability, card, targets?) from (state, side, ability, card, targets?)
+  // by checking if 3rd arg looks like an EID (object with id or empty source-type).
+  if (args.length >= 5 && args[2] && typeof args[2] === "object" &&
+      ("id" in args[2] || "source-type" in args[2] || "sourceType" in args[2] || "source" in args[2])) {
+    [state, side, eidExplicit, ability, card] = args as [GameState, string, EID, Ability, Card | null];
+    targets = args[5] ?? null;
+  } else {
+    [state, side, ability, card] = args as [GameState, string, Ability, Card | null];
+    targets = args[4] ?? null;
+  }
+  targets = targets ?? [];
+  const eid = eidExplicit ?? (ability as any).eid ?? makeEID(state);
   const eidObj = typeof eid === "object" ? (eid as EID) : makeEID(state);
-  resolveAbilityWithEID(state, side, eidObj, ability, card, targets);
+  const abilityWithEid = { ...ability, eid: eidObj };
+  resolveAbilityWithEID(state, side, eidObj, abilityWithEid, card, targets);
 }
 
 /**
@@ -532,7 +549,7 @@ function getSideMessage(
   const desc =
     message === ":cost" || typeof message === "string"
       ? (message as string)
-      : (message as MsgFn)(
+      : ((message as any) as Function)(
           state,
           side,
           (ability as any).eid,
@@ -540,7 +557,7 @@ function getSideMessage(
           targets as Card[],
         );
 
-  const costSpendMsg = buildSpendMsg(state, side, paymentStr, "use");
+  const costSpendMsg = buildSpendMsg(paymentStr, "use");
 
   if (desc === ":cost") {
     return `${paymentStr} to satisfy ${getTitle(card)}`;
@@ -727,7 +744,7 @@ function doPaidAbility(
   const paymentStr = (asyncResult.msg as string) ?? "";
   const costPaid = mergeCostsPaid(
     (eid as any)?.["cost-paid"],
-    asyncResult["cost-paid"] ?? {},
+    (asyncResult["cost-paid"] ?? {}) as any,
   );
   (eid as any)["cost-paid"] = costPaid;
   const lastPaymentStr = (eid as any)["latest-payment-str"];
@@ -880,7 +897,7 @@ function doChoices(
     if (choicesMap.number) {
       const n =
         typeof choicesMap.number === "function"
-          ? (choicesMap.number as NumberFn)(
+          ? (choicesMap.number as any as Function)(
               state,
               side,
               eid,
@@ -889,7 +906,7 @@ function doChoices(
             )
           : (choicesMap.number as number);
       const m = (choicesMap.minimum as number) ?? 0;
-      const dfunc = choicesMap.default as NumberFn | undefined;
+      const dfunc = choicesMap.default as ((...a: any[]) => number) | undefined;
       const d = dfunc
         ? dfunc(state, side, makeEID(state), card, targets as Card[])
         : m;
@@ -913,10 +930,10 @@ function doChoices(
         c: Card | null,
         t: unknown[],
       ) => boolean;
-      const serverCardTitles = serverCardTitles(state, predicate);
+      const serverCardTitlesList = serverCardTitles(state, predicate);
       const augmentedChoices = {
         ...choicesMap,
-        autocomplete: serverCardTitles,
+        autocomplete: serverCardTitlesList,
       };
       (args as any).promptType = "card-title";
       promptFn(state, s, card, prompt, augmentedChoices, ab, args);

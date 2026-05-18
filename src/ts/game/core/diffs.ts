@@ -3,6 +3,7 @@
 
 import type { GameState } from "./state";
 import type { Card } from "./card";
+import type { EID } from "./eid";
 import {
   isCorp,
   isRunner,
@@ -67,6 +68,7 @@ export function playable(card: any, state: GameState, side: string): any {
       "can-play-as-if-in-hand",
       (v: unknown) => v === true,
       card,
+      [],
     ) ||
     !!(card as any)["as-flashback"];
   const phase12 =
@@ -82,14 +84,14 @@ export function playable(card: any, state: GameState, side: string): any {
       corpCanPayAndInstall(
         state,
         "corp",
-        { source: card, "source-type": "corp-install" },
+        { source: card, "source-type": "corp-install" } as unknown as EID,
         card,
         server,
         {
           "base-cost": [createClickCost(1, false, null)],
           action: "corp-click-install",
           "no-toast": true,
-        },
+        } as any,
       ),
     );
   } else if (isHardware(card) || isProgram(card) || isResource(card)) {
@@ -98,12 +100,12 @@ export function playable(card: any, state: GameState, side: string): any {
       runnerCanPayAndInstall(
         state,
         "runner",
-        { source: card, "source-type": "runner-install" },
+        { source: card, "source-type": "runner-install" } as unknown as EID,
         card,
         {
           "base-cost": [createClickCost(1, false, null)],
           "no-toast": true,
-        },
+        } as any,
       );
   } else if (isEvent(card) || isOperation(card)) {
     const baseCost = !(card as any)["as-flashback"]
@@ -114,9 +116,9 @@ export function playable(card: any, state: GameState, side: string): any {
       canPlayInstant(
         state,
         side,
-        { source: card, "source-type": "play" },
+        { source: card, "source-type": "play" } as unknown as EID,
         card,
-        { "base-cost": baseCost, silent: true },
+        { "base-cost": baseCost, silent: true } as any,
       );
   }
 
@@ -149,6 +151,7 @@ export function playableAsIfInHand(
       "can-play-as-if-in-hand",
       (v: unknown) => v === true,
       card,
+      [],
     )
   ) {
     return { ...card, "playable-as-if-in-hand": true };
@@ -865,7 +868,7 @@ export function stripForRunnerSpect(
 }
 
 function pickSideLog(log: any[], side: string): any[] {
-  return (log ?? [])
+  return (Array.isArray(log) ? log : [])
     .map((entry) => entry?.[side] ?? entry?.public)
     .filter((x) => x != null);
 }

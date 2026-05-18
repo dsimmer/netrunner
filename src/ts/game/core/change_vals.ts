@@ -70,7 +70,7 @@ function changeMap(
   }
   // base-mod-size equivalent: read current value from state
   const sideObj: Record<string, unknown> =
-    side === CORP_SIDE ? state.corp : state.runner;
+    (side === CORP_SIDE ? state.corp : state.runner) as unknown as Record<string, unknown>;
   const current =
     typeof sideObj[key] === "number" ? (sideObj[key] as number) : 0;
   changeMsg(state, side, key, current, delta);
@@ -109,7 +109,7 @@ function changeTags(state: GameState, delta: number): void {
   state.runner.tag.base = Math.max(0, state.runner.tag.base);
   // Update total to match base
   state.runner.tag.total = state.runner.tag.base;
-  updateTagStatus(state, RUNNER_SIDE);
+  updateTagStatus(state);
   systemMsg(
     state,
     RUNNER_SIDE,
@@ -144,7 +144,7 @@ function changeAgendaPoints(
   delta: number,
 ): void {
   const userSide = side;
-  const reqFn: ReqFn = (_s, targetSide) => targetSide === userSide;
+  const reqFn: ReqFn = (_s: any, targetSide: any) => targetSide === userSide;
   const valueFn: ValueFn = () => delta;
   registerLingeringEffect(
     state,
@@ -192,7 +192,7 @@ function changeLink(state: GameState, side: string, delta: number): void {
  */
 function changeHandSize(state: GameState, side: string, delta: number): void {
   const userSide = side;
-  const reqFn: ReqFn = (_s, targetSide) => targetSide === userSide;
+  const reqFn: ReqFn = (_s: any, targetSide: any) => targetSide === userSide;
   const valueFn: ValueFn = () => delta;
   registerLingeringEffect(
     state,

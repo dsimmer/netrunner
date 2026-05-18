@@ -72,8 +72,11 @@ export function playerView(
   const identity = (player.deck as PlayerViewPlayer["deck"])?.identity?.title;
   const specs = game?.["allow-spectator"];
 
+  // Mirrors: (when (not (:password game))) — nil game still enters the branch
+  // because (:password nil) → nil → (not nil) → true. Without the `game &&`
+  // guard, the side label appears even when game is null (1-arity call).
   let sideContent: React.ReactElement | string | null = null;
-  if (game && !game.password) {
+  if (!game?.password) {
     if (faction && faction !== "Neutral" && specs) {
       sideContent = factionIcon(faction, identity ?? "");
     } else if (side) {

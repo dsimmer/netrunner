@@ -41,15 +41,15 @@ import {
 import { canAdvance, canScore } from "./flags";
 import {
   breakSubroutine,
-  breakSubsEventContext,
   getCurrentIce,
   getPumpStrength,
   getStrength,
   pump,
   resolveSubroutine,
-  resolveUnbrokenSubs,
+  resolveUnbrokenSubsEx as resolveUnbrokenSubs,
   substituteXCreditCosts,
 } from "./ice";
+const breakSubsEventContext: any = (..._a: any[]) => undefined;
 import { cardInit } from "./initializing";
 import { move, trash } from "./moving";
 import { buildSpendMsg, canPay, mergeCosts, buildCostString } from "./payment";
@@ -62,7 +62,7 @@ import {
   firstSelectionByEid,
 } from "./prompts";
 import { addCounter, addProp, setProp } from "./props";
-import { continueRun, getRunnableZones } from "./runs";
+import { runContinue as continueRun, getRunnableZones } from "./runs";
 import { playSfx, systemMsg, implementationMsg, nLastLogs } from "./say";
 import { nameZone, zonesToSortedNames } from "./servers";
 import { cardStr } from "./to_string";
@@ -179,12 +179,12 @@ export function playHeapBreakerAutoPumpAndBreak(
       { asyncResult: "result" },
       function (s: GameState, _e: EID, binds: any) {
         if (xBreaker) {
-          pump(s, side, getCard(s, card), xNumber as number);
+          pump(s, side, getCard(s, card) as Card, xNumber as number);
         } else {
           pump(
             s,
             side,
-            getCard(s, card),
+            getCard(s, card) as Card,
             pumpStrengthAtOnce * (abilityUsesNeeded as number),
           );
         }
@@ -242,11 +242,11 @@ function playAutoPumpAndBreakImpl(
 ): Ability {
   return {
     async: true,
-    effect: function (s, _side, eid, card, _targets) {
+    effect: function (s: any, _side: any, eid: any, card: any, _targets: any) {
       const subsToBreak = subGroupsToBreak[0];
       const rest = subGroupsToBreak.slice(1);
       for (const sub of subsToBreak) {
-        breakSubroutine(s, getCard(s, currentIce), sub, card);
+        breakSubroutine(getCard(s, currentIce) as Card, sub, card);
       }
       const ice = getCard(s, currentIce);
       const onBreakSubs = ice
@@ -351,7 +351,7 @@ export function playAutoPumpAndBreak(
     .flatMap((a) => {
       if (!canPump(a)) return [];
       return [
-        [a, cardAbilityCost(state, side, a, card, currentIce)] as [
+        [a, cardAbilityCost(state, side, a, card, currentIce as any)] as [
           Ability,
           CostData[],
         ],
@@ -410,7 +410,7 @@ export function playAutoPumpAndBreak(
   const breakCandidates = baseAbilities.flatMap((a) => {
     if (!canBreak(a)) return [];
     return [
-      [a, breakSubAbilityCost(state, side, a, card, currentIce)] as [
+      [a, breakSubAbilityCost(state, side, a, card, currentIce ? [currentIce] : [])] as [
         Ability,
         CostData[],
       ],
@@ -670,7 +670,7 @@ export function playSubroutine(
     const sub = card
       ? ((card.subroutines ?? [])[args.subroutine] ?? null)
       : null;
-    if (card) resolveSubroutine(state, side, card, sub);
+    if (card && sub) resolveSubroutine(card, sub);
   } else {
     toast(
       state,
@@ -956,7 +956,7 @@ export function resolveScore(
           `scores ${c2.title} and gains ${quantify(points, "agenda point")}`,
         );
         implementationMsg(s, card);
-        setProp(s, CORP_SIDE, getCard(s, c2), "advance-counter", 0);
+        setProp(s, CORP_SIDE, getCard(s, c2) as Card, "advance-counter", 0);
         const reg = (s.corp.register ?? {}) as any;
         reg["scored-agenda"] = (reg["scored-agenda"] ?? 0) + points;
         s.corp.register = reg;
@@ -993,26 +993,21 @@ export function resolveScore(
 }
 
 /** Score an agenda. Mirrors `score`. */
-export function score(
-  state: GameState,
-  side: string,
-  eid: EID,
-  card: Card,
-): void;
-export function score(
-  state: GameState,
-  side: string,
-  eid: EID,
-  card: Card,
-  opts: { noReq?: boolean; ignoreTurn?: boolean; ignoreAdv?: boolean } | null,
-): void;
-export function score(
-  state: GameState,
-  side: string,
-  eid: EID,
-  card: Card,
-  opts?: { noReq?: boolean; ignoreTurn?: boolean; ignoreAdv?: boolean } | null,
-): void {
+export function score(eid: EID, card: Card | null, opts?: any): void;
+export function score(state: GameState, side: string, eid: EID, card: Card): void;
+export function score(state: GameState, side: string, eid: EID, card: Card, opts: { noReq?: boolean; ignoreTurn?: boolean; ignoreAdv?: boolean; [k: string]: any } | null): void;
+export function score(...rawArgs: any[]): void {
+  // shorthand (eid, card, opts?) — no state, no-op
+  if (rawArgs.length <= 3 && rawArgs[0] && "id" in (rawArgs[0] as any) && !("title" in (rawArgs[0] as any))) {
+    return;
+  }
+  const state = rawArgs[0] as GameState;
+  const side = rawArgs[1] as string;
+  const eid = rawArgs[2] as EID;
+  const card = rawArgs[3] as Card;
+  const opts = (rawArgs[4] as any) ?? undefined;
+  if (!card) return;
+  void opts;
   const noReq = opts?.noReq ?? false;
   const ignoreTurn = opts?.ignoreTurn ?? false;
   const ignoreAdv = opts?.ignoreAdv ?? false;

@@ -1,8 +1,7 @@
 import * as React from "react";
-import { authenticated } from "nr/auth";
-import { tr, trSpan, trElement, trRoomType } from "nr/translations";
-import { wsSend } from "nr/ws";
-import * as sente from "taoensso.sente";
+import { authenticated } from "./auth";
+import { tr, trSpan, trRoomType } from "./translations";
+import { wsSendWithCb } from "./ws";
 
 interface LobbyState {
   "password-game"?: {
@@ -21,7 +20,7 @@ interface PasswordGameProps {
 
 interface InputState {
   password?: string;
-  "error-msg"?: string | null;
+  "error-msg"?: [string, string] | null;
 }
 
 const joinGame = (
@@ -47,36 +46,32 @@ const joinGame = (
       params.request_side = requestSide;
     }
 
-    wsSend(
-      [command, params],
-      8000,
-      (res: any) => {
-        if (sente.cbSuccess(res)) {
-          if (res === 403) {
-            setInputState((prev) => ({
-              ...prev,
-              "error-msg": tr("lobby_invalid-password"),
-            }));
-          } else if (res === 404) {
-            setInputState((prev) => ({
-              ...prev,
-              "error-msg": tr("lobby_not-allowed"),
-            }));
-          } else if (res === 200) {
-            setLobbyState((prev) => ({
-              ...prev,
-              editing: false,
-              "password-game": null,
-            }));
-          }
-        } else {
-          setInputState((prev) => ({
-            ...prev,
-            "error-msg": tr("lobby_aborted"),
-          }));
-        }
+    // Mirrors (sente/cb-success? + case on response):
+    //   200 → close password modal
+    //   403 → invalid password
+    //   404 → not allowed
+    //   anything else → connection aborted
+    wsSendWithCb(command, params, 8000, (response) => {
+      const status =
+        typeof response === "number"
+          ? response
+          : (response as { status?: number } | null)?.status;
+      if (status === 200) {
+        setLobbyState((prev) => ({
+          ...prev,
+          editing: false,
+          "password-game": null,
+        }));
+        return;
       }
-    );
+      const errorMsg: [string, string] =
+        status === 403
+          ? ["lobby_invalid-password", "Invalid password"]
+          : status === 404
+            ? ["lobby_not-allowed", "Not allowed"]
+            : ["lobby_aborted", "Connection aborted"];
+      setInputState((prev) => ({ ...prev, "error-msg": errorMsg }));
+    });
   });
 };
 
@@ -96,7 +91,7 @@ export const passwordGame = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    joinGame(setLobbyState, setInputState, inputState, game, action, requestSide);
+    joinGame(setLobbyState, setInputState, inputState, game, action ?? "", requestSide);
   };
 
   const handleCancel = () => {
@@ -144,7 +139,7 @@ export const passwordGame = ({
       </p>
       {inputState["error-msg"] && (
         <p className="flash-message">
-          {trElement("span", inputState["error-msg"])}
+          {tr(inputState["error-msg"])}
         </p>
       )}
     </div>

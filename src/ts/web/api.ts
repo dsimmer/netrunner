@@ -4,9 +4,11 @@
 // for the Jinteki web server. Replaces reitit + ring routing with a
 // Node.js http-compatible routing layer.
 
+import * as crypto from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 import type { IncomingMessage, ServerResponse } from "http";
+// @ts-expect-error - no types for 'cookie'
 import { parse as parseCookie } from "cookie";
 import { parse as parseUrl } from "url";
 
@@ -98,8 +100,12 @@ import { response, type HttpResponse } from "./utils";
 // Types
 // ---------------------------------------------------------------------------
 
+/** MongoDB-like driver handle. Treated opaquely by api.ts; concrete shape is
+ * defined by the consumer (see web/db.ts). */
+export type SystemDb = unknown;
+
 export interface System {
-  db?: any;
+  db?: SystemDb;
   "server-mode"?: string;
   auth?: Record<string, unknown>;
   chat?: Record<string, unknown>;
@@ -118,11 +124,22 @@ export interface ApiRequest extends IncomingMessage {
   originalUrl?: string;
   method?: string;
   scheme?: string;
+  antiForgeryToken?: string;
+  [key: string]: unknown;
+}
+
+export interface Cookie {
+  value: string;
+  "max-age"?: number;
+  httpOnly?: boolean;
+  secure?: boolean;
+  samesite?: string;
+  path?: string;
   [key: string]: unknown;
 }
 
 export interface ApiResponse extends HttpResponse {
-  cookies?: Record<string, Record<string, unknown>>;
+  cookies?: Record<string, Cookie>;
 }
 
 export type Handler = (
@@ -180,9 +197,65 @@ const MIDDLEWARE_REGISTRY: Record<string, Middleware> = {
 // ---------------------------------------------------------------------------
 // Anti-forgery middleware (mirrors wrap-anti-forgery)
 // ---------------------------------------------------------------------------
+// Implements a double-submit-cookie CSRF strategy. A random token is set in
+// the `__anti-forgery-token` cookie on first GET; the same value must appear
+// on POST/PUT/DELETE/PATCH either in the X-CSRF-Token header or in a form
+// field named `__anti-forgery-token`. Mirrors ring.middleware.anti-forgery.
+
+const ANTI_FORGERY_COOKIE = "__anti-forgery-token";
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+function generateAntiForgeryToken(): string {
+  return crypto.randomBytes(32).toString("base64");
+}
+
+function constantTimeEqual(a: string, b: string): boolean {
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ba.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ba, bb);
+}
 
 function wrapAntiForgery(handler: Handler): Handler {
-  return (req, res) => handler(req, res);
+  return async (req, res) => {
+    const cookieHeader = req.headers["cookie"];
+    let token: string | undefined;
+    if (cookieHeader) {
+      const parsed = parseCookie(cookieHeader) as Record<string, string>;
+      token = parsed[ANTI_FORGERY_COOKIE];
+    }
+    const method = (req.method || "GET").toUpperCase();
+
+    if (!SAFE_METHODS.has(method)) {
+      const headerToken =
+        (req.headers["x-csrf-token"] as string | undefined) ??
+        (req.headers["x-xsrf-token"] as string | undefined) ??
+        (req.body as Record<string, string> | undefined)?.[ANTI_FORGERY_COOKIE];
+      if (!token || !headerToken || !constantTimeEqual(token, headerToken)) {
+        const forbidden: HttpResponse = {
+          status: 403,
+          body: "Invalid anti-forgery token",
+          headers: { "Content-Type": "text/plain" },
+        };
+        writeResponse(res, forbidden);
+        return forbidden;
+      }
+    }
+
+    if (!token) {
+      token = generateAntiForgeryToken();
+      const existing = res.getHeader("Set-Cookie");
+      const cookieValue = `${ANTI_FORGERY_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict`;
+      if (existing) {
+        const arr = Array.isArray(existing) ? existing : [String(existing)];
+        res.setHeader("Set-Cookie", [...arr, cookieValue]);
+      } else {
+        res.setHeader("Set-Cookie", cookieValue);
+      }
+    }
+    req.antiForgeryToken = token;
+    return handler(req, res);
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -198,19 +271,19 @@ function wrapCors(
     return (req, res) => {
       const origin = req.headers["origin"] as string | undefined;
       if (origin && allowOrigin(origin)) {
-        (res as any).setHeader("Access-Control-Allow-Origin", origin);
+        res.setHeader("Access-Control-Allow-Origin", origin);
       }
       if (req.method === "OPTIONS") {
-        (res as any).setHeader(
+        res.setHeader(
           "Access-Control-Allow-Methods",
           allowMethods.join(", "),
         );
-        (res as any).setHeader(
+        res.setHeader(
           "Access-Control-Allow-Headers",
           allowHeaders.join(", "),
         );
-        (res as any).setHeader("Access-Control-Max-Age", "86400");
-        (res as any).setHeader("Allow", allowMethods.join(", "));
+        res.setHeader("Access-Control-Max-Age", "86400");
+        res.setHeader("Allow", allowMethods.join(", "));
         writeResponse(res, { status: 200, body: "", headers: {} });
         return;
       }
@@ -224,12 +297,12 @@ function wrapCors(
 // ---------------------------------------------------------------------------
 
 function wrapAddCacheHeaders(handler: Handler): Handler {
-  return (req, res) => {
-    const resp = handler(req, res);
+  return async (req, res) => {
+    const resp = await handler(req, res);
     if (resp && (req.method === "GET" || req.method === "PUT")) {
-      resp.headers["cache-control"] = "no-store";
+      resp.headers = { ...(resp.headers ?? {}), "cache-control": "no-store" };
     }
-    return resp;
+    return resp ?? undefined;
   };
 }
 
@@ -239,9 +312,9 @@ function wrapAddCacheHeaders(handler: Handler): Handler {
 
 const wrapSystem: SystemMiddleware = (handler, system) => {
   return (req, res) => {
-    (req as any).system = {
-      ...(req as any).system,
-      db: (system as any).db,
+    req.system = {
+      ...req.system,
+      db: system.db,
       "server-mode": system["server-mode"],
       auth: system.auth,
       chat: system.chat,
@@ -264,9 +337,29 @@ function wrapJsonBody(handler: Handler): Handler {
       });
       req.on("end", () => {
         try {
-          if (body) req.body = JSON.parse(body);
+          if (body) {
+            const contentType =
+              (req.headers["content-type"] as string | undefined) ?? "";
+            if (contentType.includes("application/x-www-form-urlencoded")) {
+              const parsed = Object.fromEntries(
+                new URLSearchParams(body).entries(),
+              );
+              req.body = parsed;
+            } else {
+              req.body = JSON.parse(body);
+            }
+          }
         } catch {
           /* ignore */
+        }
+        // Merge body params into params so Ring-style `:params` access works
+        // for both query-string and form/JSON body fields. Mirrors Ring's
+        // wrap-params + wrap-keyword-params behavior.
+        if (req.body && typeof req.body === "object") {
+          req.params = {
+            ...(req.params ?? {}),
+            ...(req.body as Record<string, string>),
+          };
         }
         const result = handler(req, res);
         resolve(result);
@@ -283,10 +376,11 @@ function wrapCookies(handler: Handler): Handler {
   return (req, res) => {
     const cookieHeader = req.headers["cookie"];
     if (cookieHeader) {
-      req.cookies = parseCookie(cookieHeader);
-      const sessionCookie = req.cookies["session"];
+      const parsed: Record<string, unknown> = parseCookie(cookieHeader);
+      req.cookies = parsed;
+      const sessionCookie = parsed["session"];
       if (sessionCookie) {
-        req.cookies = { ...req.cookies, session: { value: sessionCookie } };
+        req.cookies = { ...parsed, session: { value: sessionCookie } };
       }
     }
     return handler(req, res);
@@ -426,15 +520,18 @@ function serveStaticFile(
 // Write response helper
 // ---------------------------------------------------------------------------
 
-function writeResponse(
+async function writeResponse(
   res: ServerResponse,
-  resp: HttpResponse | ApiResponse,
-): void {
+  respMaybe: HttpResponse | ApiResponse | void | Promise<HttpResponse | ApiResponse | void>,
+): Promise<void> {
+  const resp = await respMaybe;
+  if (!resp) return;
   if (!res.headersSent) {
     const headers = { ...resp.headers };
-    if (resp.cookies) {
+    const respCookies = (resp as ApiResponse).cookies;
+    if (respCookies) {
       const cookieParts: string[] = [];
-      for (const [name, cookie] of Object.entries(resp.cookies)) {
+      for (const [name, cookie] of Object.entries(respCookies)) {
         const parts = [`${name}=${cookie.value}`];
         if (cookie["max-age"] !== undefined)
           parts.push(`Max-Age=${cookie["max-age"]}`);
@@ -1284,7 +1381,18 @@ function applyMiddleware(
         current = wrapUrlParser(current);
         break;
       case "user":
-        current = wrapUser(current);
+        current = wrapUser(current as any) as unknown as Handler;
+        break;
+      case "system":
+        if (system) {
+          current = wrapSystem(current, system);
+        }
+        break;
+      case "stacktrace":
+        current = wrapStacktrace(current);
+        break;
+      case "favicon":
+        current = wrapReturnFavicon(current);
         break;
       default:
         if (MIDDLEWARE_REGISTRY[name]) {
@@ -1401,7 +1509,7 @@ export function makeMiddleware(
           current = wrapUrlParser(current);
           break;
         case "user":
-          current = wrapUser(current);
+          current = wrapUser(current as any) as unknown as Handler;
           break;
         default:
           break;

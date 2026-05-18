@@ -1,11 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { Collection, Document } from "mongodb";
-import { response, htmlResponse } from "./utils";
+import { Db } from "mongodb";
+import { response, htmlResponse, type HttpResponse } from "./utils";
 import { frontendVersion } from "./versions";
 
 export interface System {
-  db: Collection<Document>;
-  serverMode: string;
+  db: Db;
+  "server-mode"?: string;
 }
 
 export interface RequestUser {
@@ -17,6 +17,7 @@ export interface PageRequest extends IncomingMessage {
   system: System;
   user?: RequestUser;
   pathParams?: Record<string, string>;
+  antiForgeryToken?: string;
 }
 
 export interface OgData {
@@ -40,9 +41,9 @@ export function indexPage(
   req: PageRequest,
   og?: OgData,
   replayId?: string,
-): { status: number; body: string; headers: Record<string, string> } {
+): HttpResponse {
   const user = req.user || {};
-  const serverMode = req.system.serverMode;
+  const serverMode = req.system?.["server-mode"];
   const fv = frontendVersion;
   const cssVersion = serverMode === "dev" ? "" : fv ? `?v=${fv}` : "";
   const jsVersion = serverMode === "dev" ? "" : fv ? `?v=${fv}` : "";
@@ -65,21 +66,21 @@ export function indexPage(
 <link rel="stylesheet" href="/css/netrunner.css${cssVersion}">
 </head>
 <body>
-<div id="sente-csrf-token" style="display:none" data-csrf-token=""></div>
+<div id="sente-csrf-token" style="display:none" data-csrf-token="${req.antiForgeryToken ?? ""}"></div>
 <div style="display:none" id="server-originated-data" data-version="${fv || ""}" data-replay-id="${replayId || ""}"></div>
 <div id="main-content"></div>
 <audio id="ting">
 <source src="/sound/ting.mp3" type="audio/mp3">
 <source src="/sound/ting.ogg" type="audio/ogg">
 </audio>
-<script src="https://code.jquery.com/jquery-2.1.1.min"></script>
-<script src="https://code.jquery.com/ui/1.13.0/jquery-ui.min"></script>
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min"></script>
-<script src="/lib/js/toastr.min"></script>
+<script src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+<script src="https://code.jquery.com/ui/1.13.0/jquery-ui.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
+<script src="/lib/js/toastr.min.js"></script>
 <script type="text/javascript">var user=${JSON.stringify(user)};</script>
 ${
   serverMode === "dev"
-    ? '<script src="/js/cljs-runtime/goog.base"></script>\n<script src="/js/main"></script>'
+    ? '<script src="/js/cljs-runtime/goog.base.js"></script>\n<script src="/js/main.js"></script>'
     : `<script src="/js/main.js${jsVersion}"></script>`
 }
 </body>
@@ -88,10 +89,10 @@ ${
   return htmlResponse(200, html);
 }
 
-export function resetPasswordPage(
+export async function resetPasswordPage(
   req: PageRequest,
   res: ServerResponse,
-): { status: number; body: any; headers: Record<string, string> } {
+): Promise<HttpResponse> {
   const db = req.system.db;
   const token = req.pathParams?.token;
 
@@ -101,19 +102,21 @@ export function resetPasswordPage(
     });
   }
 
-  db.findOne(
-    { resetPasswordToken: token, resetPasswordExpires: { $gt: new Date() } },
-    (err: Error | null, doc: Document | null) => {
-      if (err || !doc) {
-        const notFound = response(404, {
-          message: "Sorry, but that reset token is invalid or has expired.",
-        });
-        res.writeHead(notFound.status, notFound.headers);
-        res.end(JSON.stringify(notFound.body));
-        return;
-      }
+  const doc = await db.collection("users").findOne({
+    resetPasswordToken: token,
+    resetPasswordExpires: { $gt: new Date() },
+  });
 
-      const html = `<!DOCTYPE html>
+  if (!doc) {
+    const notFound = response(404, {
+      message: "Sorry, but that reset token is invalid or has expired.",
+    });
+    res.writeHead(notFound.status, notFound.headers as Record<string, string>);
+    res.end(JSON.stringify(notFound.body));
+    return notFound;
+  }
+
+  const html = `<!DOCTYPE html>
 <html>
 <head>
 <title>Jinteki</title>
@@ -136,12 +139,8 @@ export function resetPasswordPage(
 </body>
 </html>`;
 
-      const okResponse = htmlResponse(200, html);
-      res.writeHead(okResponse.status, okResponse.headers);
-      res.end(okResponse.body);
-    },
-  );
-
-  // Return a placeholder; the actual response is written asynchronously in the callback
-  return { status: 200, body: "", headers: {} };
+  const okResponse = htmlResponse(200, html);
+  res.writeHead(okResponse.status, okResponse.headers as Record<string, string>);
+  res.end(okResponse.body);
+  return okResponse;
 }

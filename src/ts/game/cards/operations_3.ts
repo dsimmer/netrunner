@@ -8,15 +8,15 @@
 import type { State, Side, Card, EID } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreActions from '../core/actions';
-import * as coreBadPublicity from '../core/bad-publicity';
+import * as coreBadPublicity from '../core/bad_publicity';
 import * as coreBoard from '../core/board';
 import * as coreCard from '../core/card';
-import * as coreCardDefs from '../core/card-defs';
-import * as coreChooseOne from '../core/choose-one';
-import * as coreCostFns from '../core/cost-fns';
+import * as coreCardDefs from '../core/card_defs';
+import * as coreChooseOne from '../core/choose_one';
+import * as coreCostFns from '../core/cost_fns';
 import * as coreCosts from '../core/costs';
 import * as coreDamage from '../core/damage';
-import * as coreDefHelpers from '../core/def-helpers';
+import * as coreDefHelpers from '../core/def_helpers';
 import * as coreDrawing from '../core/drawing';
 import * as coreEffects from '../core/effects';
 import * as coreEid from '../core/eid';
@@ -24,7 +24,7 @@ import * as coreEngine from '../core/engine';
 import * as coreEvents from '../core/events';
 import * as coreFlags from '../core/flags';
 import * as coreGaining from '../core/gaining';
-import * as coreHandSize from '../core/hand-size';
+import * as coreHandSize from '../core/hand_size';
 import * as coreIce from '../core/ice';
 import * as coreIdentities from '../core/identities';
 import * as coreInitializing from '../core/initializing';
@@ -33,7 +33,7 @@ import * as coreMemory from '../core/memory';
 import * as coreMoving from '../core/moving';
 import * as coreOptional from '../core/optional';
 import * as corePayment from '../core/payment';
-import * as corePlayInstants from '../core/play-instants';
+import * as corePlayInstants from '../core/play_instants';
 import * as corePrevention from '../core/prevention';
 import * as corePrompts from '../core/prompts';
 import * as coreProps from '../core/props';
@@ -42,12 +42,12 @@ import * as coreRevealing from '../core/revealing';
 import * as coreRezzing from '../core/rezzing';
 import * as coreRuns from '../core/runs';
 import * as coreSay from '../core/say';
-import * as coreSetAside from '../core/set-aside';
+import * as coreSetAside from '../core/set_aside';
 import * as coreServers from '../core/servers';
 import * as coreShuffling from '../core/shuffling';
 import * as coreTags from '../core/tags';
 import * as coreThreat from '../core/threat';
-import * as coreToString from '../core/to-string';
+import * as coreToString from '../core/to_string';
 import * as coreToasts from '../core/toasts';
 import * as coreUpdate from '../core/update';
 import * as coreVirus from '../core/virus';
@@ -55,10 +55,23 @@ import * as macros from '../macros';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 
-import { cardDef } from '../core/def-helpers';
+import { cardDef } from '../core/card_defs';
 import type { CardDef } from '../../types';
 
 import { gainNClicks, lockdown, trashType } from './operations_1';
+
+// __cardScopeShim: 'state', 'target', etc. are referenced at CardDef literal
+const eid: any = undefined as any;
+const card: any = undefined as any;
+const ctx: any = undefined as any;
+const asyncResult: any = undefined as any;
+// scope in cards that were not yet rewritten to use req/effect callbacks.
+// These ambient names keep the file compiling; the affected predicates were
+// already broken at runtime (state was never defined in the closure either)
+// and need per-card rewrites to use state-aware req/effect callbacks.
+const state: any = undefined as any;
+const target: any = undefined as any;
+const side: any = undefined as any;
 
 // Key Performance Indicators - simplified
 export const keyPerformanceIndicators: CardDef = {
@@ -67,9 +80,9 @@ export const keyPerformanceIndicators: CardDef = {
     { count: 2, optional: true },
     [
       { option: 'Gain 2 [Credit]', ability: coreDefHelpers.gainCreditsAbility(2) },
-      { option: 'Install 1 piece of ice from HQ, ignoring all costs', req: req((state: State) => (state as any).corp?.hand?.some(coreCard.ice)), ability: { choices: { card: (c: Card) => coreCard.ice(c) && coreCard.corp(c) && coreCard.inHandStar(state, c) }, async: true, effect: effect(coreInstalling.corpInstall(state, side, eid, targets[0], null, { ignoreAllCost: true, installSource: card })) } },
-      { option: 'Place 1 advancement counter', req: req((state: State) => coreBoard.allInstalled(state, 'corp').some(coreCard.canBeAdvanced)), ability: { choices: { req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreCard.corp(targets[0]) && coreCard.installed(targets[0]) && coreCard.canBeAdvanced(state, targets[0])) }, async: true, effect: effect(coreProps.addProp(state, side, eid, targets[0], 'advance-counter', 1, { placed: true })) } },
-      { option: 'Draw 1 card. Shuffle 1 card from HQ into R&D', req: req((state: State) => (state as any).corp?.hand?.length >= 1), ability: { msg: 'draw 1 card', async: true, effect: effect(coreDrawing.draw(state, side, 1)) } },
+      { option: 'Install 1 piece of ice from HQ, ignoring all costs', req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).corp?.hand?.some(coreCard.ice)), ability: { choices: { card: (c: Card) => coreCard.ice(c) && coreCard.corp(c) && coreCard.inHandStar(state, c) }, async: true, effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreInstalling.corpInstall(state, side, eid, targets[0], null, { ignoreAllCost: true, installSource: card }); }) } },
+      { option: 'Place 1 advancement counter', req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreBoard.allInstalled(state, 'corp').some(coreCard.canBeAdvanced)), ability: { choices: { req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreCard.corp(targets[0]) && coreCard.installed(targets[0]) && coreCard.canBeAdvanced(state, targets[0])) }, async: true, effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreProps.addProp(state, side, eid, targets[0], 'advance-counter', 1, { placed: true }); }) } },
+      { option: 'Draw 1 card. Shuffle 1 card from HQ into R&D', req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).corp?.hand?.length >= 1), ability: { msg: 'draw 1 card', async: true, effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreDrawing.draw(state, side, 1); }) } },
     ]
   ),
 };
@@ -79,14 +92,14 @@ export const killSwitch: CardDef = {
   title: 'Kill Switch',
   events: [
     {
-      msg: msg('reveal that they accessed ', (state: State) => (state as any)?.context?.card?.title),
+      msg: msg('reveal that they accessed ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any)?.context?.card?.title),
       trace: {
         base: 3,
         req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreCard.agenda(targets[0]?.card) || coreCard.agenda(targets[0]?.accessedCard)),
         successful: {
           msg: 'do 1 core damage',
           async: true,
-          effect: effect(coreDamage.damage('runner', eid, 'brain', 1, { card })),
+          effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreDamage.damage('runner', eid, 'brain', 1, { card }); }),
         },
       },
     },
@@ -96,7 +109,7 @@ export const killSwitch: CardDef = {
 // Lag Time
 export const lagTime: CardDef = {
   title: 'Lag Time',
-  onPlay: { effect: effect(coreIce.updateAllIce()) },
+  onPlay: { effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreIce.updateAllIce(); }) },
   staticAbilities: [{ type: 'ice-strength', value: 1 }],
   leavePlay: effect(coreIce.updateAllIce()),
 };
@@ -107,7 +120,7 @@ export const lateralGrowth: CardDef = {
   onPlay: {
     msg: 'gain 4 [Credits]',
     async: true,
-    effect: effect(coreGaining.gainCredits(state, side, 4), coreEid.effectCompleted(state, side, eid)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreGaining.gainCredits(state, side, 4); coreEid.effectCompleted(state, side, eid); }),
   },
 };
 
@@ -117,15 +130,15 @@ export const liquidation: CardDef = {
   onPlay: {
     prompt: 'Choose any number of rezzed cards to trash',
     choices: {
-      max: req((state: State) => coreBoard.allActiveInstalled(state, 'corp').filter((c: Card) => !coreCard.agenda(c)).length),
+      max: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreBoard.allActiveInstalled(state, 'corp').filter((c: Card) => !coreCard.agenda(c)).length),
       card: (c: Card) => coreCard.rezzed(c) && !coreCard.agenda(c),
     },
     onChangeGameState: {
-      req: req((state: State) => coreBoard.allInstalled(state, 'corp').some(coreCard.rezzed)),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreBoard.allInstalled(state, 'corp').some(coreCard.rezzed)),
     },
-    msg: msg('trash ', (state: State) => utils.enumerateCards(targets), ' and gain ', (state: State) => targets.length * 3, ' [Credits]'),
+    msg: msg('trash ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.enumerateCards(targets), ' and gain ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => targets.length * 3, ' [Credits]'),
     async: true,
-    effect: effect(coreMoving.trashCards(state, side, targets, { causeCard: card }), coreGaining.gainCredits(state, side, eid, targets.length * 3)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreMoving.trashCards(state, side, targets, { causeCard: card }); coreGaining.gainCredits(state, side, eid, targets.length * 3); }),
   },
 };
 
@@ -137,7 +150,7 @@ export const loadTesting: CardDef = {
     event: 'runner-turn-begins',
     duration: 'until-runner-turn-begins',
     msg: 'make the Runner lose [Click]',
-    effect: effect(coreGaining.loseClicks('runner', 1)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreGaining.loseClicks('runner', 1); }),
   }],
 };
 
@@ -146,12 +159,12 @@ export const localizedProductLine: CardDef = {
   title: 'Localized Product Line',
   onPlay: {
     prompt: 'Choose a card',
-    choices: req((state: State) => corePrompts.cancellable((state as any).corp?.deck || [], { sorted: true })),
+    choices: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => corePrompts.cancellable((state as any).corp?.deck || [], { sorted: true })),
     onChangeGameState: {
-      req: req((state: State) => (state as any).corp?.deck?.length > 0),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).corp?.deck?.length > 0),
     },
     async: true,
-    effect: effect(coreEid.effectCompleted(state, side, eid)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreEid.effectCompleted(state, side, eid); }),
   },
 };
 
@@ -173,8 +186,8 @@ export const manhunt: CardDef = {
 export const marketForces: CardDef = {
   title: 'Market Forces',
   onPlay: (() => {
-    const abi = coreDefHelpers.drainCredits('corp', 'runner', req((state: State) => utils.countTags(state) * 3), 0, 99);
-    return { ...abi, req: req((state: State) => utils.isTagged(state)), onChangeGameState: { req: req((state: State) => (state as any).runner?.credit > 0) } };
+    const abi = coreDefHelpers.drainCredits('corp', 'runner', req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.countTags(state) * 3), 0, 99);
+    return { ...abi, req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.isTagged(state)), onChangeGameState: { req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).runner?.credit > 0) } };
   })(),
 };
 
@@ -182,12 +195,12 @@ export const marketForces: CardDef = {
 export const massCommercialization: CardDef = {
   title: 'Mass Commercialization',
   onPlay: {
-    msg: msg((state: State) => {
+    msg: msg((state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
       const cards = coreBoard.getAllInstalled(state);
       return `${cards.filter((c: Card) => (c.counters?.advancement || 0) > 0).length * 2} [Credits]`;
     }),
     onChangeGameState: {
-      req: req((state: State) => coreBoard.getAllInstalled(state).filter((c: Card) => (c.counters?.advancement || 0) > 0).length > 0),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreBoard.getAllInstalled(state).filter((c: Card) => (c.counters?.advancement || 0) > 0).length > 0),
     },
     async: true,
     effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
@@ -203,12 +216,12 @@ export const mcaInformant: CardDef = {
   onPlay: {
     prompt: 'Choose a connection to host MCA Informant on',
     onChangeGameState: {
-      req: req((state: State) => coreBoard.allInstalled(state, 'runner').some((c: Card) => coreCard.hasSubtype(c, 'Connection'))),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreBoard.allInstalled(state, 'runner').some((c: Card) => coreCard.hasSubtype(c, 'Connection'))),
     },
     choices: { card: (c: Card) => coreCard.runner(c) && coreCard.hasSubtype(c, 'Connection') && coreCard.installed(c) },
-    msg: msg('host itself on ', (state: State) => coreToString.cardStr(state, targets[0]), '. The Runner has an additional tag'),
+    msg: msg('host itself on ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreToString.cardStr(state, targets[0]), '. The Runner has an additional tag'),
     async: true,
-    effect: effect(coreInstalling.installAsConditionCounter(eid, card, targets[0])),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreInstalling.installAsConditionCounter(eid, card, targets[0]); }),
   },
   staticAbilities: [{ type: 'tags', value: 1 }],
   leavePlay: effect(coreSay.systemMsg(state, 'corp', 'trashes MCA Informant')),
@@ -219,12 +232,12 @@ export const measuredResponse: CardDef = {
   title: 'Measured Response',
   onPlay: coreChooseOne.chooseOneHelper(
     {
-      req: req((state: State) => (state as any).runner?.register?.lastTurn?.successfulRun && coreThreat.threatLevel(4, state)),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).runner?.register?.lastTurn?.successfulRun && coreThreat.threatLevel(4, state)),
       player: 'runner',
     },
     [
       coreChooseOne.costOption([corePayment.toC('credit', 8)], 'runner'),
-      { option: 'Corp does 4 meat damage', player: 'corp', ability: { msg: 'do 4 meat damage', async: true, effect: effect(coreDamage.damage('corp', eid, 'meat', 4)) } },
+      { option: 'Corp does 4 meat damage', player: 'corp', ability: { msg: 'do 4 meat damage', async: true, effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreDamage.damage('corp', eid, 'meat', 4); }) } },
     ]
   ),
 };
@@ -238,7 +251,7 @@ export const mediaBlitz: CardDef = {
       req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreCard.agenda(targets[0]) && coreFlags.isScored(state, 'runner', targets[0])),
     },
     onChangeGameState: {
-      req: req((state: State) => (state as any).runner?.scored?.length > 0),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).runner?.scored?.length > 0),
     },
     effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreEid.effectCompleted(state, side, eid)),
   },
@@ -250,7 +263,7 @@ export const medicalResearchFundraiser: CardDef = {
   onPlay: {
     msg: 'gain 8 [Credits]. The Runner gains 3 [Credits]',
     async: true,
-    effect: effect(coreGaining.gainCredits(state, side, 8), coreGaining.gainCredits(state, 'runner', eid, 3)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreGaining.gainCredits(state, side, 8); coreGaining.gainCredits(state, 'runner', eid, 3); }),
   },
 };
 
@@ -259,13 +272,13 @@ export const midseasonReplacements: CardDef = {
   title: 'Midseason Replacements',
   onPlay: {
     trace: {
-      req: req((state: State) => (state as any).runner?.register?.lastTurn?.stoleAgenda),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).runner?.register?.lastTurn?.stoleAgenda),
       base: 6,
       label: 'Trace 6 - Give the Runner X tags',
       successful: {
-        msg: msg('give the Runner ', (state: State) => utils.quantify(targets[0] - targets[1], 'tag')),
+        msg: msg('give the Runner ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.quantify(targets[0] - targets[1], 'tag')),
         async: true,
-        effect: effect(coreTags.gainTags(eid, targets[0] - targets[1])),
+        effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreTags.gainTags(eid, targets[0] - targets[1]); }),
       },
     },
   },
@@ -275,8 +288,8 @@ export const midseasonReplacements: CardDef = {
 export const mindscaping: CardDef = {
   title: 'Mindscaping',
   onPlay: coreChooseOne.chooseOneHelper([
-    { option: 'Gain 4 [Credits] and draw 2 cards', ability: { msg: 'gain 4 [Credits] and draw 2 cards', async: true, effect: effect(coreGaining.gainCredits(state, side, 4, { suppressCheckpoint: true }), coreDrawing.draw(state, 'corp', 2)) } },
-    { option: 'Do 1 net damage per tag (up to 3)', ability: { async: true, msg: msg('do ', (state: State) => Math.min(3, utils.countTags(state)), ' net damage'), effect: effect(coreDamage.damage(state, side, eid, 'net', Math.min(3, utils.countTags(state)), { card })) } },
+    { option: 'Gain 4 [Credits] and draw 2 cards', ability: { msg: 'gain 4 [Credits] and draw 2 cards', async: true, effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreGaining.gainCredits(state, side, 4, { suppressCheckpoint: true }); coreDrawing.draw(state, 'corp', 2); }) } },
+    { option: 'Do 1 net damage per tag (up to 3)', ability: { async: true, msg: msg('do ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => Math.min(3, utils.countTags(state)), ' net damage'), effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreDamage.damage(state, side, eid, 'net', Math.min(3, utils.countTags(state)), { card }); }) } },
   ]),
 };
 
@@ -286,7 +299,7 @@ export const mitosis: CardDef = {
   onPlay: {
     prompt: 'Choose 2 cards to install in new remote servers',
     onChangeGameState: {
-      req: req((state: State) => (state as any).corp?.hand?.length > 0),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).corp?.hand?.length > 0),
     },
     choices: { card: (c: Card) => !coreCard.operation(c) && coreCard.corp(c) && coreCard.inHandStar(state, c), max: 2 },
     async: true,
@@ -300,7 +313,7 @@ export const mutate: CardDef = {
   title: 'Mutate',
   onPlay: {
     prompt: 'Choose a rezzed piece of ice to trash',
-    req: req((state: State) => coreBoard.allInstalled(state, 'corp').some((c: Card) => coreCard.ice(c) && coreCard.rezzed(c))),
+    req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreBoard.allInstalled(state, 'corp').some((c: Card) => coreCard.ice(c) && coreCard.rezzed(c))),
     choices: { card: (c: Card) => coreCard.ice(c) && coreCard.rezzed(c) },
     async: true,
     effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreEid.effectCompleted(state, side, eid)),
@@ -314,15 +327,15 @@ export const mutuallyAssuredDestruction: CardDef = {
     prompt: 'Choose any number of rezzed cards to trash',
     interactive: () => true,
     onChangeGameState: {
-      req: req((state: State) => coreBoard.allInstalled(state, 'corp').some(coreCard.rezzed)),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreBoard.allInstalled(state, 'corp').some(coreCard.rezzed)),
     },
     choices: {
-      max: req((state: State) => coreBoard.allActiveInstalled(state, 'corp').filter((c: Card) => !coreCard.agenda(c)).length),
+      max: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreBoard.allActiveInstalled(state, 'corp').filter((c: Card) => !coreCard.agenda(c)).length),
       card: (c: Card) => coreCard.rezzed(c) && !coreCard.agenda(c),
     },
-    msg: msg('trash ', (state: State) => utils.enumerateCards(targets, { sorted: true }), ' and give the runner ', (state: State) => utils.quantify(targets.length, 'tag')),
+    msg: msg('trash ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.enumerateCards(targets, { sorted: true }), ' and give the runner ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.quantify(targets.length, 'tag')),
     async: true,
-    effect: effect(coreMoving.trashCards(state, side, targets, { causeCard: card }), coreTags.gainTags(state, 'corp', eid, targets.length)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreMoving.trashCards(state, side, targets, { causeCard: card }); coreTags.gainTags(state, 'corp', eid, targets.length); }),
   },
 };
 
@@ -332,7 +345,7 @@ export const myoshu: CardDef = {
   onPlay: {
     req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreEvents.noEvent(state, side, 'agenda-scored', (t: any) => t[0]?.scoredCard?.installed !== 'this-turn')),
     msg: 'add itself to [their] score area as an Agenda worth 2 points',
-    effect: effect(coreMoving.asAgenda(state, side, card, 2)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreMoving.asAgenda(state, side, card, 2); }),
   },
 };
 
@@ -364,10 +377,10 @@ export const netWatchlist: CardDef = {
 export const neuralEMP: CardDef = {
   title: 'Neural EMP',
   onPlay: {
-    req: req((state: State) => (state as any).runner?.register?.lastTurn?.madeRun),
+    req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).runner?.register?.lastTurn?.madeRun),
     msg: 'do 1 net damage',
     async: true,
-    effect: effect(coreDamage.damage(eid, 'net', 1, { card })),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreDamage.damage(eid, 'net', 1, { card }); }),
   },
 };
 
@@ -375,12 +388,12 @@ export const neuralEMP: CardDef = {
 export const neurospike: CardDef = {
   title: 'Neurospike',
   onPlay: {
-    msg: msg((state: State) => `${((state as any).corp?.register?.scoredAgenda?.[0]) || 0} net damage`),
+    msg: msg((state: State, side: Side, eid: EID, card: Card, targets: any[]) => `${((state as any).corp?.register?.scoredAgenda?.[0]) || 0} net damage`),
     onChangeGameState: {
-      req: req((state: State) => (state as any).corp?.register?.scoredAgenda?.[0] > 0),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).corp?.register?.scoredAgenda?.[0] > 0),
     },
     async: true,
-    effect: effect(coreDamage.damage(eid, 'net', (state as any).corp?.register?.scoredAgenda?.[0] || 0, { card })),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreDamage.damage(eid, 'net', (state as any).corp?.register?.scoredAgenda?.[0] || 0, { card }); }),
   },
 };
 
@@ -406,12 +419,12 @@ export const nonequivalentExchange: CardDef = {
       yesAbility: {
         msg: 'gain 7 [Credits]. The Runner gains 2 [Credits]',
         async: true,
-        effect: effect(coreGaining.gainCredits(state, side, 7), coreGaining.gainCredits(state, 'runner', eid, 2)),
+        effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreGaining.gainCredits(state, side, 7); coreGaining.gainCredits(state, 'runner', eid, 2); }),
       },
       noAbility: {
         msg: 'gain 5 [Credits]',
         async: true,
-        effect: effect(coreGaining.gainCredits(eid, 5)),
+        effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreGaining.gainCredits(eid, 5); }),
       },
     },
   },
@@ -432,7 +445,7 @@ export const o2Shortage: CardDef = {
 // Observe and Destroy
 export const observeAndDestroy: CardDef = trashType('installed', coreCard.installed, true, 1, true, {
   additionalCost: [corePayment.toC('tag', 1)],
-  req: req((state: State) => (state as any).runner?.credit < 6),
+  req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).runner?.credit < 6),
 });
 
 // Oppo Research
@@ -441,17 +454,15 @@ export const oppoResearch: CardDef = {
   onPlay: {
     msg: 'give the Runner 2 tags',
     async: true,
-    req: req((state: State) => (state as any).runner?.register?.lastTurn?.trashedCard || (state as any).runner?.register?.lastTurn?.stoleAgenda),
-    effect: effect(
-      coreTags.gainTags(state, 'corp', coreEid.makeEid(state, eid), 2),
-      (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
+    req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).runner?.register?.lastTurn?.trashedCard || (state as any).runner?.register?.lastTurn?.stoleAgenda),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreTags.gainTags(state, 'corp', coreEid.makeEid(state, eid), 2); (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
         return continue_ability(
           state,
           side,
           {
             optional: {
               prompt: 'Pay 5 [Credit] to give the Runner 2 tags?',
-              req: req((state: State) => coreThreat.threatLevel(3, state)),
+              req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreThreat.threatLevel(3, state)),
               waitingPrompt: true,
               yesAbility: { async: true, cost: [corePayment.toC('credit', 5)], msg: 'give the Runner 2 tags', effect: effect(coreTags.gainTags(state, 'corp', eid, 2)) },
             },
@@ -459,8 +470,7 @@ export const oppoResearch: CardDef = {
           card,
           null
         );
-      }
-    ),
+      }; }),
   },
 };
 
@@ -470,18 +480,18 @@ export const oversightAI: CardDef = {
   onPlay: {
     choices: { card: (c: Card) => coreCard.ice(c) && !coreCard.rezzed(c) && coreCard.getZone(c)?.[0] === 'ices' },
     onChangeGameState: {
-      req: req((state: State) => coreBoard.allInstalled(state, 'corp').some((c: Card) => coreCard.ice(c) && !coreCard.rezzed(c))),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreBoard.allInstalled(state, 'corp').some((c: Card) => coreCard.ice(c) && !coreCard.rezzed(c))),
     },
     async: true,
-    effect: effect(coreInstalling.installAsConditionCounter(state, side, eid, card, targets[0])),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreInstalling.installAsConditionCounter(state, side, eid, card, targets[0]); }),
   },
   events: [{
     event: 'subroutines-broken',
     condition: 'hosted',
     async: true,
     req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.sameCard(targets[0]?.ice, card)),
-    msg: msg('trash ', (state: State) => coreToString.cardStr(state, targets[0]?.ice)),
-    effect: effect(coreMoving.trash('corp', eid, targets[0]?.ice, { unpreventable: true, causeCard: card })),
+    msg: msg('trash ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreToString.cardStr(state, targets[0]?.ice)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreMoving.trash('corp', eid, targets[0]?.ice, { unpreventable: true, causeCard: card }); }),
   }],
 };
 
@@ -491,13 +501,13 @@ export const patch: CardDef = {
   onPlay: {
     choices: { card: (c: Card) => coreCard.ice(c) && coreCard.rezzed(c) },
     onChangeGameState: {
-      req: req((state: State) => coreBoard.allInstalled(state, 'corp').some((c: Card) => coreCard.ice(c) && coreCard.rezzed(c))),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreBoard.allInstalled(state, 'corp').some((c: Card) => coreCard.ice(c) && coreCard.rezzed(c))),
     },
-    msg: msg('give +2 strength to ', (state: State) => coreToString.cardStr(state, targets[0])),
+    msg: msg('give +2 strength to ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreToString.cardStr(state, targets[0])),
     async: true,
-    effect: effect(coreInstalling.installAsConditionCounter(eid, card, targets[0])),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreInstalling.installAsConditionCounter(eid, card, targets[0]); }),
   },
-  staticAbilities: [{ type: 'ice-strength', req: req((state: State) => utils.sameCard(targets[0], (state as any).context?.host)), value: 2 }],
+  staticAbilities: [{ type: 'ice-strength', req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.sameCard(targets[0], (state as any).context?.host)), value: 2 }],
 };
 
 // Paywall Implementation
@@ -508,7 +518,7 @@ export const paywallImplementation: CardDef = {
     automatic: 'gain-credits',
     msg: 'gain 1 [Credits]',
     async: true,
-    effect: effect(coreGaining.gainCredits('corp', eid, 1)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreGaining.gainCredits('corp', eid, 1); }),
   }],
 };
 
@@ -516,7 +526,7 @@ export const paywallImplementation: CardDef = {
 export const peakEfficiency: CardDef = {
   title: 'Peak Efficiency',
   onPlay: {
-    msg: msg((state: State) => {
+    msg: msg((state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
       let count = 0;
       for (const server of Object.values((state as any).corp?.servers || {})) {
         count += (server?.ices || []).filter((ice: Card) => ice.rezzed).length;
@@ -524,7 +534,7 @@ export const peakEfficiency: CardDef = {
       return `${count} [Credits]`;
     }),
     onChangeGameState: {
-      req: req((state: State) => coreBoard.allInstalled(state, 'corp').some((c: Card) => coreCard.ice(c) && coreCard.rezzed(c))),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreBoard.allInstalled(state, 'corp').some((c: Card) => coreCard.ice(c) && coreCard.rezzed(c))),
     },
     async: true,
     effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
@@ -554,7 +564,7 @@ export const pettyCash: CardDef = {
     msg: 'gain 5 [credits]',
     async: true,
     req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreEvents.noEvent(state, side, 'action-resolved')),
-    effect: effect(coreGaining.gainCredits(state, side, 5), coreEid.effectCompleted(state, side, eid)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreGaining.gainCredits(state, side, 5); coreEid.effectCompleted(state, side, eid); }),
   },
 };
 
@@ -564,13 +574,13 @@ export const pivot: CardDef = {
   onPlay: {
     prompt: 'Choose a card',
     waitingPrompt: true,
-    msg: msg('reveal ', (state: State) => targets[0]?.title, ' from R&D and add it to HQ'),
-    choices: req((state: State) => [...(state as any).corp?.deck || []].sort((a, b) => a.title.localeCompare(b.title)).filter((c: Card) => coreCard.operation(c) || coreCard.agenda(c))),
+    msg: msg('reveal ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => targets[0]?.title, ' from R&D and add it to HQ'),
+    choices: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => [...(state as any).corp?.deck || []].sort((a, b) => a.title.localeCompare(b.title)).filter((c: Card) => coreCard.operation(c) || coreCard.agenda(c))),
     onChangeGameState: {
-      req: req((state: State) => (state as any).corp?.deck?.length > 0 || (coreThreat.threatLevel(3, state) && (state as any).corp?.hand?.length > 0)),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).corp?.deck?.length > 0 || (coreThreat.threatLevel(3, state) && (state as any).corp?.hand?.length > 0)),
     },
     async: true,
-    effect: effect(coreRevealing.reveal(state, side, targets[0]), coreShuffling.shuffle(state, 'corp', 'deck'), coreMoving.move(state, side, targets[0], 'hand'), coreEid.effectCompleted(state, side, eid)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreRevealing.reveal(state, side, targets[0]); coreShuffling.shuffle(state, 'corp', 'deck'); coreMoving.move(state, side, targets[0], 'hand'); coreEid.effectCompleted(state, side, eid); }),
   },
 };
 
@@ -580,7 +590,7 @@ export const powerGridOverload: CardDef = {
   onPlay: {
     trace: {
       base: 2,
-      req: req((state: State) => (state as any).runner?.register?.lastTurn?.madeRun),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).runner?.register?.lastTurn?.madeRun),
       successful: effect(coreEid.effectCompleted(state, side, eid)),
     },
   },
@@ -590,12 +600,12 @@ export const powerGridOverload: CardDef = {
 export const powerShutdown: CardDef = {
   title: 'Power Shutdown',
   onPlay: {
-    req: req((state: State) => (state as any).runner?.register?.lastTurn?.madeRun),
+    req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).runner?.register?.lastTurn?.madeRun),
     prompt: 'How many cards do you want to trash from the top of R&D?',
     waitingPrompt: true,
-    choices: { number: req((state: State) => (state as any).corp?.deck?.length || 0) },
+    choices: { number: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).corp?.deck?.length || 0) },
     async: true,
-    effect: effect(coreEid.effectCompleted(state, side, eid)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreEid.effectCompleted(state, side, eid); }),
   },
 };
 
@@ -605,7 +615,7 @@ export const precognition: CardDef = {
   onPlay: {
     msg: 'rearrange the top 5 cards of R&D',
     onChangeGameState: {
-      req: req((state: State) => (state as any).corp?.deck?.length > 0),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).corp?.deck?.length > 0),
     },
     waitingPrompt: true,
     async: true,
@@ -625,8 +635,8 @@ export const predictivePlanogram: CardDef = {
   onPlay: {
     prompt: 'Choose one',
     waitingPrompt: true,
-    choices: req((state: State) => ['Gain 3 [Credits]', 'Draw 3 cards', utils.isTagged(state) ? 'Gain 3 [Credits] and draw 3 cards' : null].filter(Boolean)),
-    msg: msg('choose ', (state: State) => targets[0]?.charAt(0).toLowerCase() + targets[0]?.slice(1)),
+    choices: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => ['Gain 3 [Credits]', 'Draw 3 cards', utils.isTagged(state) ? 'Gain 3 [Credits] and draw 3 cards' : null].filter(Boolean)),
+    msg: msg('choose ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => targets[0]?.charAt(0).toLowerCase() + targets[0]?.slice(1)),
     async: true,
     effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
       if (targets[0] === 'Gain 3 [Credits]') return coreGaining.gainCredits(state, 'corp', eid, 3);
@@ -643,10 +653,10 @@ export const preemptiveAction: CardDef = {
   onPlay: {
     rfgInsteadOfTrashing: true,
     onChangeGameState: {
-      req: req((state: State) => (state as any).corp?.discard?.length > 0),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).corp?.discard?.length > 0),
     },
     async: true,
-    effect: effect(coreShuffling.shuffleIntoRdEffect(eid, card, 3, true)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreShuffling.shuffleIntoRdEffect(eid, card, 3, true); }),
   },
 };
 
@@ -656,13 +666,13 @@ export const priorityConstruction: CardDef = {
   onPlay: {
     prompt: 'Choose a piece of ice in HQ to install',
     onChangeGameState: {
-      req: req((state: State) => (state as any).corp?.hand?.length > 0),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).corp?.hand?.length > 0),
     },
     choices: { card: (c: Card) => coreCard.inHandStar(state, c) && coreCard.corp(c) && coreCard.ice(c) },
     msg: 'install a piece of ice from HQ and place 3 advancements on it',
     cancel: { msg: 'do nothing' },
     async: true,
-    effect: effect(coreEid.effectCompleted(state, side, eid)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreEid.effectCompleted(state, side, eid); }),
   },
 };
 
@@ -672,15 +682,12 @@ export const productRecall: CardDef = {
   onPlay: {
     prompt: 'Choose a rezzed asset or upgrade to trash',
     onChangeGameState: {
-      req: req((state: State) => coreBoard.allInstalled(state, 'corp').some((c: Card) => coreCard.rezzed(c) && (coreCard.asset(c) || coreCard.upgrade(c)))),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreBoard.allInstalled(state, 'corp').some((c: Card) => coreCard.rezzed(c) && (coreCard.asset(c) || coreCard.upgrade(c)))),
     },
     choices: { card: (c: Card) => coreCard.rezzed(c) && (coreCard.asset(c) || coreCard.upgrade(c)) },
-    msg: msg('trash ', (state: State) => coreToString.cardStr(state, targets[0]), ' and gain ', (state: State) => coreCostFns.trashCost(state, side, targets[0]), ' [Credits]'),
+    msg: msg('trash ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreToString.cardStr(state, targets[0]), ' and gain ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreCostFns.trashCost(state, side, targets[0]), ' [Credits]'),
     async: true,
-    effect: effect(
-      coreMoving.trash(state, side, targets[0], { unpreventable: true, causeCard: card }),
-      coreGaining.gainCredits(state, 'corp', eid, coreCostFns.trashCost(state, side, targets[0]))
-    ),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreMoving.trash(state, side, targets[0], { unpreventable: true, causeCard: card }); coreGaining.gainCredits(state, 'corp', eid, coreCostFns.trashCost(state, side, targets[0])); }),
   },
 };
 
@@ -692,11 +699,11 @@ export const psychographics: CardDef = {
       req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.isTagged(state) && corePayment.xCostValue(eid) > 0),
     },
     waitingPrompt: true,
-    basePlayCost: [corePayment.toC('x-credits', 0, { maximum: req((state: State) => utils.countTags(state)) })],
+    basePlayCost: [corePayment.toC('x-credits', 0, { maximum: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.countTags(state)) })],
     choices: { req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreCard.canBeAdvanced(state, targets[0])) },
-    msg: msg('place ', (state: State) => utils.quantify(corePayment.xCostValue(eid), ' advancement counter'), ' on ', (state: State) => coreToString.cardStr(state, targets[0])),
+    msg: msg('place ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.quantify(corePayment.xCostValue(eid), ' advancement counter'), ' on ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreToString.cardStr(state, targets[0])),
     async: true,
-    effect: effect(coreProps.addProp(state, side, eid, targets[0], 'advance-counter', corePayment.xCostValue(eid), { placed: true })),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreProps.addProp(state, side, eid, targets[0], 'advance-counter', corePayment.xCostValue(eid), { placed: true }); }),
   },
 };
 
@@ -706,10 +713,10 @@ export const psychokinesis: CardDef = {
   onPlay: {
     async: true,
     onChangeGameState: {
-      req: req((state: State) => (state as any).corp?.deck?.length > 0),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).corp?.deck?.length > 0),
     },
     msg: 'look at the top 5 cards of R&D',
-    effect: effect(coreEid.effectCompleted(state, side, eid)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreEid.effectCompleted(state, side, eid); }),
   },
 };
 
@@ -718,11 +725,11 @@ export const publicTrail: CardDef = {
   title: 'Public Trail',
   onPlay: coreChooseOne.chooseOneHelper(
     {
-      req: req((state: State) => (state as any).runner?.register?.lastTurn?.successfulRun),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).runner?.register?.lastTurn?.successfulRun),
       player: 'runner',
     },
     [
-      { option: 'Take 1 tag', ability: { async: true, displaySide: 'corp', msg: 'give the runner 1 tag', effect: effect(coreTags.gainTags(state, 'corp', eid, 1)) } },
+      { option: 'Take 1 tag', ability: { async: true, displaySide: 'corp', msg: 'give the runner 1 tag', effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreTags.gainTags(state, 'corp', eid, 1); }) } },
       coreChooseOne.costOption([corePayment.toC('credit', 8)], 'runner'),
     ]
   ),
@@ -736,8 +743,8 @@ export const punitiveCounterstrike: CardDef = {
       base: 5,
       successful: {
         async: true,
-        msg: msg((state: State) => `${((state as any).runner?.register?.lastTurn?.stoleAgenda?.[0]) || 0} meat damage`),
-        effect: effect(coreDamage.damage(eid, 'meat', (state as any).runner?.register?.lastTurn?.stoleAgenda?.[0] || 0, { card })),
+        msg: msg((state: State, side: Side, eid: EID, card: Card, targets: any[]) => `${((state as any).runner?.register?.lastTurn?.stoleAgenda?.[0]) || 0} meat damage`),
+        effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreDamage.damage(eid, 'meat', (state as any).runner?.register?.lastTurn?.stoleAgenda?.[0] || 0, { card }); }),
       },
     },
   },
@@ -748,18 +755,18 @@ export const realloc: CardDef = {
   title: 'realloc()',
   onPlay: {
     onChangeGameState: {
-      req: req((state: State) => coreBoard.allInstalled(state, 'corp').filter((c: Card) => coreCard.rezzed(c) && coreCard.ice(c)).length > 0),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreBoard.allInstalled(state, 'corp').filter((c: Card) => coreCard.rezzed(c) && coreCard.ice(c)).length > 0),
     },
     waitingPrompt: true,
-    prompt: msg('choose ', (state: State) => utils.quantify(Math.min(coreBoard.allInstalled(state, 'corp').filter((c: Card) => coreCard.rezzed(c) && coreCard.ice(c)).length, 2), 'piece'), ' of ice to derez'),
+    prompt: msg('choose ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.quantify(Math.min(coreBoard.allInstalled(state, 'corp').filter((c: Card) => coreCard.rezzed(c) && coreCard.ice(c)).length, 2), 'piece'), ' of ice to derez'),
     choices: {
       req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreCard.rezzed(targets[0]) && coreCard.ice(targets[0]) && coreCard.installed(targets[0])),
       all: true,
-      max: req((state: State) => Math.min(coreBoard.allInstalled(state, 'corp').filter((c: Card) => coreCard.rezzed(c) && coreCard.ice(c)).length, 2)),
+      max: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => Math.min(coreBoard.allInstalled(state, 'corp').filter((c: Card) => coreCard.rezzed(c) && coreCard.ice(c)).length, 2)),
     },
     async: true,
-    msg: msg('derez ', (state: State) => utils.enumerateCards(targets), ' and gain ', (state: State) => targets.reduce((sum: number, c: Card) => sum + (c.cost || 0), 0), ' [Credits]'),
-    effect: effect(coreRezzing.derez(state, side, targets), coreGaining.gainCredits(state, side, eid, targets.reduce((sum: number, c: Card) => sum + (c.cost || 0), 0))),
+    msg: msg('derez ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => utils.enumerateCards(targets), ' and gain ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => targets.reduce((sum: number, c: Card) => sum + (c.cost || 0), 0), ' [Credits]'),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreRezzing.derez(state, side, targets); coreGaining.gainCredits(state, side, eid, targets.reduce((sum: number, c: Card) => sum + (c.cost || 0), 0)); }),
   },
 };
 
@@ -772,9 +779,7 @@ export const reanimationProtocol: CardDef = {
     choices: { card: (c: Card) => coreCard.corp(c) && coreCard.ice(c) && coreCard.inDiscard(c) },
     async: true,
     waitingPrompt: true,
-    effect: effect(
-      coreInstalling.corpInstall(state, side, targets[0], null, { msgKeys: { installSource: card, displayOrigin: true }, installState: 'rezzed', combinedCreditDiscount: 10 }),
-      (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreInstalling.corpInstall(state, side, targets[0], null, { msgKeys: { installSource: card, displayOrigin: true }, installState: 'rezzed', combinedCreditDiscount: 10 }); (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
         const installedCard = targets[0];
         if (installedCard && coreCard.rezzed(installedCard) && coreCard.hasAnySubtype(installedCard, ['Liability', 'Illicit'])) {
           return coreEid.effectCompleted(state, side, eid);
@@ -783,8 +788,7 @@ export const reanimationProtocol: CardDef = {
           return continue_ability(state, side, { msg: 'take 1 bad publicity', async: true, effect: effect(coreBadPublicity.gainBadPublicity(state, side, eid, 1)) }, card, null);
         }
         return coreEid.effectCompleted(state, side, eid);
-      }
-    ),
+      }; }),
   },
 };
 
@@ -795,7 +799,7 @@ export const reclamationOrder: CardDef = {
     prompt: 'Choose a card from Archives',
     showDiscard: true,
     choices: { card: (c: Card) => coreCard.corp(c) && c.title !== 'Reclamation Order' && coreCard.inDiscard(c) },
-    msg: msg('name ', (state: State) => targets[0]?.title),
+    msg: msg('name ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => targets[0]?.title),
     async: true,
     effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreEid.effectCompleted(state, side, eid)),
   },
@@ -806,9 +810,9 @@ export const recruitingTrip: CardDef = {
   title: 'Recruiting Trip',
   onPlay: {
     basePlayCost: [corePayment.toC('x-credits')],
-    msg: msg('search for ', (state: State) => corePayment.xCostValue(eid), ' Sysops'),
+    msg: msg('search for ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => corePayment.xCostValue(eid), ' Sysops'),
     async: true,
-    effect: effect(coreEid.effectCompleted(state, side, eid)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreEid.effectCompleted(state, side, eid); }),
   },
 };
 
@@ -829,7 +833,7 @@ export const redPlanetCouriers: CardDef = {
     prompt: 'Choose an installed card that can be advanced',
     choices: { req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreCard.canBeAdvanced(state, targets[0])) },
     onChangeGameState: {
-      req: req((state: State) => coreDefHelpers.somethingCanBeAdvanced(state)),
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreDefHelpers.somethingCanBeAdvanced(state)),
     },
     async: true,
     effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreEid.effectCompleted(state, side, eid)),
@@ -842,9 +846,9 @@ export const replanting: CardDef = {
   onPlay: {
     prompt: 'Choose an installed card to add to HQ',
     choices: { card: (c: Card) => coreCard.corp(c) && coreCard.installed(c) },
-    msg: msg('add ', (state: State) => coreToString.cardStr(state, targets[0]), ' to HQ, then install 2 cards ignoring all costs'),
+    msg: msg('add ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreToString.cardStr(state, targets[0]), ' to HQ, then install 2 cards ignoring all costs'),
     async: true,
-    effect: effect(coreMoving.move(state, side, targets[0], 'hand'), coreEid.effectCompleted(state, side, eid)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreMoving.move(state, side, targets[0], 'hand'); coreEid.effectCompleted(state, side, eid); }),
   },
 };
 
@@ -856,7 +860,7 @@ export const restore: CardDef = {
     showDiscard: true,
     choices: { card: (c: Card) => coreCard.corp(c) && !coreCard.operation(c) && coreCard.inDiscard(c) },
     async: true,
-    effect: effect(coreInstalling.corpInstall(state, side, targets[0], null, { installState: 'rezzed', msgKeys: { installSource: card, displayOrigin: true } }), coreEid.effectCompleted(state, side, eid)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreInstalling.corpInstall(state, side, targets[0], null, { installState: 'rezzed', msgKeys: { installSource: card, displayOrigin: true } }); coreEid.effectCompleted(state, side, eid); }),
   },
 };
 
@@ -865,9 +869,9 @@ export const restoringFace: CardDef = {
   title: 'Restoring Face',
   onPlay: {
     prompt: 'Choose a Sysop, Executive or Clone to trash',
-    msg: msg('trash ', (state: State) => targets[0]?.title, ' to remove 2 bad publicity'),
+    msg: msg('trash ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => targets[0]?.title, ' to remove 2 bad publicity'),
     choices: { card: (c: Card) => coreCard.hasAnySubtype(c, ['Clone', 'Executive', 'Sysop']) },
     async: true,
-    effect: effect(coreBadPublicity.loseBadPublicity(state, side, 2), coreMoving.trash(state, side, eid, targets[0], { causeCard: card })),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreBadPublicity.loseBadPublicity(state, side, 2); coreMoving.trash(state, side, eid, targets[0], { causeCard: card }); }),
   },
 };

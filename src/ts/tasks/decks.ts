@@ -85,8 +85,8 @@ export async function addForAllUsers(deckId: string): Promise<void> {
 }
 
 // CLI entry point: bun src/ts/tasks/decks.ts add-for-all-users <deck-id>
-if (import.meta.url === `file://${process.argv[1]}`) {
-	const [_node, _file, cmd, deckId] = process.argv;
+if (require.main === module) {
+	const [, , cmd, deckId] = process.argv;
 	if (cmd === "add-for-all-users" && deckId) {
 		addForAllUsers(deckId).catch((err) => {
 			console.error(err);

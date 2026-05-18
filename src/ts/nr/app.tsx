@@ -3,10 +3,11 @@
 import React, { useEffect } from "react";
 import { AppRoutes } from "./routes";
 import { Navbar } from "./navbar";
-import { AuthForms } from "./auth";
+import { AuthForms, AuthMenu } from "./auth";
 import { GameBoard } from "./gameboard/board";
 import { registerGameStateHandlers, useGameBoard } from "./gameboard/state";
 import { useAppState } from "./appstate";
+import { StatusBar } from "./status_bar";
 
 export function App(): React.ReactElement {
   const gameState = useGameBoard(s => s.gameState);
@@ -19,10 +20,18 @@ export function App(): React.ReactElement {
   const gameId = gameState?.gameid ?? currentGame?.gameid ?? "";
   const showBoard = !!(gameState && gameId);
 
+  // Mirrors main-window in main.cljs:
+  //   topnav { #left-menu navbar | #right-menu auth-menu | #status status }
+  //   #auth-forms auth-forms
+  //   pages (router-driven view; GameBoard takes over while a game is active)
   return (
     <>
-      <Navbar />
-      <AuthForms />
+      <nav className="topnav blue-shade">
+        <div id="left-menu"><Navbar /></div>
+        <div id="right-menu"><AuthMenu /></div>
+        <div id="status"><StatusBar /></div>
+      </nav>
+      <div id="auth-forms"><AuthForms /></div>
       {showBoard ? (
         <GameBoard gameId={gameId} />
       ) : (

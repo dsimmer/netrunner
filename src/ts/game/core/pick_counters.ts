@@ -40,7 +40,7 @@ function waitFor(
   next: (asyncResult: unknown, innerEid: EID) => void,
 ): void {
   const inner = makeEIDFrom(state, parentEid);
-  registerEIDCallback(state, inner, (_s, _side, completed) => {
+  registerEIDCallback(state, inner, (_s: any, _side: any, completed: any) => {
     next((completed as EID).result, completed as EID);
   });
   start(inner);
@@ -181,7 +181,7 @@ export function pickVirusCountersToSpend(
       card: Card | null,
       targets: any[],
     ) => {
-      const target = update(
+      const target = (update as any)(
         state,
         "runner",
         (t: Card) => {
@@ -190,7 +190,7 @@ export function pickVirusCountersToSpend(
           return { ...t, counter } as Card;
         },
         targets[0] as Card,
-      );
+      ) ?? (targets[0] as Card);
       const newSelected: SelectedMap = { ...selectedCards };
       const prev = newSelected[target.cid] ?? { card: target, number: 0 };
       newSelected[target.cid] = {
@@ -245,7 +245,7 @@ export function pickVirusCountersToSpend(
         if (targetCount != null) {
           // Refund counters
           for (const { card: c, number } of Object.values(selectedCards)) {
-            update(
+            (update as any)(
               state,
               "runner",
               (t: Card) => {
@@ -325,7 +325,7 @@ function takeCountersOfType(counterType: string): EffectFn {
       const counter = { ...(card.counter ?? {}) };
       counter[counterType] = getCounters(card, counterType) - 1;
       const updated = { ...card, counter } as Card;
-      update(state, side, () => updated, card);
+      (update as any)(state, side, () => updated, card);
     }
     completeWithResult(state, side, eid, 1);
   };

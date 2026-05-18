@@ -32,16 +32,9 @@ interface ChatMessage {
   date: Date;
 }
 
-interface WSMessageWithReq extends WSMessage {
-  ringReq?: {
-    system?: {
-      db?: Db;
-      chatSettings?: ChatSettings;
-    };
-    user?: User;
-  };
+type WSMessageWithReq = WSMessage & {
   pathParams?: Record<string, string>;
-}
+};
 
 // ---- Helpers ----
 
@@ -52,14 +45,14 @@ function chatMaxLength(chatSettings: ChatSettings | undefined): number {
 async function blockedByUser(
   db: Db,
   username: string,
-): Promise<{ username: string; blocks: Record<string, unknown> | null }> {
+): Promise<[string, Record<string, unknown> | null]> {
   const blocks = await db
     .collection("users")
     .findOne(
       { username },
       { projection: { username: 1, "options.blocked-users": 1, _id: 0 } },
     );
-  return { username, blocks };
+  return [username, blocks];
 }
 
 function withinRateLimit(
@@ -83,10 +76,10 @@ function withinRateLimit(
  * Returns chat configuration (max message length).
  */
 export function configHandler(
-  req: { system?: { chatSettings?: ChatSettings } },
+  req: { system?: { chat?: ChatSettings } },
   _res: unknown,
 ): HttpResponse {
-  const chatSettings = req.system?.chatSettings;
+  const chatSettings = req.system?.chat;
   return response(200, { "max-length": chatMaxLength(chatSettings) });
 }
 
@@ -95,12 +88,16 @@ export function configHandler(
  * Returns the last 100 messages for the given channel, filtered by user visibility.
  */
 export async function messagesHandler(
-  req: WSMessageWithReq,
+  req: {
+    system?: { db?: Db };
+    user?: User;
+    "path-params"?: Record<string, string>;
+  },
   _res: unknown,
 ): Promise<HttpResponse> {
-  const db = req.ringReq?.system?.db;
-  const user = req.ringReq?.user;
-  const channel = req.pathParams?.channel;
+  const db = req.system?.db;
+  const user = req.user;
+  const channel = req["path-params"]?.channel;
 
   if (!user || !db || !channel) {
     return response(200, []);
@@ -120,29 +117,26 @@ export async function messagesHandler(
     date: mongoTimeToUtcString(msg.date),
   }));
 
-  // Build sender -> blocks map
+  // Build sender username -> sender doc (with options.blocked-users) map.
+  // Mirrors clojure (->> messages (map :username) (map #(blocked-by-user db %)) (into {}))
   const senderUsernames = Array.from(
     new Set(messagesWithStringDate.map((m) => m.username as string)),
   );
   const blocksResults = await Promise.all(
     senderUsernames.map((username) => blockedByUser(db, username)),
   );
-  const senders: Record<string, { username: string; blocks: Record<string, unknown> | null }> =
-    Object.fromEntries(blocksResults.map((r) => [r.username, r]));
-
-  // Determine visible senders
-  const connectedUsers = getAllUsers();
-  const connectedUsersRecord: Record<string, User> = Object.fromEntries(
-    Array.from(connectedUsers.entries()).map(([k, v]) => [k, v as unknown as User]),
+  const senders: Record<string, User> = Object.fromEntries(
+    blocksResults
+      .filter(([, blocks]) => blocks !== null)
+      .map(([username, blocks]) => [username, blocks as unknown as User]),
   );
 
   const visibleUsers = new Set(
-    senderUsernames
-      .filter(
-        (username) =>
-          username === user.username ||
-          visibleToUser(user, { username } as User, connectedUsersRecord),
-      ),
+    senderUsernames.filter(
+      (username) =>
+        username === user.username ||
+        visibleToUser(user, { username } as User, senders),
+    ),
   );
 
   // Filter messages to only visible senders
@@ -161,9 +155,9 @@ export async function messagesHandler(
  */
 registerMsgHandler("chat/say", async (msg: WSMessageWithReq) => {
   const ringReq = msg.ringReq ?? {};
-  const db = ringReq.system?.db;
-  const chatSettings = ringReq.system?.chatSettings;
-  const user = ringReq.user;
+  const db = ringReq.system?.db as Db | undefined;
+  const chatSettings = ringReq.system?.chat as ChatSettings | undefined;
+  const user = ringReq.user as User | undefined;
   const uid = msg.uid;
   const data = msg.data as { channel?: string; msg?: string } | undefined;
   const channel = data?.channel;
@@ -171,8 +165,8 @@ registerMsgHandler("chat/say", async (msg: WSMessageWithReq) => {
   const id = msg.id;
   const timestamp = msg.timestamp;
 
-  const active = activeUser(user);
-  if (active && msgText && msgText.trim().length > 0 && db) {
+  if (activeUser(user) && msgText && msgText.trim().length > 0 && db) {
+    const active = user;
     const lenValid = msgText.length <= chatMaxLength(chatSettings);
     const rateValid = await withinRateLimit(db, chatSettings, active.username);
 
@@ -196,7 +190,7 @@ registerMsgHandler("chat/say", async (msg: WSMessageWithReq) => {
 
       const connectedUsers = getAllUsers();
       const connectedUsersRecord: Record<string, User> = Object.fromEntries(
-        Array.from(connectedUsers.entries()).map(([k, v]) => [
+        Object.entries(connectedUsers).map(([k, v]) => [
           k,
           v as unknown as User,
         ]),

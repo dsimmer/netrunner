@@ -245,12 +245,10 @@ function StartButton({
     isPreconstructed(currentGame) ||
     currentGame.format === "chimera";
 
-  return (
-    <condButton
-      text={tr(["lobby_start", "Start"])}
-      cond={allReady}
-      f={() => wsSend(["game/start", { gameid }] as any)}
-    />
+  return condButton(
+    tr(["lobby_start", "Start"]),
+    allReady,
+    () => wsSend("game/start", { gameid }),
   );
 }
 
@@ -259,7 +257,7 @@ function LeaveButton({ gameid }: { gameid: string | undefined }): React.ReactEle
     <button
       onClick={e => {
         e.preventDefault();
-        wsSend(["lobby/leave", { gameid }] as any);
+        wsSend("lobby/leave", { gameid });
         useAppState.getState().setCurrentGame(null);
       }}
     >
@@ -302,12 +300,11 @@ function SwapSidesButton({
           return (
             <li key={side}>
               <a
-                className="block-link"
+                className={`block-link${isPlayerSide ? " disabled" : ""}`}
                 style={isPlayerSide ? { color: "grey", cursor: "default" } : undefined}
-                disabled={isPlayerSide}
                 onClick={() => {
                   if (!isPlayerSide) {
-                    wsSend(["lobby/swap", { gameid, side }] as any);
+                    wsSend("lobby/swap", { gameid, side });
                   }
                 }}
               >
@@ -579,7 +576,7 @@ export function PendingGame({ currentGame, user }: PendingGameProps): React.Reac
         <PlayerList user={user} currentGame={currentGame} players={players} />
         <OptionsList currentGame={currentGame} />
         <SpectatorList currentGame={currentGame} />
-        {lobbyChat({ currentGame, messages }, null as any)}
+        {React.createElement(lobbyChat as unknown as React.FC<{ currentGame: typeof currentGame; messages: typeof messages }>, { currentGame, messages })}
       </div>
     </div>
   );

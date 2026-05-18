@@ -34,7 +34,7 @@ export function identifyMark(state: GameState): void {
 }
 
 export const identifyMarkAbility: Ability = {
-  effect: (state) => {
+  effect: (state: any) => {
     if (state.mark == null) identifyMark(state);
   },
 };
@@ -43,9 +43,9 @@ export const markChangedEvent: Ability = {
   event: "mark-changed",
   silent: true,
   interactive: () => false,
-  effect: (state, side, _eid, card) => {
+  effect: (state: any, side: any, _eid: any, card: any) => {
     if (!card) return;
-    update(
+    (update as any)(
       state,
       RUNNER_SIDE,
       (c: Card) => {
@@ -59,10 +59,10 @@ export const markChangedEvent: Ability = {
         event: "post-runner-turn-ends",
         silent: true,
         unregisterOnceResolved: true,
-        effect: (state2) => {
+        effect: (state2: any) => {
           const fresh = getCard(state2, card);
           if (fresh) {
-            update(
+            (update as any)(
               state2,
               RUNNER_SIDE,
               (c: Card) => {

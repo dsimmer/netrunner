@@ -48,34 +48,31 @@ import * as coreToasts from '../core/toasts';
 import * as coreUpdate from '../core/update';
 import * as coreVirus from '../core/virus';
 import * as coreWinning from '../core/winning';
-import * as jintekiUtils from '../jinteki/utils';
+import * as jintekiUtils from '../../jinteki/utils';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 import type { CardDef } from '../../types';
 
-import { coreMemory } from './programs_2';
-
-
 // ---- Helper functions ----
 
-export function toC(type: string, ...values: number[]): any {
-  return corePayment.toC(type, ...values);
+export function toC(...args: any[]): any {
+  return (corePayment.toC as any)?.(...args);
 }
 
-function autoIcebreaker(cardDef: any): any {
-  return coreIce.autoIcebreaker(cardDef);
+function autoIcebreaker(...args: any[]): any {
+  return (coreIce.autoIcebreaker as any)?.(...args);
 }
 
-export function breakSub(cost: any, strength: number, type: string, opts: any = {}): any {
-  return coreIce.breakSub(cost, strength, type, opts);
+export function breakSub(...args: any[]): any {
+  return (coreIce.breakSub as any)?.(...args);
 }
 
-function strengthPump(amount: number, cost: any): any {
-  return coreIce.strengthPump(amount, cost);
+function strengthPump(...args: any[]): any {
+  return (coreIce.strengthPump as any)?.(...args);
 }
 
-export function allActiveInstalled(state: State, side: Side): Card[] {
-  return coreBoard.allActiveInstalled(state, side);
+export function allActiveInstalled(...args: any[]): Card[] {
+  return (coreBoard.allActiveInstalled as any)?.(...args);
 }
 
 function hasSubtype(card: Card, subtype: string): boolean {
@@ -86,28 +83,28 @@ function getLink(state: State): number {
   return coreLink.getLink?.(state) ?? 0;
 }
 
-export function gainCredits(state: State, side: Side, amount: number, opts?: any): void {
-  coreGaining.gainCredits(state, side, amount, opts);
+export function gainCredits(...args: any[]): void {
+  (coreGaining.gainCredits as any)?.(...args);
 }
 
-export function drawCards(state: State, side: Side, eid: EID, count: number): void {
-  coreDrawing.draw(state, side, eid, count);
+export function drawCards(...args: any[]): void {
+  (coreDrawing.draw as any)?.(...args);
 }
 
-export function trash(state: State, side: Side, eid: EID, card: Card, opts?: any): void {
-  coreMoving.trash(state, side, eid, card, opts);
+export function trash(...args: any[]): void {
+  (coreMoving.trash as any)?.(...args);
 }
 
-function rfg(state: State, side: Side, eid: EID, card: Card, opts?: any): void {
-  coreMoving.rfg(state, side, eid, card, opts);
+function rfg(...args: any[]): void {
+  (coreMoving.rfg as any)?.(...args);
 }
 
-export function moveCard(state: State, side: Side, card: Card, zone: string, opts?: any): void {
-  coreMoving.move(state, side, card, zone, opts);
+export function moveCard(...args: any[]): void {
+  (coreMoving.move as any)?.(...args);
 }
 
-function inHand(state: State, card: Card): boolean {
-  return coreCard.inHand(state, card);
+function inHand(...args: any[]): boolean {
+  return (coreCard.inHand as any)?.(...args);
 }
 
 function installed(card: Card): boolean {
@@ -147,24 +144,24 @@ export function isTagged(state: State): boolean {
   return utils.isTagged?.(state) ?? false;
 }
 
-function addTag(state: State, side: Side, eid: EID, count: number): void {
-  coreTags.addTag(state, side, eid, count);
+function addTag(...args: any[]): void {
+  (coreTags.addTag as any)?.(...args);
 }
 
-function removeTag(state: State, side: Side, eid: EID, count: number): void {
-  coreTags.removeTag(state, side, eid, count);
+function removeTag(...args: any[]): void {
+  (coreTags.removeTag as any)?.(...args);
 }
 
-function systemMsg(state: State, side: Side, text: string): void {
-  coreSay.systemMsg(state, side, text);
+function systemMsg(...args: any[]): void {
+  (coreSay.systemMsg as any)?.(...args);
 }
 
-function playSfx(state: State, side: Side, sfx: string): void {
-  coreSay.playSfx(state, side, sfx);
+function playSfx(...args: any[]): void {
+  (coreSay.playSfx as any)?.(...args);
 }
 
-function cardStr(state: State, card: Card): string {
-  return coreToString.cardStr(state, card);
+function cardStr(...args: any[]): string {
+  return (coreToString.cardStr as any)?.(...args);
 }
 
 function getMemory(card: Card): number {
@@ -175,24 +172,24 @@ export function getMu(card: Card): number {
   return coreMemory.getMu?.(card) ?? 0;
 }
 
-function expectedMu(state: State, card: Card): number {
-  return coreMemory.expectedMu(state, card);
+function expectedMu(...args: any[]): number {
+  return (coreMemory.expectedMu as any)?.(...args);
 }
 
-export function muPlus(value: number): any {
-  return coreMemory.muPlus(value);
+export function muPlus(...args: any[]): any {
+  return (coreMemory.muPlus as any)?.(...args);
 }
 
-function countVirusPrograms(state: State): number {
-  return coreVirus.countVirusPrograms(state);
+function countVirusPrograms(...args: any[]): number {
+  return (coreVirus.countVirusPrograms as any)?.(...args);
 }
 
 function countVirusCounter(card: Card): number {
   return coreVirus.countVirusCounter?.(card) ?? 0;
 }
 
-function addVirusCounter(state: State, side: Side, card: Card, count: number): void {
-  coreVirus.addVirusCounter(state, side, card, count);
+function addVirusCounter(...args: any[]): void {
+  (coreVirus.addVirusCounter as any)?.(...args);
 }
 
 export function addCounter(state: State, side: Side, card: Card, type: string, count: number, opts?: any): void {
@@ -207,76 +204,76 @@ function isIce(card: Card): boolean {
   return coreIce.isIce?.(card) ?? false;
 }
 
-function getIceStrength(state: State, side: Side, ice: Card): number {
-  return coreIce.iceStrength(state, side, ice) ?? 0;
+function getIceStrength(...args: any[]): number {
+  return (coreIce.iceStrength as any)?.(...args) ?? 0;
 }
 
-function getBreakerStrength(state: State, side: Side, card: Card): number {
-  return coreIce.breakerStrength(state, side, card) ?? 0;
+function getBreakerStrength(...args: any[]): number {
+  return (coreIce.breakerStrength as any)?.(...args) ?? 0;
 }
 
-function makeIcon(type: string, card: Card): any {
-  return coreDefHelpers.makeIcon(type, card);
+function makeIcon(...args: any[]): any {
+  return (coreDefHelpers.makeIcon as any)?.(...args);
 }
 
-function trashOnEmpty(counterType: string): any {
-  return coreDefHelpers.trashOnEmpty(counterType);
+function trashOnEmpty(...args: any[]): any {
+  return (coreDefHelpers.trashOnEmpty as any)?.(...args);
 }
 
 function trashOnPurge(): any {
   return coreDefHelpers.trashOnPurge;
 }
 
-function rfgOnEmpty(counterType: string): any {
-  return coreDefHelpers.rfgOnEmpty(counterType);
+function rfgOnEmpty(...args: any[]): any {
+  return (coreDefHelpers.rfgOnEmpty as any)?.(...args);
 }
 
-function drawAbility(count: number, card: Card | null, opts: any = {}): any {
-  return coreDefHelpers.drawAbi(count, card, opts);
+function drawAbility(...args: any[]): any {
+  return (coreDefHelpers.drawAbi as any)?.(...args);
 }
 
-function accessBonus(state: State, side: Side, server: string, count: number): void {
-  coreAccess.accessBonus(state, side, server, count);
+function accessBonus(...args: any[]): void {
+  (coreAccess.accessBonus as any)?.(...args);
 }
 
-function accessCard(state: State, side: Side, eid: EID, card: Card): void {
-  coreAccess.accessCard(state, side, eid, card);
+function accessCard(...args: any[]): void {
+  (coreAccess.accessCard as any)?.(...args);
 }
 
-function breachAccessBonus(server: string, bonus: number, opts: any = {}): any {
-  return coreDefHelpers.breachAccessBonus(server, bonus, opts);
+function breachAccessBonus(...args: any[]): any {
+  return (coreDefHelpers.breachAccessBonus as any)?.(...args);
 }
 
-function runServerAbility(server: string, opts: any = {}): any {
-  return coreDefHelpers.runServerAbility(server, opts);
+function runServerAbility(...args: any[]): any {
+  return (coreDefHelpers.runServerAbility as any)?.(...args);
 }
 
-function runAnyServerAbility(opts: any = {}): any {
-  return coreDefHelpers.runAnyServerAbility(opts);
+function runAnyServerAbility(...args: any[]): any {
+  return (coreDefHelpers.runAnyServerAbility as any)?.(...args);
 }
 
-function offerJackOut(opts: any = {}): any {
-  return coreDefHelpers.offerJackOut(opts);
+function offerJackOut(...args: any[]): any {
+  return (coreDefHelpers.offerJackOut as any)?.(...args);
 }
 
-function tutorAbi(reveal: boolean, restriction: any = null): any {
-  return coreDefHelpers.tutorAbi(reveal, restriction);
+function tutorAbi(...args: any[]): any {
+  return (coreDefHelpers.tutorAbi as any)?.(...args);
 }
 
 function getxFn(state: State, side: Side, eid: EID, card: Card, targets: any[]): number {
   return coreDefHelpers.getXFn()(state, side, eid, card, targets);
 }
 
-function lookAtTheTop(fromSide: string, toSide: string, count: number): any {
-  return coreDefHelpers.lookAtTheTop(fromSide, toSide, count);
+function lookAtTheTop(...args: any[]): any {
+  return (coreDefHelpers.lookAtTheTop as any)?.(...args);
 }
 
-function successfulRunReplaceBreach(opts: any): any {
-  return coreDefHelpers.successfulRunReplaceBreach(opts);
+function successfulRunReplaceBreach(...args: any[]): any {
+  return (coreDefHelpers.successfulRunReplaceBreach as any)?.(...args);
 }
 
-function makeCurrentEventHandler(title: string, ability: any): any {
-  return coreDefHelpers.makeCurrentEventHandler(title, ability);
+function makeCurrentEventHandler(...args: any[]): any {
+  return (coreDefHelpers.makeCurrentEventHandler as any)?.(...args);
 }
 
 // Cloud subtype helper (Cloud: Creeper, ZU.13 Key Master, B&E, GlobalSec)
@@ -287,8 +284,8 @@ function cloudIcebreaker(cdef: any): any {
       ...(cdef['static-abilities'] || []),
       {
         type: ':used-mu',
-        req: req(function*() { return getLink(forms.state) <= -2; }), // <= 2 link means -2 + link <= 0
-        value: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+        req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return getLink(forms.state) <= -2; }), // <= 2 link means -2 + link <= 0
+        value: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
           return -(expectedMu(state, card));
         }),
       },
@@ -304,7 +301,7 @@ function breakAndEnter(iceType: string): any {
       'static-abilities': [
         {
           type: ':strength-bonus',
-          req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+          req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
             return allActiveInstalled(state, ':runner').filter((c: Card) => hasSubtype(c, 'Icebreaker')).length;
           }),
         },
@@ -346,8 +343,8 @@ function runFn(state: State): any {
   return state.run;
 }
 
-export function currentIce(state: State): Card | null {
-  return coreIce.getCurrentIce(state);
+export function currentIce(...args: any[]): Card | null {
+  return (coreIce.getCurrentIce as any)?.(...args);
 }
 
 function getCard(state: State, target: any): Card | null {
@@ -360,12 +357,12 @@ function getCard(state: State, target: any): Card | null {
   return null;
 }
 
-function allCardsInHandStar(state: State, side: Side): Card[] {
-  return coreDefHelpers.allCardsInHandStar(state, side);
+function allCardsInHandStar(...args: any[]): Card[] {
+  return (coreDefHelpers.allCardsInHandStar as any)?.(...args);
 }
 
-function inHandStar(state: State, card: Card): boolean {
-  return coreDefHelpers.inHandStar(state, card);
+function inHandStar(...args: any[]): boolean {
+  return (coreDefHelpers.inHandStar as any)?.(...args);
 }
 
 function resolveSubroutine(ice: Card, sub: any, opts: any = {}): void {
@@ -380,56 +377,56 @@ function getRunPosition(state: State): number {
   return state.run?.position ?? 0;
 }
 
-function endRun(state: State, side: Side, eid: EID, card: Card): void {
-  coreRuns.endRun(state, side, eid, card);
+function endRun(...args: any[]): void {
+  (coreRuns.endRun as any)?.(...args);
 }
 
-function makeRun(state: State, side: Side, eid: EID, server: string, card: Card, opts: any = {}): void {
-  coreRuns.makeRun(state, side, eid, server, card, opts);
+function makeRun(...args: any[]): void {
+  (coreRuns.makeRun as any)?.(...args);
 }
 
-function startRun(state: State, side: Side, eid: EID, server: string, opts: any = {}): void {
-  coreRuns.startRun(state, side, eid, server, opts);
+function startRun(...args: any[]): void {
+  (coreRuns.startRun as any)?.(...args);
 }
 
-function bypassIce(state: State): void {
-  coreRuns.bypassIce(state);
+function bypassIce(...args: any[]): void {
+  (coreRuns.bypassIce as any)?.(...args);
 }
 
-function getRemoteNames(state: State): string[] {
-  return coreBoard.getRemoteNames(state);
+function getRemoteNames(...args: any[]): string[] {
+  return (coreBoard.getRemoteNames as any)?.(...args);
 }
 
-function zonesToSortedNames(zones: any[]): string[] {
-  return coreServers.zonesToSortedNames(zones);
+function zonesToSortedNames(...args: any[]): string[] {
+  return (coreServers.zonesToSortedNames as any)?.(...args);
 }
 
-function getRunnableZones(state: State, side: Side, card: Card, opts: any = {}): any[] {
-  return coreRuns.getRunnableZones(state, side, card, opts);
+function getRunnableZones(...args: any[]): any[] {
+  return (coreRuns.getRunnableZones as any)?.(...args);
 }
 
-function installableServers(state: State, card: Card): string[] {
-  return coreBoard.installableServers(state, card);
+function installableServers(...args: any[]): string[] {
+  return (coreBoard.installableServers as any)?.(...args);
 }
 
 function takeCredits(state: State, side: Side, amount: number): void {
   coreDefHelpers.takeCredits?.(state, side, amount);
 }
 
-export function damage(state: State, side: Side, type: string, amount: number, opts: any = {}): void {
-  coreDamage.damage(state, side, type, amount, opts);
+export function damage(...args: any[]): void {
+  (coreDamage.damage as any)?.(...args);
 }
 
-function netDamage(state: State, side: Side, amount: number, opts: any = {}): void {
-  coreDamage.netDamage(state, side, amount, opts);
+function netDamage(...args: any[]): void {
+  (coreDamage.netDamage as any)?.(...args);
 }
 
-function meatDamage(state: State, side: Side, amount: number, opts: any = {}): void {
-  coreDamage.meatDamage(state, side, amount, opts);
+function meatDamage(...args: any[]): void {
+  (coreDamage.meatDamage as any)?.(...args);
 }
 
-function brainDamage(state: State, side: Side, amount: number, opts: any = {}): void {
-  coreDamage.brainDamage(state, side, amount, opts);
+function brainDamage(...args: any[]): void {
+  (coreDamage.brainDamage as any)?.(...args);
 }
 
 function getPublicity(state: State): number {
@@ -444,16 +441,16 @@ function getAgendas(state: State, side: Side): Card[] {
   return coreBoard.getAgendas?.(state, side) || [];
 }
 
-function expose(state: State, side: Side, eid: EID, cards: Card[]): void {
-  coreExpose.expose(state, side, eid, cards);
+function expose(...args: any[]): void {
+  (coreExpose.expose as any)?.(...args);
 }
 
-function revealCard(state: State, side: Side, card: Card): void {
-  coreRevealing.revealCard(state, side, card);
+function revealCard(...args: any[]): void {
+  (coreRevealing.revealCard as any)?.(...args);
 }
 
-function shuffle(state: State, side: Side, zone: string): void {
-  coreShuffling.shuffle(state, side, zone);
+function shuffle(...args: any[]): void {
+  (coreShuffling.shuffle as any)?.(...args);
 }
 
 function flipCards(state: State, side: Side, cards: Card[], faceup: boolean): void {
@@ -469,36 +466,36 @@ function getFlag(state: State, flag: string): any {
   return ((state as any).flags as any)?.[flag];
 }
 
-function registerEvents(state: State, side: Side, card: Card, events: any[]): void {
-  coreEngine.registerEvents(state, side, card, events);
+function registerEvents(...args: any[]): void {
+  (coreEngine.registerEvents as any)?.(...args);
 }
 
-function unregisterFloatingEvents(duration: string): void {
-  coreEngine.unregisterFloatingEvents(duration);
+function unregisterFloatingEvents(...args: any[]): void {
+  (coreEngine.unregisterFloatingEvents as any)?.(...args);
 }
 
 function notUsedOnce(state: State, opts: any, card: Card): boolean {
   return coreEngine.notUsedOnce?.(state, opts, card) ?? true;
 }
 
-function effectCompleted(state: State, side: Side, eid: EID): any {
-  return coreEid.effectCompleted(state, side, eid);
+function effectCompleted(...args: any[]): any {
+  return (coreEid.effectCompleted as any)?.(...args);
 }
 
-function canPay(state: State, side: Side, eid: EID, card: Card, costs: any[]): boolean {
-  return corePayment.canPay(state, side, eid, card, 'cost', costs);
+function canPay(...args: any[]): boolean {
+  return (corePayment.canPay as any)?.(...args);
 }
 
-function pay(state: State, side: Side, eid: EID, card: Card, costs: any[]): void {
-  corePayment.pay(state, side, eid, card, costs);
+function pay(...args: any[]): void {
+  (corePayment.pay as any)?.(...args);
 }
 
-function host(state: State, side: Side, host: Card, hostee: Card, opts: any = {}): void {
-  coreHosting.host(state, side, host, hostee, opts);
+function host(...args: any[]): void {
+  (coreHosting.host as any)?.(...args);
 }
 
-function unhost(state: State, side: Side, card: Card, opts: any = {}): void {
-  coreHosting.unhost(state, side, card, opts);
+function unhost(...args: any[]): void {
+  (coreHosting.unhost as any)?.(...args);
 }
 
 function getHost(state: State, card: Card): Card | null {
@@ -509,12 +506,12 @@ function getHosts(state: State, card: Card): Card[] {
   return coreHosting.getHosts?.(state, card) || [];
 }
 
-function rez(state: State, side: Side, eid: EID, card: Card): void {
-  coreRezzing.rez(state, side, eid, card);
+function rez(...args: any[]): void {
+  (coreRezzing.rez as any)?.(...args);
 }
 
-function derez(state: State, side: Side, eid: EID, card: Card, opts: any = {}): void {
-  coreRezzing.derez(state, side, eid, card, opts);
+function derez(...args: any[]): void {
+  (coreRezzing.derez as any)?.(...args);
 }
 
 function anySubsBroken(ice: Card): boolean {
@@ -553,8 +550,8 @@ function isAsset(card: Card): boolean {
   return (card as any).type === 'asset';
 }
 
-function getCardsInPlay(state: State, side: Side): Card[] {
-  return coreBoard.allActiveInstalled(state, side);
+function getCardsInPlay(...args: any[]): Card[] {
+  return (coreBoard.allActiveInstalled as any)?.(...args);
 }
 
 function getCardsInZone(state: State, side: Side, zone: string): Card[] {
@@ -573,8 +570,8 @@ function hasTag(state: State, tag: string): boolean {
   return getTags(state).includes(tag);
 }
 
-function addTagCard(state: State, side: Side, tag: string): void {
-  coreTags.addTag(state, side, undefined as any, 0);
+function addTagCard(...args: any[]): void {
+  (coreTags.addTag as any)?.(...args);
 }
 
 function triggerEvent(state: State, side: Side, eventType: string, opts: any = {}): void {
@@ -602,12 +599,12 @@ function countTags(state: State): number {
   return jintekiUtils.countTags?.(state) ?? 0;
 }
 
-function enumerateCards(cards: any[], sort?: string): string {
-  return utils.enumerateCards(cards, sort);
+function enumerateCards(...args: any[]): string {
+  return (utils.enumerateCards as any)?.(...args);
 }
 
-function quantify(n: number, noun: string): string {
-  return utils.quantify(n, noun);
+function quantify(...args: any[]): string {
+  return (utils.quantify as any)?.(...args);
 }
 
 function complement(fn: Function): Function {
@@ -618,8 +615,8 @@ function never(): boolean {
   return coreOptional.never?.() ?? false;
 }
 
-function getAutoresolve(key: string, fallback: any = null): any {
-  return coreOptional.getAutoresolve(key, fallback);
+function getAutoresolve(...args: any[]): any {
+  return (coreOptional.getAutoresolve as any)?.(...args);
 }
 
 function setAutoresolve(key: string, value: string): any {
@@ -638,7 +635,7 @@ export const abaasy: CardDef = {
         action: true,
         cost: [toC('click', 1)],
         msg: 'place 1 power counter on Abaasy',
-        effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+        effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
           addCounter(state, side, card, 'power', 1);
         }),
       },
@@ -652,12 +649,12 @@ export const abagnale: CardDef = {
   events: [{
     event: 'run-starts',
     automatic: ':access-cards',
-    req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+    req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       const ctx = forms.context(state, card, targets) || {};
       return isRemote(ctx.server);
     }),
     msg: 'draw 1 card',
-    effect: effect(drawCards(state, side, eid, 1)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { drawCards(state, side, eid, 1); }),
   }],
 };
 
@@ -676,11 +673,11 @@ export const afterimage: CardDef = {
         label: 'Prevent ice from ending the run this encounter',
         cost: [toC(':trash-can')],
         msg: 'prevent ice from ending the run this encounter',
-        req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+        req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
           const ice = currentIce(state);
           return ice && !allSubsBroken(ice);
         }),
-        effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+        effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
           const ice = currentIce(state);
           if (ice) {
             coreIce.dontResolveAllSubroutines(ice);
@@ -705,7 +702,7 @@ export const algernon: CardDef = {
     cost: [toC('click', 1), toC(':net', 1)],
     msg: 'trash Algernon to search your stack for a program and move it to the top of the stack',
     async: true,
-    effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+    effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       const stackCards = runnerStack(state).filter((c: Card) => isProgram(c));
       if (stackCards.length > 0) {
         yield wait_for(
@@ -740,7 +737,7 @@ export const alias: CardDef = {
     cost: [toC('click', 1)],
     once: ':per-turn',
     msg: 'remove 1 tag',
-    effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+    effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       removeTag(state, side, eid, 1);
     }),
   }],
@@ -772,11 +769,11 @@ export const amina: CardDef = {
       {
         action: true,
         cost: [toC('click', 1)],
-        req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+        req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
           return !!runFn(state);
         }),
         msg: 'give Amina +2 [Strength] until the end of the run',
-        effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+        effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
           coreIce.pump(card, 2, ':end-of-run');
         }),
       },
@@ -791,7 +788,7 @@ export const analogDreamers: CardDef = {
     action: true,
     cost: [toC('click', 1)],
     msg: 'look at the top 3 cards of the stack and rearrange them',
-    effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+    effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       const stackCards = runnerStack(state).slice(0, 3);
       if (stackCards.length > 0) {
         corePrompts.showReorderCardsPrompt?.(state, side, 'Rearrange the cards', stackCards, {
@@ -824,14 +821,14 @@ export const atman: CardDef = {
         action: true,
         cost: [toC('click', 1)],
         msg: 'place 1 power counter on Atman',
-        effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+        effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
           addCounter(state, side, card, 'power', 1);
         }),
       },
     ],
     'static-abilities': [{
       type: ':strength-bonus',
-      req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+      req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         return getCounters(card, 'power');
       }),
     }],
@@ -843,12 +840,12 @@ export const auRevoir: CardDef = {
   title: 'Au Revoir',
   events: [{
     event: 'run-ends',
-    req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+    req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       const ctx = forms.context(state, card, targets) || {};
       return ctx.reason === ':encounter' || ctx.reason === 'ice';
     }),
     msg: 'draw 1 card',
-    effect: effect(drawCards(state, side, eid, 1)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { drawCards(state, side, eid, 1); }),
   }],
 };
 
@@ -862,7 +859,7 @@ export const audreyV2: CardDef = {
         action: true,
         cost: [toC('click', 1)],
         msg: 'give Audrey v2 +2 [Strength] until the end of the run',
-        effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+        effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
           coreIce.pump(card, 2, ':end-of-run');
         }),
       },
@@ -878,12 +875,12 @@ export const aumakua: CardDef = {
     abilities: [breakSub(2, 2, 'Sentry')],
     events: [{
       event: 'run-ends',
-      req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+      req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         const ctx = forms.context(state, card, targets) || {};
         return ctx.accessed && ctx.accessed.length > 0 && !ctx.stolen && !ctx.trashed;
       }),
       msg: 'place 1 virus counter on Aumakua',
-      effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+      effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         addVirusCounter(state, side, card, 1);
       }),
     }],
@@ -906,7 +903,7 @@ export const azimat: CardDef = {
     action: true,
     cost: [toC('click', 1), toC(':net', 1)],
     msg: 'look at the top card of the stack',
-    effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+    effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       const topCard = runnerStack(state).slice(-1)[0];
       if (topCard) {
         corePrompts.showChooseCardsPrompt?.(state, side, 'Top card of the stack', [topCard], ':discard', { faceup: true });
@@ -921,11 +918,11 @@ export const babaYaga: CardDef = {
   'static-abilities': [muPlus(2)],
   events: [{
     event: 'runner-take-damage',
-    req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+    req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       const ctx = forms.context(state, card, targets) || {};
       return ctx.type === 'meat' || ctx.type === ':meat';
     }),
     msg: 'draw 2 cards',
-    effect: effect(drawCards(state, side, eid, 2)),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { drawCards(state, side, eid, 2); }),
   }],
 };

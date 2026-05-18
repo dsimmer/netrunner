@@ -5,11 +5,11 @@
  * Describes a single card-back art option.
  */
 export interface CardBack {
-  name: string;
-  description: string;
+  name?: string;
+  description?: string;
   file: string; // filename stem under /img/card-backs/<side>/
-  side: string; // "Corp", "Runner", or "" for both
-  prize: boolean; // only visible when unlocked
+  side?: string; // "Corp", "Runner", or absent for both
+  prize?: boolean; // only visible when unlocked
   group?: string; // grouping for prize card backs (e.g. "Season 1", "Season 2")
 }
 

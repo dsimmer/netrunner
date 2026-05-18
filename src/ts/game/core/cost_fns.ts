@@ -142,9 +142,10 @@ export function playAdditionalCostBonus(
 export function rezCost(
   state: GameState,
   side: string,
-  card: Card,
-  args?: { costBonus?: number },
+  card: Card | null,
+  args?: { costBonus?: number; "cost-bonus"?: number; [k: string]: any },
 ): number | undefined {
+  if (!card) return undefined;
   const { cost } = card;
   if (cost === undefined) return undefined;
 
@@ -259,7 +260,7 @@ export function installCost(
   state: GameState,
   side: string,
   card: Card,
-  args?: { costBonus?: number },
+  args?: { costBonus?: number; "cost-bonus"?: number; [k: string]: any },
   targets?: Card[],
 ): number | undefined {
   const costBonus = args?.costBonus ?? 0;

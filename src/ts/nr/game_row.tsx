@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useAppState } from "./appstate";
 import { authenticated } from "./auth";
-import { PlayerView } from "./player_view";
+import { playerView as PlayerView } from "./player_view";
 import { resumeSound } from "./sounds";
 import { tr, trSpan } from "./translations";
 import { slugToFormat } from "./utils";
@@ -572,7 +572,7 @@ function GameTitle({
 
   return (
     <h4
-      onClick={() => state.setShowModMenu((s) => !s)}
+      onClick={() => state.setShowModMenu(!state.showModMenu)}
       className={isMod(user) ? "clickable" : undefined}
     >
       {saveReplay && <span>🟢</span>}
@@ -585,7 +585,7 @@ function GameTitle({
       {spectatorCount > 0 && (
         <>
           {" ("}
-          {trSpan(["lobby", "lobby_spectator-count"], { cnt: spectatorCount })}
+          {trSpan(["lobby", "lobby_spectator-count"], { cnt: String(spectatorCount) })}
           {")"}
         </>
       )}

@@ -42,7 +42,7 @@ function openBaseTests(): string[] {
  */
 function getTestName(testDef: string): string {
 	const normal = testDef.match(/deftest\s+([a-z\-]+)/);
-	const meta = testDef.match(/deftest\s+\^:\{card-title\s+"([0-9a-z-]+)"/);
+	const meta = testDef.match(/deftest\s+\^\{:card-title\s+"([0-9a-z-]+)"/);
 	return (normal?.[1] ?? meta?.[1]) ?? "";
 }
 
@@ -79,7 +79,7 @@ export function splitEm(fileStrings: string[] = openBaseTests()): void {
 }
 
 // Allow running from command line
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (require.main === module) {
 	splitEm();
 	console.log("Done.");
 }

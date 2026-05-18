@@ -1,489 +1,515 @@
-import * as React from "react";
-import { useEffect, useMemo, useState } from "react";
-import { GET } from "nr/ajax";
-import * as angelArena from "nr/angel-arena/lobby";
-import { appState, currentGameid } from "nr/appstate";
-import { authenticated } from "nr/auth";
-import { gameRow } from "nr/game-row";
-import * as ls from "nr/local-storage";
-import { leaveGame } from "nr/gameboard/actions";
-import { createNewGame } from "nr/new-game";
-import { passwordGame } from "nr/password-game";
-import { startReplayDiv } from "nr/replay-game";
-import { pendingGame } from "nr/pending-game";
-import { playSound, resumeSound } from "nr/sounds";
-import { tr, trElement, trSpan, trFormat } from "nr/translations";
-import { condButton, nonGameToast, trNonGameToast } from "nr/utils";
+// Game lobby page: rooms, game list, format filter, new-game / replay panels.
+// Mirrors: src/cljs/nr/lobby.cljs
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { GET } from "./ajax";
+import * as angelArena from "./angel_arena/lobby";
+import { useAppState, currentGameID, type AppStateShape } from "./appstate";
+import { authenticated } from "./auth";
+import { GameRow } from "./game_row";
+import { save as lsSave } from "./local_storage";
+import { launchGame, leaveGame as leaveGameAction } from "./gameboard/actions";
+import { createNewGame } from "./new_game";
+import { passwordGame } from "./password_game";
+import { PendingGame } from "./pending_game";
+import ReplayPage from "./replay_game";
+import { playSound, resumeSound } from "./sounds";
+import { tr, trElement, trSpan, trFormat } from "./translations";
+import {
+  condButton,
+  nonGameToast,
+  trNonGameToast,
+  slugToFormat,
+} from "./utils";
 import {
   wsSend,
+  wsSendWithCb,
+  onWSEvent,
   lobbyUpdatesContinue,
   lobbyUpdatesPause,
-  lobbyUpdatesState,
-} from "nr/ws";
-import { eventMsgHandlerWrapper } from "nr/ws";
-import * as sente from "taoensso.sente";
-import { slugToFormat } from "nr/utils";
+} from "./ws";
 
-// Type definitions
+// ─── Types ────────────────────────────────────────────────────────
+
 interface User {
   _id?: string;
   username?: string;
-  [key: string]: any;
+  [key: string]: unknown;
+}
+
+interface GamePlayer {
+  user?: { _id?: string; username?: string; [key: string]: unknown };
+  side?: string;
+  [key: string]: unknown;
 }
 
 interface Game {
   gameid?: string;
   room?: string;
   started?: boolean;
-  players?: { user?: User }[];
+  players?: GamePlayer[];
   format?: string;
-  [key: string]: any;
+  spectators?: unknown[];
+  [key: string]: unknown;
 }
 
-interface LobbyState {
-  room?: string;
-  editing?: boolean;
-  "password-game"?: boolean;
-  replay?: boolean;
-  [key: string]: any;
+interface PasswordGameInfo {
+  game: Game;
+  action: string;
+  "request-side"?: string;
+  requestSide?: string;
 }
 
-interface ReplayJumpParams {
-  n?: number;
-  d?: number;
-  b?: number;
-  [key: string]: any;
+interface LobbyLocalState {
+  room: string;
+  editing: boolean;
+  replay: boolean;
+  // game_row.tsx mutates `.current.passwordGame`; password_game.tsx reads
+  // `.["password-game"]`. Keep both keys in sync via the proxy in GameLobby.
+  passwordGame: PasswordGameInfo | null;
+  "password-game": PasswordGameInfo | null;
+  showModMenu: boolean;
 }
 
-interface GamesListPanelProps {
-  state: LobbyState;
-  setState: React.Dispatch<React.SetStateAction<LobbyState>>;
-  games: Game[];
-  currentGame: Game;
-  user: User;
-  visibleFormats: Set<string>;
+// ─── WS handlers (module-level, auto-registered) ──────────────────
+// Mirrors the defmethod ws/event-msg-handler entries at the top of lobby.cljs.
+
+onWSEvent("lobby/list", (data: unknown) => {
+  useAppState.getState().setGames((data as unknown[]) ?? []);
+});
+
+onWSEvent("lobby/state", (data: unknown) => {
+  const game = data as Game | null;
+  const state = useAppState.getState();
+  if (state.currentGame?.gameid === "local-replay") return;
+  state.setCurrentGame(
+    game ? ({ gameid: game.gameid ?? "", started: !!game.started, ...game } as never) : null,
+  );
+  if (game?.started && game.gameid) {
+    wsSend("game/resync", { gameid: game.gameid });
+  }
+});
+
+onWSEvent("lobby/notification", (data: unknown) => {
+  playSound(data as string);
+});
+
+onWSEvent("lobby/toast", (data: unknown) => {
+  const { message, type } = (data ?? {}) as { message?: string; type?: string };
+  if (!message || !type) return;
+  // cljs handles keyword vs string; in JS we only ever get strings.
+  nonGameToast(message, type, { "time-out": 30000, "close-button": true });
+});
+
+onWSEvent("lobby/block-game-creation", (data: unknown) => {
+  useAppState.getState().setBlockGameCreation(!!data);
+});
+
+onWSEvent("lobby/timeout", (data: unknown) => {
+  const { gameid } = (data ?? {}) as { gameid?: string };
+  if (!gameid) return;
+  if (gameid === currentGameID()) {
+    trNonGameToast(
+      ["lobby_closed-msg", "Game lobby closed due to inactivity"],
+      "error",
+      { "time-out": 0, "close-button": true },
+    );
+    useAppState.getState().setCurrentGame(null);
+  }
+});
+
+// ─── Helpers ──────────────────────────────────────────────────────
+
+// Mirrors: filter-games — visible if user is a player or game's format is visible.
+// Tournament room shows all games unconditionally.
+export function filterGames(
+  user: User,
+  games: Game[],
+  visibleFormats: Set<string>,
+): Game[] {
+  if (games.length > 0 && games[0]?.room === "tournament") {
+    return games;
+  }
+  return games.filter((game) => {
+    const hasPlayer = (game.players ?? []).some(
+      (p) => p.user?.username === user?.username,
+    );
+    if (hasPlayer) return true;
+    return !!game.format && visibleFormats.has(game.format);
+  });
 }
 
-interface RightPanelProps {
-  state: LobbyState;
-  setState: React.Dispatch<React.SetStateAction<LobbyState>>;
-  decks: any;
-  currentGame: Game;
-  user: User;
+const OPEN_GAMES_SYMBOL = "○";
+const CLOSED_GAMES_SYMBOL = "●";
+
+function roomCountStr(openCount: number, closedCount: number): string {
+  return ` (${openCount}${OPEN_GAMES_SYMBOL} ${closedCount}${CLOSED_GAMES_SYMBOL})`;
 }
 
-interface ButtonBarProps {
-  state: LobbyState;
-  setState: React.Dispatch<React.SetStateAction<LobbyState>>;
-  games: Game[];
-  currentGame: Game;
-  user: User;
-  visibleFormats: Set<string>;
-}
-
-// WebSocket event handlers registration
-const registerWsHandlers = () => {
-  // :lobby/list
-  ws.eventMsgHandler("lobby/list", ({ "?data": data }: any) => {
-    (appState as any).games = data;
-  });
-
-  // :lobby/state
-  ws.eventMsgHandler("lobby/state", ({ "?data": data }: any) => {
-    const currentGameId = ((appState as any).gameid as string) || "";
-    if (currentGameId !== "local-replay") {
-      (appState as any)["current-game"] = data;
-      if (data.started) {
-        wsSend(["game/resync", { gameid: data.gameid }]);
-      }
-    }
-  });
-
-  // :lobby/notification
-  ws.eventMsgHandler("lobby/notification", ({ "?data": data }: any) => {
-    playSound(data);
-  });
-
-  // :lobby/toast
-  ws.eventMsgHandler("lobby/toast", ({ "?data": data }: any) => {
-    const { message, type } = data;
-    const msg = typeof message === "string" ? message : tr(message as string);
-    nonGameToast(msg, type as string, { "time-out": 30000, "close-button": true });
-  });
-
-  // :lobby/block-game-creation
-  ws.eventMsgHandler("lobby/block-game-creation", ({ "?data": data }: any) => {
-    (appState as any)["block-game-creation"] = data;
-  });
-
-  // :lobby/timeout
-  ws.eventMsgHandler("lobby/timeout", ({ "?data": data }: any) => {
-    const currentGameId = (((appState as any)["current-game"] as any)?.gameid) || "";
-    if (data.gameid === currentGameId) {
-      trNonGameToast(
-        "lobby_closed-msg",
-        "Game lobby closed due to inactivity",
-        "error",
-        { "time-out": 0, "close-button": true }
-      );
-      (appState as any).gameid = null;
-    }
-  });
-};
-
-// Utility functions
-const replayGame = (setState: React.Dispatch<React.SetStateAction<LobbyState>>) => {
-  authenticated((_: any) => {
-    setState((prev) => ({ ...prev, replay: true }));
-  });
-};
-
-const startSharedReplay = (
-  setState: React.Dispatch<React.SetStateAction<LobbyState>>,
+function startSharedReplay(
   gameid: string,
-  jumpTo?: ReplayJumpParams
-) => {
-  authenticated((user: User) => {
-    setState((prev) => ({
-      ...prev,
-      title: `${user.username}'s game`,
-      side: "Corp",
-      format: "standard",
-      editing: false,
-      replay: true,
-      flashMessage: "",
-      protected: false,
-      password: "",
-      allowSpectator: true,
-      spectatorhands: true,
-    }));
-
-    GET(`/profile/history/full/${gameid}`).then(({ status, json }: any) => {
-      if (status === 200) {
-        const replay = json as any;
-        const history = replay.history;
-        const replayShared = replay.replay_shared;
-        let initState = history[0];
-        initState = { ...initState, gameid, "replay-shared": replayShared };
-        initState = {
-          ...initState,
-          options: { ...initState.options, spectatorhands: true },
+  jumpTo?: { n?: number; d?: number; bug?: number } | null,
+): void {
+  authenticated((_user) => {
+    GET(`/profile/history/full/${gameid}`).then((res) => {
+      if (res.status === 200) {
+        const replay = res.json as {
+          history?: Array<Record<string, unknown>>;
+          "replay-shared"?: boolean;
         };
+        const history = replay?.history ?? [];
+        if (history.length === 0) return;
+        const initStateBase = history[0] ?? {};
         const diffs = history.slice(1);
-        initState = { ...initState, "replay-diffs": diffs };
-
+        const initState: Record<string, unknown> = {
+          ...initStateBase,
+          gameid,
+          "replay-shared": replay?.["replay-shared"] ?? false,
+          options: {
+            ...((initStateBase.options as Record<string, unknown>) ?? {}),
+            spectatorhands: true,
+          },
+          "replay-diffs": diffs,
+        };
         if (jumpTo) {
-          initState = { ...initState, "replay-jump-to": jumpTo };
+          initState["replay-jump-to"] = jumpTo;
         }
-
-        eventMsgHandlerWrapper({
-          id: "game/start",
-          "?data": JSON.stringify(initState),
-        });
-      } else if (status === 404) {
+        // Mirrors (ws/event-msg-handler-wrapper {:id :game/start ...}) — a local
+        // dispatch into the game/start handler rather than a network send.
+        launchGame(initState as never);
+      } else if (res.status === 404) {
         trNonGameToast(
-          "lobby_replay-link-error",
-          "Replay link invalid.",
+          ["lobby_replay-link-error", "Replay link invalid."],
           "error",
-          { "time-out": 0, "close-button": true }
+          { "time-out": 0, "close-button": true },
         );
       }
     });
   });
-};
+}
 
-const leaveGameFn = () => {
-  const currentGameId = ((appState as any).gameid as string) || "";
-  if (currentGameId === "local-replay") {
-    (appState as any).gameid = null;
-    leaveGame();
-  } else {
-    wsSend(
-      ["game/leave", { gameid: currentGameid(appState as any) }],
-      8000,
-      (res: any) => {
-        if (sente.cbSuccess(res)) {
-          leaveGame();
-        }
-      }
-    );
+function leaveGameFromLobby(): void {
+  const gameid = currentGameID();
+  if (gameid === "local-replay") {
+    useAppState.getState().setCurrentGame(null);
+    leaveGameAction();
+    return;
   }
-};
+  wsSendWithCb(
+    "game/leave",
+    { gameid },
+    8000,
+    (response) => {
+      // Mirrors (sente/cb-success? %) — sente success values are non-error,
+      // matching responses that aren't `{error: ...}` or a timeout sentinel.
+      const ok =
+        response !== undefined &&
+        response !== null &&
+        !(response as { error?: string }).error;
+      if (ok) leaveGameAction();
+    },
+  );
+}
 
-const filterGames = (
-  user: User,
-  games: Game[],
-  visibleFormats: Set<string>
-) => {
-  if (games.length > 0 && games[0].room === "tournament") {
-    return games;
-  }
-  const isVisible = (game: Game) => {
-    const hasPlayer = (game.players || []).some(
-      (p) => p.user?.username === user.username
-    );
-    const formatVisible = visibleFormats.has(game.format as string);
-    return hasPlayer || formatVisible;
-  };
-  return games.filter(isVisible);
-};
+// ─── Room tab ─────────────────────────────────────────────────────
 
-const openGamesSymbol = "\u25CB";
-const closedGamesSymbol = "\u25CF";
-
-const roomCountStr = (openCount: number, closedCount: number) =>
-  ` (${openCount} ${openGamesSymbol} ${closedCount} ${closedGamesSymbol})`;
-
-// Room tab component
-const RoomTab: React.FC<{
+function RoomTab({
+  state,
+  setState,
+  user,
+  games,
+  room,
+  roomName,
+}: {
+  state: LobbyLocalState;
+  setState: React.Dispatch<React.SetStateAction<LobbyLocalState>>;
   user: User;
-  state: LobbyState;
-  setState: React.Dispatch<React.SetStateAction<LobbyState>>;
   games: Game[];
   room: string;
   roomName: string;
-}> = ({ user, state, setState, games, room, roomName }) => {
+}): React.ReactElement {
+  const visibleFormats = useAppState((s) => s.visibleFormats);
   const roomGames = useMemo(
     () => games.filter((g) => g.room === room),
-    [games, room]
+    [games, room],
   );
-  const visibleFormats = (appState as any).visibleFormats || new Set<string>();
   const filteredGames = useMemo(
     () => filterGames(user, roomGames, visibleFormats),
-    [user, roomGames, visibleFormats]
+    [user, roomGames, visibleFormats],
   );
-  const closedCount = useMemo(
-    () => filteredGames.filter((g) => g.started).length,
-    [filteredGames]
-  );
+  const closedCount = filteredGames.filter((g) => g.started).length;
   const openCount = roomGames.length - closedCount;
+
+  const active = state.room === room;
 
   return (
     <div
-      className={`roomtab${room === state.room ? " current" : ""}`}
+      className={`roomtab${active ? " current" : ""}`}
       onClick={() => {
-        setState((prev) => ({ ...prev, room, editing: undefined }));
+        if (!active) {
+          setState((prev) => ({ ...prev, room, editing: false }));
+        }
       }}
     >
       {trSpan(
-        [(`lobby_${roomName}` as any), roomName.toUpperCase()],
-        { type: roomName }
+        [`lobby_${roomName}`, roomName.charAt(0).toUpperCase() + roomName.slice(1)],
+        { type: roomName },
       )}
       {roomCountStr(openCount, closedCount)}
     </div>
   );
-};
+}
 
-// Game list component
-const GameList: React.FC<{
-  state: LobbyState;
-  setState: React.Dispatch<React.SetStateAction<LobbyState>>;
+// ─── Game list ────────────────────────────────────────────────────
+
+function GameList({
+  state,
+  stateRef,
+  user,
+  games,
+  currentGame,
+}: {
+  state: LobbyLocalState;
+  stateRef: React.MutableRefObject<LobbyLocalState>;
   user: User;
   games: Game[];
-  currentGame: Game;
-}> = ({ state, user, games, currentGame }) => {
-  const room = state.room || "casual";
-  const visibleFormats = (appState as any).visibleFormats || new Set<string>();
-  const roomGames = games.filter((g) => g.room === room);
+  currentGame: Game | null;
+}): React.ReactElement {
+  const visibleFormats = useAppState((s) => s.visibleFormats);
+  const roomGames = games.filter((g) => g.room === state.room);
   const filteredGames = filterGames(user, roomGames, visibleFormats);
 
-  const countLabel =
-    Object.keys(slugToFormat).length === visibleFormats.size
-      ? tr("lobby_game-count")
-      : tr("lobby_game-count-filtered");
+  const allFormatsVisible =
+    Object.keys(slugToFormat).length === visibleFormats.size;
+  const countResource: [string, string] = allFormatsVisible
+    ? ["lobby_game-count", ""]
+    : ["lobby_game-count-filtered", ""];
 
   return (
     <>
       <div className="game-count">
-        {trElement("h4", countLabel, { cnt: filteredGames.length })}
+        {trElement("h4", countResource, { cnt: String(filteredGames.length) })}
       </div>
       <div className="game-list">
         {filteredGames.length === 0 ? (
-          trElement("h4", tr("lobby_no-games", "No games"))
+          trElement("h4", ["lobby_no-games", "No games"])
         ) : (
           filteredGames.map((game) => (
-            <div key={game.gameid}>
-              {gameRow(state, game, currentGame, state.editing)}
-            </div>
+            <GameRow
+              key={game.gameid}
+              lobbyState={stateRef as never}
+              game={game as never}
+              currentGame={currentGame as never}
+              editing={state.editing}
+            />
           ))
         )}
       </div>
     </>
   );
-};
+}
 
-const formatVisible = (slug: string) => {
-  return (appState as any).visibleFormats?.has(slug) || false;
-};
+// ─── Format toggle ────────────────────────────────────────────────
 
-const onChangeFormatVisibility = (
-  slug: string,
-  evt: React.ChangeEvent<HTMLInputElement>
-) => {
-  evt.stopPropagation();
-  const vf = (appState as any).visibleFormats || new Set<string>();
-  if (formatVisible(slug)) {
-    vf.delete(slug);
-  } else {
-    vf.add(slug);
-  }
-  (appState as any).visibleFormats = vf;
-  ls.save!("visible-formats", vf);
-};
-
-const FormatToggle: React.FC<{ slug: string }> = ({ slug }) => {
+function FormatToggle({ slug }: { slug: string }): React.ReactElement {
+  const visibleFormats = useAppState((s) => s.visibleFormats);
+  const checked = visibleFormats.has(slug);
   const id = `filter-${slug}`;
+
+  const onChange = useCallback(
+    (evt: React.ChangeEvent<HTMLInputElement>) => {
+      evt.stopPropagation();
+      const current = useAppState.getState().visibleFormats;
+      const next = new Set(current);
+      if (checked) {
+        next.delete(slug);
+      } else {
+        next.add(slug);
+      }
+      useAppState.setState({ visibleFormats: next } as Partial<AppStateShape>);
+      lsSave("visible-formats", next);
+    },
+    [slug, checked],
+  );
+
   return (
     <div>
       <input
-        id={id}
         className="visible-formats"
+        id={id}
         type="checkbox"
-        onChange={(e) => onChangeFormatVisibility(slug, e)}
-        checked={formatVisible(slug)}
+        onChange={onChange}
+        checked={checked}
       />
       <label htmlFor={id} onClick={(e) => e.stopPropagation()}>
-        {trFormat(slug)}
+        {trFormat(slugToFormat[slug] ?? slug)}
       </label>
     </div>
   );
-};
+}
 
-const NewGameButton: React.FC<{
-  state: LobbyState;
-  setState: React.Dispatch<React.SetStateAction<LobbyState>>;
+// ─── Button bar ───────────────────────────────────────────────────
+
+function userInAnyGame(games: Game[], user: User): boolean {
+  const id = user?._id;
+  if (!id) return false;
+  return games.some((g) => (g.players ?? []).some((p) => p.user?._id === id));
+}
+
+function NewGameButton({
+  state,
+  setState,
+  games,
+  user,
+}: {
+  state: LobbyLocalState;
+  setState: React.Dispatch<React.SetStateAction<LobbyLocalState>>;
   games: Game[];
-  gameid: string | null;
   user: User;
-}> = ({ state, setState, games, gameid, user }) => {
+}): React.ReactElement {
+  const gameid = currentGameID();
   const canCreate =
     !gameid &&
     !state.editing &&
     state.room !== "tournament" &&
-    !games
-      .flatMap((g) => g.players || [])
-      .some((p) => p.user?._id === user._id);
+    !userInAnyGame(games, user);
 
   return condButton(
     trSpan(["lobby_new-game", "New game"]),
     canCreate,
     () => {
-      authenticated((_: any) => {
-        wsSend(["lobby/block-game-creation"]);
+      authenticated(() => {
+        wsSend("lobby/block-game-creation");
         setState((prev) => ({ ...prev, editing: true }));
-        const el = document.querySelector(".game-title") as HTMLInputElement;
-        if (el) el.select();
+        const el = document.querySelector(".game-title") as HTMLInputElement | null;
+        el?.select();
         resumeSound();
       });
-    }
+    },
   );
-};
+}
 
-const ReloadLobbyButton: React.FC = () => (
-  <button
-    className="reload-button"
-    type="button"
-    onClick={() => wsSend(["lobby/list"])}
-  >
-    {trSpan(["lobby_reload", "Reload list"])}
-  </button>
-);
+function ReloadLobbyButton(): React.ReactElement {
+  return (
+    <button
+      className="reload-button"
+      type="button"
+      onClick={() => wsSend("lobby/list")}
+    >
+      {trSpan(["lobby_reload", "Reload list"])}
+    </button>
+  );
+}
 
-const LoadReplayButton: React.FC<{
-  state: LobbyState;
-  setState: React.Dispatch<React.SetStateAction<LobbyState>>;
+function LoadReplayButton({
+  state,
+  setState,
+  games,
+  user,
+}: {
+  state: LobbyLocalState;
+  setState: React.Dispatch<React.SetStateAction<LobbyLocalState>>;
   games: Game[];
-  gameid: string | null;
   user: User;
-}> = ({ state, setState, games, gameid, user }) => {
+}): React.ReactElement {
+  const gameid = currentGameID();
   const canLoad =
     !gameid &&
     !state.editing &&
     state.room !== "tournament" &&
-    !games
-      .flatMap((g) => g.players || [])
-      .some((p) => p.user?._id === user._id);
+    !userInAnyGame(games, user);
 
   return condButton(
     trSpan(["lobby_load-replay", "Load replay"]),
     canLoad,
     () => {
-      replayGame(setState);
-      resumeSound();
-    }
+      authenticated(() => {
+        setState((prev) => ({ ...prev, replay: true }));
+        resumeSound();
+      });
+    },
   );
-};
+}
 
-// Button bar component
-const ButtonBar: React.FC<ButtonBarProps> = ({
+function ButtonBar({
   state,
   setState,
   games,
-  currentGame,
   user,
-  visibleFormats,
-}) => (
-  <div className="button-bar">
-    <div className="rooms">
-      <div id="filter" className="dropdown">
-        <a href="" data-toggle="dropdown">
-          {trSpan(["lobby_filter", "Filter"])}
-          <b className="caret" />
-        </a>
-        <div className="dropdown-menu blue-shade">
-          {Object.keys(slugToFormat).map((k) => (
-            <FormatToggle key={k} slug={k} />
-          ))}
+}: {
+  state: LobbyLocalState;
+  setState: React.Dispatch<React.SetStateAction<LobbyLocalState>>;
+  games: Game[];
+  user: User;
+}): React.ReactElement {
+  return (
+    <div className="button-bar">
+      <div className="rooms">
+        <div id="filter" className="dropdown">
+          <a href="" data-toggle="dropdown" onClick={(e) => e.preventDefault()}>
+            {trSpan(["lobby_filter", "Filter"])}
+            <b className="caret" />
+          </a>
+          <div className="dropdown-menu blue-shade">
+            {Object.keys(slugToFormat).map((slug) => (
+              <FormatToggle key={slug} slug={slug} />
+            ))}
+          </div>
         </div>
+        <RoomTab
+          state={state}
+          setState={setState}
+          user={user}
+          games={games}
+          room="casual"
+          roomName="casual"
+        />
+        <RoomTab
+          state={state}
+          setState={setState}
+          user={user}
+          games={games}
+          room="competitive"
+          roomName="tournament"
+        />
       </div>
-      <RoomTab
-        user={user}
-        state={state}
-        setState={setState}
-        games={games}
-        room="casual"
-        roomName="casual"
-      />
-      <RoomTab
-        user={user}
-        state={state}
-        setState={setState}
-        games={games}
-        room="competitive"
-        roomName="tournament"
-      />
+      {state.room !== "angel-arena" && (
+        <div className="lobby-buttons">
+          <NewGameButton
+            state={state}
+            setState={setState}
+            games={games}
+            user={user}
+          />
+          <ReloadLobbyButton />
+          <LoadReplayButton
+            state={state}
+            setState={setState}
+            games={games}
+            user={user}
+          />
+        </div>
+      )}
     </div>
-    {state.room !== "angel-arena" && (
-      <div className="lobby-buttons">
-        <NewGameButton
-          state={state}
-          setState={setState}
-          games={games}
-          gameid={currentGameId(appState as any) || null}
-          user={user}
-        />
-        <ReloadLobbyButton />
-        <LoadReplayButton
-          state={state}
-          setState={setState}
-          games={games}
-          gameid={currentGameId(appState as any) || null}
-          user={user}
-        />
-      </div>
-    )}
-  </div>
-);
+  );
+}
 
-// Games list panel component
-const gamesListPanel = ({
+// ─── Panels ───────────────────────────────────────────────────────
+
+function GamesListPanel({
   state,
   setState,
+  stateRef,
   games,
   currentGame,
   user,
-  visibleFormats,
-}: GamesListPanelProps) => {
+}: {
+  state: LobbyLocalState;
+  setState: React.Dispatch<React.SetStateAction<LobbyLocalState>>;
+  stateRef: React.MutableRefObject<LobbyLocalState>;
+  games: Game[];
+  currentGame: Game | null;
+  user: User;
+}): React.ReactElement {
   useEffect(() => {
     lobbyUpdatesContinue();
     return () => {
@@ -493,136 +519,219 @@ const gamesListPanel = ({
 
   return (
     <div className="games">
-      <ButtonBar
-        state={state}
-        setState={setState}
-        games={games}
-        currentGame={currentGame}
-        user={user}
-        visibleFormats={visibleFormats}
-      />
-      {lobbyUpdatesState.current
-        ? state.room === "angel-arena"
-          ? angelArena.gameList(state, { games, currentGame })
-          : (
-              <GameList
-                state={state}
-                setState={setState}
-                user={user}
-                games={games}
-                currentGame={currentGame}
-              />
-            )
-        : (
-          <div>
-            Lobby updates halted.{" "}
-            <button onClick={() => lobbyUpdatesContinue()}>
-              Reenable lobby updates
-            </button>
-          </div>
-        )}
+      <ButtonBar state={state} setState={setState} games={games} user={user} />
+      {state.room === "angel-arena" ? (
+        // angel-arena exports gameList; preserve the cljs-style call shape.
+        angelArena.gameList(
+          { current: state } as never,
+          { games, currentGame } as never,
+        ) as React.ReactNode
+      ) : (
+        <GameList
+          state={state}
+          stateRef={stateRef}
+          user={user}
+          games={games}
+          currentGame={currentGame}
+        />
+      )}
     </div>
   );
-};
+}
 
-// Right panel component
-const rightPanel = ({
+function RightPanel({
   state,
   setState,
+  stateRef,
   decks,
   currentGame,
   user,
-}: RightPanelProps) => {
+}: {
+  state: LobbyLocalState;
+  setState: React.Dispatch<React.SetStateAction<LobbyLocalState>>;
+  stateRef: React.MutableRefObject<LobbyLocalState>;
+  decks: unknown[];
+  currentGame: Game | null;
+  user: User;
+}): React.ReactElement | null {
   if (state.room === "angel-arena") {
-    return <angelArena.gamePanel decks={decks} />;
+    return (angelArena.gamePanel as unknown as (props: { decks: unknown[] }) => React.ReactElement)({ decks });
   }
 
   if (state.replay) {
-    return <startReplayDiv state={state} setState={setState} />;
+    return <ReplayPage />;
   }
-  if (state.editing) {
-    return <createNewGame state={state} setState={setState} user={user} />;
-  }
-  if (state["password-game"]) {
-    return <passwordGame state={state} setState={setState} />;
-  }
-  if (currentGame && !currentGame.started) {
-    return <pendingGame currentGame={currentGame} user={user} />;
-  }
-  return null;
-};
 
-// Load replay from URL params
-const loadReplayFromParams = (
-  setState: React.Dispatch<React.SetStateAction<LobbyState>>,
-  params: string
-) => {
-  (appState as any)["replay-id"] = null;
-  const bugReportMatch = /bug-report/.test(params);
-  const idMatch = /([0-9a-f\-]+)/.exec(params);
+  if (state.editing) {
+    // new_game.tsx expects a MutableRefObject<{ editing: boolean, ... }> and
+    // mutates `.current.editing = false` on submit. The proxy ref propagates
+    // that mutation back into React state, dismissing the new-game panel.
+    return createNewGame(
+      stateRef as unknown as React.MutableRefObject<{ editing: boolean; [key: string]: unknown }>,
+      user as Record<string, unknown> | null,
+    );
+  }
+
+  const pwGame = state["password-game"] ?? state.passwordGame;
+  if (pwGame) {
+    return passwordGame({
+      lobbyState: { "password-game": pwGame } as never,
+      setLobbyState: ((updater: unknown) => {
+        setState((prev) => {
+          const partial =
+            typeof updater === "function"
+              ? (updater as (s: Record<string, unknown>) => Record<string, unknown>)(prev as never)
+              : updater;
+          // Keep camelCase and kebab-case in sync.
+          const merged = { ...prev, ...(partial as Partial<LobbyLocalState>) };
+          if ("password-game" in (partial as object)) {
+            merged.passwordGame = (partial as Partial<LobbyLocalState>)["password-game"] ?? null;
+          }
+          if ("passwordGame" in (partial as object)) {
+            merged["password-game"] = (partial as Partial<LobbyLocalState>).passwordGame ?? null;
+          }
+          return merged;
+        });
+      }) as never,
+    });
+  }
+
+  if (currentGame && !currentGame.started) {
+    return <PendingGame currentGame={currentGame as never} user={user as never} />;
+  }
+
+  return null;
+}
+
+// ─── Replay URL params ────────────────────────────────────────────
+
+function loadReplayFromParams(params: string): void {
+  // Clear the trigger so we don't re-process.
+  useAppState.setState({ "replay-id": null } as Partial<AppStateShape>);
+  const bugReport = /bug-report/.test(params);
+  const idMatch = /([0-9a-f-]+)/.exec(params);
   const nMatch = /n=(\d+)/.exec(params);
   const dMatch = /d=(\d+)/.exec(params);
   const bMatch = /b=(\d+)/.exec(params);
-  const replayId = idMatch ? idMatch[1] : null;
+  const replayId = idMatch?.[1];
+  if (!replayId) return;
+
+  window.history.replaceState({}, "", "/play");
+
   const n = nMatch ? parseInt(nMatch[1], 10) : undefined;
   const d = dMatch ? parseInt(dMatch[1], 10) : undefined;
   const b = bMatch ? parseInt(bMatch[1], 10) : undefined;
 
-  if (replayId) {
-    window.history.replaceState({}, "", "/play");
-    if (bugReportMatch) {
-      startSharedReplay(setState, replayId, { bug: b ?? 0 });
-    } else if (n !== undefined && d !== undefined) {
-      startSharedReplay(setState, replayId, { n, d });
-    } else {
-      startSharedReplay(setState, replayId);
-    }
-    resumeSound();
-    return false;
+  if (bugReport) {
+    startSharedReplay(replayId, { bug: b ?? 0 });
+  } else if (n !== undefined && d !== undefined) {
+    startSharedReplay(replayId, { n, d });
+  } else {
+    startSharedReplay(replayId, null);
   }
-  return true;
-};
+  resumeSound();
+}
 
-// Main game lobby component
-export const gameLobby = () => {
-  const [state, setState] = useState<LobbyState>({ room: "casual" });
-  const games = (appState as any).games || [];
-  const currentGame = (appState as any)["current-game"] || {};
-  const user = (appState as any).user || {};
-  const visibleFormats = (appState as any).visibleFormats || new Set<string>();
-  const replayId = (appState as any)["replay-id"] || null;
-  const [decks] = useState((appState as any).decks);
+// ─── Main component ───────────────────────────────────────────────
 
+// Wrap the React state in a Proxy that calls setState when any field is
+// written. Inner components written against the cljs `swap! lobby-state`
+// pattern mutate `lobbyState.current.foo = bar`; this proxy turns those into
+// real React updates so the parent re-renders.
+function useLobbyStateRef(
+  state: LobbyLocalState,
+  setState: React.Dispatch<React.SetStateAction<LobbyLocalState>>,
+): React.MutableRefObject<LobbyLocalState> {
+  const liveRef = useRef(state);
+  liveRef.current = state;
+  const refRef = useRef<React.MutableRefObject<LobbyLocalState> | null>(null);
+  if (refRef.current === null) {
+    const target: { current: LobbyLocalState } = { current: state };
+    refRef.current = new Proxy(target, {
+      get: (_t, key) => {
+        if (key === "current") {
+          return new Proxy(liveRef.current as unknown as Record<string, unknown>, {
+            get: (_t2, k) => (liveRef.current as unknown as Record<string, unknown>)[k as string],
+            set: (_t2, k, v) => {
+              const field = k as string;
+              setState((prev) => {
+                const next: LobbyLocalState = { ...prev, [field]: v } as LobbyLocalState;
+                if (field === "passwordGame") next["password-game"] = v as never;
+                if (field === "password-game") next.passwordGame = v as never;
+                return next;
+              });
+              return true;
+            },
+          }) as unknown as LobbyLocalState;
+        }
+        return (target as unknown as Record<string, unknown>)[key as string];
+      },
+    }) as React.MutableRefObject<LobbyLocalState>;
+  }
+  return refRef.current!;
+}
+
+export function GameLobby(): React.ReactElement {
+  const [state, setState] = useState<LobbyLocalState>({
+    room: "casual",
+    editing: false,
+    replay: false,
+    passwordGame: null,
+    "password-game": null,
+    showModMenu: false,
+  });
+
+  const stateRef = useLobbyStateRef(state, setState);
+
+  const user = (useAppState((s) => s.user) as User | null) ?? {};
+  const games = useAppState((s) => s.games) as Game[];
+  const currentGame = useAppState((s) => s.currentGame) as Game | null;
+  const decks = useAppState((s) => s.decks);
+  const replayId = useAppState((s) => (s as Record<string, unknown>)["replay-id"]) as string | null;
+
+  // Mirrors top-level (authenticated (fn [_] nil)) — open login if needed.
   useEffect(() => {
-    authenticated((_: any) => {});
+    authenticated(() => {});
   }, []);
 
-  if (replayId) {
-    loadReplayFromParams(setState, replayId as string);
-  }
+  // Guard the replay-trigger so we only invoke once per replay-id.
+  const replayHandled = useRef<string | null>(null);
+  useEffect(() => {
+    if (replayId && replayHandled.current !== replayId) {
+      replayHandled.current = replayId;
+      loadReplayFromParams(replayId);
+    }
+  }, [replayId]);
 
   return (
     <div className="container">
       <div className="lobby-bg" />
       <div className="lobby panel blue-shade">
-        {gamesListPanel({
-          state,
-          setState,
-          games,
-          currentGame,
-          user,
-          visibleFormats,
-        })}
-        {rightPanel({
-          state,
-          setState,
-          decks,
-          currentGame,
-          user,
-        })}
+        <GamesListPanel
+          state={state}
+          setState={setState}
+          stateRef={stateRef}
+          games={games}
+          currentGame={currentGame}
+          user={user}
+        />
+        <RightPanel
+          state={state}
+          setState={setState}
+          stateRef={stateRef}
+          decks={decks}
+          currentGame={currentGame}
+          user={user}
+        />
       </div>
     </div>
   );
-};
+}
 
-export { registerWsHandlers, slugToFormat, leaveGameFn };
+export default GameLobby;
+
+// Backwards-compat alias for the previous lowercase export.
+export const gameLobby = GameLobby;
+
+// Re-exports kept for other modules that import from here.
+export { leaveGameFromLobby as leaveGameFn, startSharedReplay, slugToFormat };

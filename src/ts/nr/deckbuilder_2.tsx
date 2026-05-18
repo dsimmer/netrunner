@@ -18,7 +18,7 @@ import {
   slugToBuildableFormat, storeScrollTop, renderMessage, safeDivide,
   deckPointsCardSpan, mdyFormatter,
 } from "./utils";
-import { onWSEvent } from "./ws";
+import { onWSEvent, wsSend } from "./ws";
 
 import { ALL_FACTIONS_FILTER, ALL_FORMATS_FILTER, ALL_SIDES_FILTER, CardLineElement, cardCostHtml, cardCount, cardInfluenceHtml, deckDate, deckInfluenceHtml, deckName, deckPointsSpan, deckStatusText, deckToStr, factions, filterCards, filterFormat, filterLocked, filterSide, idInfluenceLimit, imageUrl, influenceCount, lookup, lookupIdentityByCode, lookupIdentityByTitle, nameCopy, noInfCost, parseDeckString, processCardsInDeck, sideIdentities } from './deckbuilder_1';
 import type { CardData, Deck, DeckLine, ParsedDeckLine } from './deckbuilder_1';
@@ -109,8 +109,10 @@ function CardSelector({
     [titleQuery, sideFilter, factionFilter, typeFilter, formatFilter, sortField, allCards, identity]
   );
 
-  const cardTypes = useMemo(() => {
-    const types = new Set(allCards.map(c => c.type).filter(Boolean));
+  const cardTypes = useMemo<string[]>(() => {
+    const types = new Set<string>(
+      allCards.map(c => c.type).filter((t): t is string => !!t),
+    );
     return ["Any Type", ...Array.from(types).sort()];
   }, [allCards]);
 
@@ -224,6 +226,184 @@ function ZoomModal({ card, onClose }: { card: CardData; onClose: () => void }) {
 // Main DeckBuilder component
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// NRDB import modal (mirrors import-deck-modal + send-import in deckbuilder.cljs)
+// ---------------------------------------------------------------------------
+
+function ImportDeckModal({ onClose }: { onClose: () => void }): React.ReactElement {
+  const [input, setInput] = useState("");
+
+  function sendImport() {
+    if (!input.trim()) return;
+    // Mirrors (ws/ws-send! [:decks/import {:input msg}])
+    wsSend("decks/import", { input });
+    onClose();
+  }
+
+  return (
+    <div className="modal fade" style={{ display: "block" }}>
+      <div className="modal-dialog">
+        {trElement("h3", [
+          "deck-builder_import-title",
+          "Enter a Public NRDB Deck ID or URL",
+        ])}
+        <p>
+          <input
+            className="url"
+            type="text"
+            id="nrdb-input"
+            data-i18n-key="deck-builder_import-placeholder"
+            placeholder={tr(["deck-builder_import-placeholder", "NRDB ID"])}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyPress={(e) => {
+              if (e.charCode === 13) sendImport();
+            }}
+          />
+        </p>
+        <p className="float-right">
+          <button
+            disabled={!input.trim()}
+            className={!input.trim() ? "disabled" : ""}
+            onClick={sendImport}
+          >
+            {trSpan(["deck-builder_import", "Import"])}
+          </button>
+          <button onClick={onClose}>
+            {trSpan(["deck-builder_cancel", "Cancel"])}
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Multi-deck delete confirmation modal (mirrors delete-confirm-modal)
+// ---------------------------------------------------------------------------
+
+function DeleteConfirmModal({
+  deckCount,
+  onConfirm,
+  onClose,
+}: {
+  deckCount: number;
+  onConfirm: () => void;
+  onClose: () => void;
+}): React.ReactElement {
+  return (
+    <div className="modal fade" style={{ display: "block" }}>
+      <div className="modal-dialog">
+        <h3>
+          {tr(
+            ["deck-builder_confirm-delete-multiple", "Delete {{cnt}} decks?"],
+            { cnt: String(deckCount) },
+          )}
+        </h3>
+        <p>{tr(["deck-builder_cannot-be-undone", "This cannot be undone."])}</p>
+        <p className="float-right">
+          <button
+            className="delete"
+            onClick={() => {
+              onConfirm();
+              onClose();
+            }}
+          >
+            {tr(["deck-builder_delete", "Delete"])}
+          </button>
+          <button onClick={onClose}>
+            {tr(["deck-builder_cancel", "Cancel"])}
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Bulk deck deletion helpers (mirrors execute-bulk-deck-deletion +
+// format-deletion-feedback in deckbuilder.cljs)
+// ---------------------------------------------------------------------------
+
+interface BulkDeleteResult {
+  successful: string[];
+  failed: Array<{ id: string; reason: string; message: string }>;
+}
+
+async function executeBulkDeckDeletion(
+  deckIds: string[],
+): Promise<BulkDeleteResult> {
+  try {
+    const response = await POST(
+      "/data/decks-bulk-delete",
+      { "deck-ids": deckIds },
+      "json",
+    );
+    if (response.status === 200) {
+      const results = (response.json as Array<{
+        id: string;
+        status: string;
+        error?: string;
+      }>) ?? [];
+      return {
+        successful: results
+          .filter((r) => r.status === "deleted")
+          .map((r) => r.id),
+        failed: results
+          .filter((r) => r.status !== "deleted")
+          .map((r) => ({
+            id: r.id,
+            reason: r.status === "unauthorized" ? "unauthorized" : "unknown",
+            message: r.error ?? "",
+          })),
+      };
+    }
+    return {
+      successful: [],
+      failed: deckIds.map((id) => ({
+        id,
+        reason: "http-error",
+        message: `HTTP ${response.status}`,
+      })),
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      successful: [],
+      failed: deckIds.map((id) => ({
+        id,
+        reason: "client-error",
+        message: `Error: ${msg}`,
+      })),
+    };
+  }
+}
+
+function formatDeletionFeedback(
+  successCount: number,
+  failedCount: number,
+): { message: string; type: "success" | "error" | "warning" } {
+  if (failedCount === 0) {
+    return {
+      message: tr(
+        ["deck-builder_deleted-decks-success", "Deleted {{cnt}} decks"],
+        { cnt: String(successCount) },
+      ),
+      type: "success",
+    };
+  }
+  return {
+    message: tr(
+      [
+        "deck-builder_deletion-success-and-or-failure",
+        "{{success}} deleted, {{failed}} failed",
+      ],
+      { success: String(successCount), failed: String(failedCount) },
+    ),
+    type: successCount === 0 ? "error" : "warning",
+  };
+}
+
 export function DeckBuilder(): React.ReactElement | null {
   const { decks, setDecks } = useAppState();
   const [editingDeck, setEditingDeck] = useState<Deck | null>(null);
@@ -234,11 +414,16 @@ export function DeckBuilder(): React.ReactElement | null {
   const [deckListLocked, setDeckListLocked] = useState(false);
   const [deckListSearch, setDeckListSearch] = useState("");
   const [deckListSort, setDeckListSort] = useState("");
+  // Mirrors :cleanup-mode and :selected-decks in deckbuilder.cljs
+  const [cleanupMode, setCleanupMode] = useState(false);
+  const [selectedDecks, setSelectedDecks] = useState<Set<string>>(new Set());
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Authentication check
-  const auth = authenticated();
-
-  if (!auth) {
+  const user = useAppState((s) => s.user);
+  if (!user) {
     return <div>{tr(["deck-builder_must-login", "You must be logged in to use the deck builder."])}</div>;
   }
 
@@ -246,7 +431,7 @@ export function DeckBuilder(): React.ReactElement | null {
   useEffect(() => {
     (async () => {
       try {
-        const response = await GET("/deck/");
+        const response = await GET("/data/decks");
         if (response.status === 200 && response.json) {
           const rawDecks = response.json as Deck[];
           const processedDecks = rawDecks.map(d => ({
@@ -278,6 +463,33 @@ export function DeckBuilder(): React.ReactElement | null {
         const deckId = (data as { id: string }).id;
         setDecks((decks as Deck[]).filter(d => String(d._id) !== String(deckId)) as unknown[]);
       },
+      // Mirrors decks/import-success and decks/import-failure broadcasts
+      "decks/import-success": () => {
+        nonGameToast(
+          tr(["deck-builder_import-success", "Imported"]),
+          "success",
+        );
+        // refresh deck list
+        GET("/data/decks").then((r) => {
+          if (r.status === 200 && Array.isArray(r.json)) {
+            const refreshed = (r.json as Deck[]).map((d) => ({
+              ...d,
+              side: d.identity?.side ?? "",
+            }));
+            setDecks(refreshed as unknown[]);
+          }
+        });
+      },
+      "decks/import-failure": (data) => {
+        const msg =
+          typeof data === "string"
+            ? data
+            : tr([
+                "deck-builder_import-failed",
+                "Failed to import deck.",
+              ]);
+        nonGameToast(msg, "error");
+      },
     };
 
     Object.entries(handlers).forEach(([event, handler]) =>
@@ -290,6 +502,88 @@ export function DeckBuilder(): React.ReactElement | null {
     };
   }, [setDecks]);
 
+  // Mirrors delete-selected-decks! in deckbuilder.cljs
+  const runBulkDelete = useCallback(async () => {
+    if (selectedDecks.size === 0) return;
+    setDeleting(true);
+    // Mirrors (set! (.-onbeforeunload js/window) ...) warning during deletion
+    const prevBeforeUnload = window.onbeforeunload;
+    window.onbeforeunload = () =>
+      tr([
+        "deck-builder_deletion-in-progress",
+        "Deck deletion in progress. Please wait.",
+      ]);
+
+    try {
+      const ids = Array.from(selectedDecks);
+      const result = await executeBulkDeckDeletion(ids);
+      const successSet = new Set(result.successful.map(String));
+      if (successSet.size > 0) {
+        setDecks(
+          (decks as Deck[]).filter(
+            (d) => !successSet.has(String(d._id)),
+          ) as unknown[],
+        );
+      }
+      const feedback = formatDeletionFeedback(
+        result.successful.length,
+        result.failed.length,
+      );
+      nonGameToast(feedback.message, feedback.type);
+    } finally {
+      window.onbeforeunload = prevBeforeUnload;
+      setDeleting(false);
+      setSelectedDecks(new Set());
+      setCleanupMode(false);
+    }
+  }, [selectedDecks, decks, setDecks]);
+
+  // Mirrors clear-deck-stats: DELETE /profile/stats/deck/:id
+  const clearDeckStats = useCallback(
+    async (deck: Deck) => {
+      if (!deck._id) return;
+      authenticated(async () => {
+        const response = await DELETE(
+          `/profile/stats/deck/${deck._id}`,
+        );
+        if (response.status === 200) {
+          const cleared = { ...deck, stats: undefined };
+          setDecks(
+            (decks as Deck[]).map((d) =>
+              String(d._id) === String(deck._id) ? cleared : d,
+            ) as unknown[],
+          );
+          nonGameToast(
+            tr([
+              "deck-builder_deck-stats-cleared",
+              "Deck stats cleared",
+            ]),
+            "success",
+          );
+        } else {
+          nonGameToast(
+            tr([
+              "deck-builder_clear-stats-failed",
+              "Failed to clear deck stats",
+            ]),
+            "error",
+          );
+        }
+      });
+    },
+    [decks, setDecks],
+  );
+
+  // Toggle a deck in the selected-for-deletion set
+  const toggleSelected = useCallback((id: string) => {
+    setSelectedDecks((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
   // Handlers
   const handleDeleteDeck = useCallback(async (deck: Deck) => {
     if (!deck._id) return;
@@ -299,7 +593,7 @@ export function DeckBuilder(): React.ReactElement | null {
     if (!confirmed) return;
 
     try {
-      const response = await DELETE(`/deck/${deck._id}`);
+      const response = await DELETE(`/data/decks/${deck._id}`);
       if (response.status === 200) {
         setDecks((decks as Deck[]).filter(d => String(d._id) !== String(deck._id)) as unknown[]);
         nonGameToast(
@@ -317,7 +611,7 @@ export function DeckBuilder(): React.ReactElement | null {
 
   const handleSaveDeck = useCallback(async (deck: Deck) => {
     try {
-      const response = await PUT("/deck/", deck as unknown as Record<string, unknown>);
+      const response = await PUT("/data/decks", deck as unknown as Record<string, unknown>, "json");
       if (response.status === 200) {
         const savedDeck = { ...deck, _id: (response.json as { _id?: string | number })?._id, parsed: true, side: deck.identity?.side ?? "" };
         const existing = (decks as Deck[]).findIndex(d => String(d._id) === String(savedDeck._id));
@@ -344,7 +638,7 @@ export function DeckBuilder(): React.ReactElement | null {
 
   const handleCreateDeck = useCallback(async (deck: Deck) => {
     try {
-      const response = await POST("/deck/", deck as unknown as Record<string, unknown>);
+      const response = await POST("/data/decks", deck as unknown as Record<string, unknown>, "json");
       if (response.status === 200) {
         const newDeck = { ...deck, _id: (response.json as { _id?: string | number })?._id, parsed: true, side: deck.identity?.side ?? "" };
         setDecks([newDeck, ...(decks as Deck[])] as unknown[]);
@@ -393,33 +687,57 @@ export function DeckBuilder(): React.ReactElement | null {
   }, [decks, deckListSide, deckListFormat, deckListLocked, deckListSearch]);
 
   // Deck list item
-  const renderDeckItem = (deck: Deck) => (
-    <div key={String(deck._id)} className="deck-item">
-      <div className="deck-item-info">
-        <span className="deck-item-name">{deckName(deck)}</span>
-        <span className="deck-item-date">{deckDate(deck)}</span>
+  const renderDeckItem = (deck: Deck) => {
+    const id = String(deck._id);
+    return (
+      <div key={id} className="deck-item">
+        {cleanupMode && (
+          <input
+            type="checkbox"
+            checked={selectedDecks.has(id)}
+            onChange={() => toggleSelected(id)}
+            disabled={!!deck.locked || deleting}
+          />
+        )}
+        <div className="deck-item-info">
+          <span className="deck-item-name">{deckName(deck)}</span>
+          <span className="deck-item-date">{deckDate(deck)}</span>
+        </div>
+        <div className="deck-item-actions">
+          <button
+            className="btn btn-sm"
+            onClick={() => setEditingDeck(deck)}
+            disabled={!!deck.locked || cleanupMode}
+          >
+            {tr(["deck-builder_edit", "Edit"])}
+          </button>
+          <button
+            className="btn btn-sm"
+            onClick={() => handleDuplicateDeck(deck)}
+            disabled={cleanupMode}
+          >
+            {tr(["deck-builder_duplicate", "Duplicate"])}
+          </button>
+          {deck.stats != null && (
+            <button
+              className="btn btn-sm"
+              onClick={() => clearDeckStats(deck)}
+              disabled={cleanupMode}
+            >
+              {tr(["deck-builder_clear-stats", "Clear Stats"])}
+            </button>
+          )}
+          <button
+            className="btn btn-sm btn-danger"
+            onClick={() => handleDeleteDeck(deck)}
+            disabled={!!deck.locked || cleanupMode}
+          >
+            {tr(["deck-builder_delete", "Delete"])}
+          </button>
+        </div>
       </div>
-      <div className="deck-item-actions">
-        <button
-          className="btn btn-sm"
-          onClick={() => setEditingDeck(deck)}
-          disabled={!!deck.locked}
-        >
-          {tr(["deck-builder_edit", "Edit"])}
-        </button>
-        <button className="btn btn-sm" onClick={() => handleDuplicateDeck(deck)}>
-          {tr(["deck-builder_duplicate", "Duplicate"])}
-        </button>
-        <button
-          className="btn btn-sm btn-danger"
-          onClick={() => handleDeleteDeck(deck)}
-          disabled={!!deck.locked}
-        >
-          {tr(["deck-builder_delete", "Delete"])}
-        </button>
-      </div>
-    </div>
-  );
+    );
+  };
 
   // Editing a deck
   if (editingDeck) {
@@ -441,9 +759,51 @@ export function DeckBuilder(): React.ReactElement | null {
     <div className="deck-builder">
       <div className="deck-builder-header">
         <h2>{tr(["deck-builder_title", "Deck Builder"])}</h2>
-        <button className="btn" onClick={() => setShowNewDeck(true)}>
+        <button
+          className="btn"
+          onClick={() => setShowNewDeck(true)}
+          disabled={cleanupMode}
+        >
           {tr(["deck-builder_new-deck", "New Deck"])}
         </button>
+        <button
+          className="btn"
+          onClick={() => setShowImportModal(true)}
+          disabled={cleanupMode}
+        >
+          {tr(["deck-builder_import-nrdb", "Import from NRDB"])}
+        </button>
+        {!cleanupMode ? (
+          <button
+            className="btn"
+            onClick={() => setCleanupMode(true)}
+          >
+            {tr(["deck-builder_cleanup", "Cleanup"])}
+          </button>
+        ) : (
+          <>
+            <button
+              className="btn btn-danger"
+              disabled={selectedDecks.size === 0 || deleting}
+              onClick={() => setShowBulkDeleteConfirm(true)}
+            >
+              {tr(
+                ["deck-builder_delete-selected", "Delete Selected ({{cnt}})"],
+                { cnt: String(selectedDecks.size) },
+              )}
+            </button>
+            <button
+              className="btn"
+              onClick={() => {
+                setCleanupMode(false);
+                setSelectedDecks(new Set());
+              }}
+              disabled={deleting}
+            >
+              {tr(["deck-builder_cancel", "Cancel"])}
+            </button>
+          </>
+        )}
       </div>
       <div className="deck-list-filters">
         <input
@@ -484,6 +844,16 @@ export function DeckBuilder(): React.ReactElement | null {
           onClose={() => setZoomCard(null)}
         />
       )}
+      {showImportModal && (
+        <ImportDeckModal onClose={() => setShowImportModal(false)} />
+      )}
+      {showBulkDeleteConfirm && (
+        <DeleteConfirmModal
+          deckCount={selectedDecks.size}
+          onConfirm={runBulkDelete}
+          onClose={() => setShowBulkDeleteConfirm(false)}
+        />
+      )}
     </div>
   );
 }
@@ -520,7 +890,7 @@ function NewDeckWizard({ onCreate, onCancel }: {
       identity: parsedDeck.identity,
       cards: parsedDeck.cards as DeckLine[],
       format,
-      notes: parsedDeck.notes,
+      notes: parsedDeck.notes ?? undefined,
       parsed: true,
       side,
       new: true,

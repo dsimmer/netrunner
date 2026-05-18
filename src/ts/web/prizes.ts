@@ -5,7 +5,7 @@
 import { Db } from "mongodb";
 import { registerMsgHandler, broadcastTo, type WSMessage } from "./ws";
 import { activeUser } from "./user";
-import { response } from "./utils";
+import { response, type HttpResponse } from "./utils";
 
 // ---- Types ----
 
@@ -24,7 +24,7 @@ interface WSMessageWithReq extends WSMessage {
  * Auth check endpoint (unused in current routing, kept for compatibility).
  * Mirrors: (defn auth [_] (response 200 {:message "ok"}))
  */
-export function auth(_req: unknown): { status: number; body: Record<string, string>; headers: Record<string, string> } {
+export function auth(_req: unknown): HttpResponse {
   return response(200, { message: "ok" });
 }
 

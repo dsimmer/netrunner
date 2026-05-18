@@ -5,6 +5,7 @@ import React from "react";
 import { BrowserRouter } from "react-router-dom";
 import { App } from "./app";
 import { useAppState } from "./appstate";
+import { navigate } from "./navbar";
 import { lobbyUpdatesPause, lobbyUpdatesContinue, initWS } from "./ws";
 
 // ─── Mirrors: get-server-data in main.cljs ──────────────────────────
@@ -56,16 +57,12 @@ export function init(): void {
   const ver = getServerData("version");
   const rid = getServerData("replay-id");
 
-  // Store app version (mirrors (swap! app-state assoc :app-version ver))
-  if (ver) {
-    window.__appVersion__ = ver;
-  }
+  // Mirrors: (swap! app-state assoc :app-version ver) and :replay-id rid
+  useAppState.setState({ "app-version": ver, "replay-id": rid });
 
-  // If there is a replay-id, store it and navigate to /play
-  // (mirrors (when rid (navigate "/play")))
+  // If there is a replay-id, navigate to /play (mirrors (when rid (navigate "/play")))
   if (rid) {
-    window.__replayId__ = rid;
-    window.history.pushState({}, "", "/play");
+    navigate("/play");
   }
 
   // Start the websocket router (mirrors start-router!)
@@ -75,10 +72,3 @@ export function init(): void {
   mount();
 }
 
-// ─── Type declarations for custom window properties ─────────────────
-declare global {
-  interface Window {
-    __appVersion__?: string;
-    __replayId__?: string;
-  }
-}

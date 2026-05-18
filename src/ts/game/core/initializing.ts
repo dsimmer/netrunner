@@ -33,7 +33,7 @@ import { addCounter } from "./props";
 import { allActive, allActiveInstalled } from "./board";
 import { makeLabel } from "../../jinteki/utils";
 import { makeCID, makeTimestamp, serverCard, toKeyword } from "../utils";
-import { addSub } from "./ice";
+import { addSub, buildSub } from "./ice";
 import { CORP_SIDE, RUNNER_SIDE } from "./state";
 import { breakSubAbilityCost, cardAbilityCost } from "./cost_fns";
 
@@ -74,12 +74,12 @@ function updateInState(state: GameState, side: string, card: Card): void {
   const z = card.zone ?? [];
   if (z.length === 0) return;
 
-  const player = side === RUNNER_SIDE ? state.runner : state.corp;
+  const player: any = side === RUNNER_SIDE ? state.runner : state.corp;
   const zoneName = z[0];
 
   // Facedown cards live in rig.facedown
   if (zoneName === "rig" && isFacedown(card)) {
-    const idx = player.rig.facedown.findIndex((c) => c.cid === card.cid);
+    const idx = player.rig.facedown.findIndex((c: Card) => c.cid === card.cid);
     if (idx !== -1) mergeProps(player.rig.facedown[idx], card);
     return;
   }
@@ -123,7 +123,7 @@ function updateInState(state: GameState, side: string, card: Card): void {
     | "play-area"
     | "current"
     | "set-aside";
-  const arr = (player as Record<string, Card[]>)[zoneKey];
+  const arr = (player as any as Record<string, Card[]>)[zoneKey];
   if (arr && Array.isArray(arr)) {
     const idx = arr.findIndex((c) => c.cid === card.cid);
     if (idx !== -1) mergeProps(arr[idx], card);
@@ -158,7 +158,7 @@ function subroutinesInit(
   }
   // Full initialization with state
   const baseCard = { ...card, subroutines: undefined };
-  return subroutinesDef.map((sub) => addSub(state, sub, baseCard));
+  return subroutinesDef.map((sub) => buildSub(sub as any, baseCard.cid ?? "", { printed: true }) as any);
 }
 
 // ---------------------------------------------------------------------------
@@ -169,31 +169,31 @@ function subroutinesInit(
  * Gets abilities associated with the card (ICE abilities).
  * Mirrors: ability-init
  */
-function abilityInit(cdef: CardDef): Ability[] {
+export function abilityInit(cdef: CardDef): Ability[] {
   const abilities = cdef.abilities ?? [];
   return abilities.map((ab) => {
     const withLabel = { ...ab, label: makeLabel(ab) };
-    return addCostLabelToAbility(withLabel);
-  });
+    return addCostLabelToAbility(withLabel) as unknown as Ability;
+  }) as Ability[];
 }
 
 /**
  * Gets corp abilities associated with the card.
  * Mirrors: corp-ability-init
  */
-function corpAbilityInit(cdef: CardDef): Ability[] {
+export function corpAbilityInit(cdef: CardDef): Ability[] {
   const abilities = cdef.corpAbilities ?? [];
   return abilities.map((ab) => {
     const withCost = { cost: ab.cost, label: makeLabel(ab) };
-    return addCostLabelToAbility(withCost);
-  });
+    return addCostLabelToAbility(withCost) as unknown as Ability;
+  }) as Ability[];
 }
 
 /**
  * Gets runner abilities associated with the card.
  * Mirrors: runner-ability-init
  */
-function runnerAbilityInit(cdef: CardDef): Ability[] {
+export function runnerAbilityInit(cdef: CardDef): Ability[] {
   const abilities = cdef.runnerAbilities ?? [];
   return abilities.map((ab) => {
     const cost = ab.breakCost ?? ab.cost;
@@ -202,8 +202,8 @@ function runnerAbilityInit(cdef: CardDef): Ability[] {
       breakCost: ab.breakCost,
       label: makeLabel(ab),
     };
-    return addCostLabelToAbility(withCost, cost);
-  });
+    return addCostLabelToAbility(withCost, cost as any) as unknown as Ability;
+  }) as Ability[];
 }
 
 // ---------------------------------------------------------------------------
@@ -324,14 +324,15 @@ export function deactivate(
 export function cardInit(
   state: GameState,
   side: string,
-  card: Card,
-  args?: { resolveEffect?: boolean; initData?: boolean; noMu?: boolean },
+  card: Card | null | undefined,
+  args?: { resolveEffect?: boolean; initData?: boolean; noMu?: boolean; 'resolve-effect'?: boolean; 'init-data'?: boolean; 'no-mu'?: boolean } | null,
 ): Card {
+  if (!card) return card as any;
+  const argsAny = (args ?? {}) as any;
   const opts = {
-    resolveEffect: true,
-    initData: true,
-    noMu: false,
-    ...args,
+    resolveEffect: argsAny['resolve-effect'] ?? argsAny.resolveEffect ?? true,
+    initData: argsAny['init-data'] ?? argsAny.initData ?? true,
+    noMu: argsAny['no-mu'] ?? argsAny.noMu ?? false,
   };
 
   const eid = makeEID(state);
@@ -403,7 +404,7 @@ export function cardInit(
 
   // Register recurring credit event
   if (recurring !== undefined && recurring !== null) {
-    const recurringFn: AbilityFn = (s, s2, e, cd, targets) => {
+    const recurringFn: AbilityFn = (s: any, s2: any, e: any, cd: any, targets: any) => {
       // Reset recurring counter
       if (cd) {
         if (!cd.counter) cd.counter = {};
@@ -425,7 +426,7 @@ export function cardInit(
     registerEvents(state, side, c, [
       {
         event: eventName,
-        req: (_s, _s2, _e, cd) => !cd?.disabled,
+        req: (_s: any, _s2: any, _e: any, cd: any) => !cd?.disabled,
         async: true,
         effect: recurringFn,
       },
@@ -483,20 +484,20 @@ function updateAbilityCostStr(
     "abilities" | "corpAbilities" | "runnerAbilities"
   >,
 ): Ability[] {
-  const abilities = card[abilityKw] ?? [];
-  return abilities.map((ab) => {
+  const abilities = (card[abilityKw] ?? []) as Ability[];
+  return abilities.map((ab: Ability) => {
     let abCost: Ability;
     if (ab.breakCost) {
       abCost = {
         ...ab,
-        cost: breakSubAbilityCost(state, side, ab, card) as any,
+        cost: breakSubAbilityCost(state, side, ab as any, card) as any,
       };
     } else {
       abCost = ab;
     }
     const computedCost = cardAbilityCost(state, side, abCost, card);
-    return addCostLabelToAbility(abCost, computedCost as any);
-  });
+    return addCostLabelToAbility(abCost as any, computedCost as any) as unknown as Ability;
+  }) as Ability[];
 }
 
 /**

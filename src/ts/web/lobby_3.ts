@@ -16,7 +16,7 @@ import {
   tournamentState,
 } from "./app_state";
 import { connectedUids, chskSend, registerMsgHandler, WSMessage } from "./ws";
-import { makeSystemMessage } from "../game/core/say";
+import { makeSystemMessage, type Message } from "../game/core/say";
 import { serverCard } from "../game/utils";
 import { selectNonNilKeys, sideFromStr, superuser, tournamentOrganizer } from "../jinteki/utils";
 import { allMatchups } from "../jinteki/preconstructed";
@@ -30,7 +30,7 @@ import { checkPassword, closeLobby, firstPlayerInLobby, handleSetLastUpdate, inL
  * Check if user is allowed in a lobby (not blocked).
  * Mirrors: (allowed-in-lobby user lobby)
  */
-function allowedInLobby(user: Record<string, unknown>, lobby: Lobby): boolean {
+export function allowedInLobby(user: Record<string, unknown>, lobby: Lobby): boolean {
   if (superuser(user)) return true;
   return filterLobbyList([lobby], user).length > 0;
 }
@@ -107,7 +107,7 @@ function handleJoinLobby(
   uid: string,
   user: Record<string, unknown>,
   correctPassword: boolean,
-  joinMessage: Record<string, unknown>,
+  joinMessage: Record<string, unknown> | Message,
 ): Record<string, Lobby> {
   const gameid = data.gameid as string;
   const requestSide = data["request-side"] as string | undefined;
@@ -544,13 +544,13 @@ function watchLobby(
  * Handle watching a lobby.
  * Mirrors: (handle-watch-lobby lobbies gameid uid user correct-password? watch-message request-side)
  */
-function handleWatchLobby(
+export function handleWatchLobby(
   lobbies: Record<string, Lobby>,
   gameid: string,
   uid: string,
   user: Record<string, unknown>,
   correctPassword: boolean,
-  watchMessage: Record<string, unknown>,
+  watchMessage: Record<string, unknown> | Message,
   requestSide: string | undefined,
 ): Record<string, Lobby> {
   const lobby = lobbies[gameid];

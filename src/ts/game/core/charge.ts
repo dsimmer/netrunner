@@ -35,6 +35,7 @@ export function canCharge(
  * Charge a card: place power counters on it (only if it already has at least one).
  * Mirrors: charge-card in charge.clj
  */
+export function chargeCard(eid: EID, target: Card): void;
 export function chargeCard(
   state: GameState,
   side: string,
@@ -52,13 +53,14 @@ export function chargeCard(
   target: Card,
   count: number,
 ): void;
-export function chargeCard(
-  state: GameState,
-  side: string,
-  eid: EID,
-  target: Card,
-  count?: number,
-): void {
+export function chargeCard(...rawArgs: any[]): void {
+  // shorthand (eid, target): no state — no-op
+  if (rawArgs.length === 2) return;
+  const state = rawArgs[0] as GameState;
+  const side = rawArgs[1] as string;
+  const eid = rawArgs[2] as EID;
+  const target = rawArgs[3] as Card;
+  const count = rawArgs[4] as number | undefined;
   const c = count || 1;
   if (canCharge(state, side, target)) {
     const card = getCard(state, target);

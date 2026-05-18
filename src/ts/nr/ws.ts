@@ -10,7 +10,8 @@ export interface WSMessage {
 }
 
 // Mirrors: defmulti event-msg-handler
-type WSEventHandler = (data: unknown) => void;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type WSEventHandler = (data: any) => void;
 const handlers: Map<string, WSEventHandler> = new Map();
 
 let socket: WebSocket | null = null;
@@ -29,6 +30,60 @@ export function wsSend(id: string, data?: unknown): void {
     return;
   }
   socket.send(JSON.stringify({ id, data }));
+}
+
+// ---------------------------------------------------------------------------
+// Round-trip request/reply (mirrors sente ws-send! with timeout + callback).
+// The server is expected to reply to ws-send-with-cb messages with an event
+// whose data field carries a matching `_reqId`. On match, the callback is
+// invoked with `data.response` (mirroring sente's cb-success?/value form),
+// the handler is unregistered, and the timeout cleared.
+// ---------------------------------------------------------------------------
+
+let nextReqId = 1;
+interface PendingRequest {
+  cb: (response: unknown) => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+const pending: Map<number, PendingRequest> = new Map();
+
+export function wsSendWithCb(
+  id: string,
+  data: unknown,
+  timeoutMs: number,
+  cb: (response: unknown) => void,
+): void {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    console.warn("ws: not connected, dropping cb message", id);
+    cb({ error: "not-connected" });
+    return;
+  }
+  const reqId = nextReqId++;
+  const timer = setTimeout(() => {
+    pending.delete(reqId);
+    cb({ error: "timeout" });
+  }, timeoutMs);
+  pending.set(reqId, { cb, timer });
+  const payload =
+    data == null
+      ? { _reqId: reqId }
+      : typeof data === "object"
+        ? { ...(data as Record<string, unknown>), _reqId: reqId }
+        : { value: data, _reqId: reqId };
+  socket.send(JSON.stringify({ id, data: payload }));
+}
+
+function resolvePendingReply(reqId: number, response: unknown): boolean {
+  const p = pending.get(reqId);
+  if (!p) return false;
+  clearTimeout(p.timer);
+  pending.delete(reqId);
+  try {
+    p.cb(response);
+  } catch (e) {
+    console.error("ws cb error:", e);
+  }
+  return true;
 }
 
 // Mirrors: resync
@@ -59,6 +114,13 @@ export function onWSEvent(id: string, fn: WSEventHandler): void {
 }
 
 function dispatch(msg: WSMessage): void {
+  // Round-trip reply: data carries _reqId from the originating wsSendWithCb.
+  const data = msg.data as Record<string, unknown> | undefined;
+  const reqId = data?._reqId as number | undefined;
+  if (reqId != null) {
+    const response = "response" in (data ?? {}) ? data!.response : data;
+    if (resolvePendingReply(reqId, response)) return;
+  }
   const fn = handlers.get(msg.id);
   if (fn) {
     try {

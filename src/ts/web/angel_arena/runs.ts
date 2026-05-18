@@ -99,7 +99,7 @@ export async function finishRun(
   const newRuns = { ...runs };
   const formatKey = format as string;
   if (newRuns[formatKey]) {
-    newRuns[formatKey][side] = undefined;
+    delete newRuns[formatKey][side];
   }
 
   await db.collection<Document>("users").updateOne(

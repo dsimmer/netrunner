@@ -270,7 +270,6 @@ function traceReply(
   showTracePrompt(
     state,
     other,
-    makeEID(state, eid),
     card,
     `Boost ${otherType} strength?`,
     (boost2: number) =>
@@ -322,11 +321,11 @@ function traceStart(
   showTracePrompt(
     state,
     player,
-    makeEID(state, eid),
     card,
     `Boost ${thisType} strength?`,
     (boost: number) => traceReply(state, side, eid, card, trace, boost),
     {
+      eid: makeEID(state, eid),
       corpCredits: trace.corpCredits,
       runnerCredits: trace.runnerCredits,
       player,
@@ -336,7 +335,7 @@ function traceStart(
       strength: strength ?? baseBonus,
       link: trace.link,
       unbeatable: trace.unbeatable,
-      beatTrace: null,
+      beatTrace: undefined,
       targets: undefined,
     } as any,
   );
@@ -415,7 +414,7 @@ export function initTrace(
 ): void {
   resetTraceModifications(state);
 
-  triggerEventSync(state, "corp", "initialize-trace", card, eid);
+  triggerEventSync(state, "corp", eid, "initialize-trace", card);
 
   const forceBaseVal = (state as any).trace?.forceBase;
   const forceLink = getEffects(state, "corp", "trace-force-link", card, [
@@ -533,7 +532,7 @@ function checkTrace(
         async: true,
         effect: req(
           (s: GameState, sd: string, ei: EID, c: Card | null, t: unknown[]) => {
-            initTrace(s, sd, capturedEid, c, capturedTraceData);
+            initTrace(s, sd, capturedEid, c, capturedTraceData as any);
           },
         ),
       },
@@ -545,4 +544,4 @@ function checkTrace(
   }
 }
 
-registerAbilityType("trace", checkTrace);
+registerAbilityType("trace", checkTrace as any);

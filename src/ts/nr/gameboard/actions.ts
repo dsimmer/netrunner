@@ -6,7 +6,7 @@ import { onWSEvent, wsSend, lockState, setLock } from "../ws";
 import { playSfx } from "../sounds";
 import { trSpan, tr } from "../translations";
 import { toastrOptions } from "../utils";
-import { initReplay } from "./replay";
+import { initReplay, type JsonPatchOp } from "./replay";
 import ReactDOMServer from "react-dom/server";
 
 // ---------------------------------------------------------------------------
@@ -22,11 +22,9 @@ export function toast(
   toastType: string,
   options?: Record<string, unknown>,
 ): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (window as any).toastr.options = toastrOptions(options ?? {});
+  window.toastr.options = toastrOptions(options ?? {});
   const actualType = toastType === "exception" ? "error" : toastType;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const f = (window as any).toastr[actualType];
+  const f = window.toastr[actualType];
   if (typeof f === "function") {
     if (toastType === "exception") {
       f(buildExceptionMsg(msg, useGameBoard.getState().gameState?.["last-error"] as unknown));
@@ -54,7 +52,7 @@ export function initGame(state: GameStateData): void {
   useGameBoard.setState((prev) => ({ gameState: { ...prev.gameState!, side } }));
   setLock(false);
   if ((state as Record<string, unknown>)["replay-diffs"]) {
-    initReplay(useAppState.getState(), state);
+    initReplay(state as unknown as Record<string, unknown>);
     const currentGame = useAppState.getState().currentGame;
     if (currentGame) {
       useAppState.getState().setCurrentGame({ ...currentGame, started: true });
@@ -65,8 +63,7 @@ export function initGame(state: GameStateData): void {
 /** Launch game UI. Mirrors: launch-game! */
 export function launchGame(state: GameStateData): void {
   initGame(state);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (window as any).onbeforeunload = () => "Leaving this page will disconnect you from the game.";
+  window.onbeforeunload = () => "Leaving this page will disconnect you from the game.";
   const lobby = document.getElementById("gamelobby");
   const board = document.getElementById("gameboard");
   if (lobby) {
@@ -89,8 +86,7 @@ export function leaveGame(): void {
   useGameBoard.getState().setGameState(null as unknown as GameStateData);
   useAppState.getState().setCurrentGame(null);
   document.body.style.cursor = "default";
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (window as any).onbeforeunload = null;
+  window.onbeforeunload = null;
   const board = document.getElementById("gameboard");
   const lobby = document.getElementById("gamelobby");
   if (board) {
@@ -116,7 +112,7 @@ export function leaveGame(): void {
 export function handleDiff(data: { gameid?: string; diff?: unknown[] }): void {
   const diff = data.diff;
   if (diff && Array.isArray(diff)) {
-    useGameBoard.getState().applyDiff(diff);
+    useGameBoard.getState().applyDiff(diff as JsonPatchOp[]);
   }
   checkLock();
   const gs = useGameBoard.getState().gameState;

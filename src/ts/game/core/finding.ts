@@ -238,3 +238,10 @@ export function getAllCards(state: GameState): Card[] {
   }
   return checked;
 }
+
+export { allInstalled, allActiveInstalled, allInstalledRunnerType } from "./board";
+
+/** Find a card anywhere in state by its cid. Mirrors `find-cid`. */
+export function findCid(cid: string, state: GameState): Card | null {
+  return findCIDInSlice(cid, getAllCards(state));
+}

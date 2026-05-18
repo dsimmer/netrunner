@@ -1,12 +1,11 @@
 // End-of-game statistics panel.
 // Mirrors: src/cljs/nr/end_of_game_stats.cljs
 import React from "react";
-import { tr, trElement, trSide } from "./translations";
+import { trElement, trSide } from "./translations";
 
-/** Stat tuple: [translated-label, numeric-value] */
-export type StatTuple = [string, number];
+/** Stat entry: [tr-resource-tuple, numeric-value] */
+export type StatEntry = [[string, string], number | undefined];
 
-/** Deeply-nested stat data object from game recording */
 export interface StatsData {
   [key: string]: unknown;
 }
@@ -22,158 +21,118 @@ function getIn(obj: unknown, path: (string | number)[]): unknown {
 }
 
 /**
- * computed-stat: get a value, transform it, return tuple if positive.
- * Mirrors: (defn computed-stat [s stat-tr key transform]
- *           (let [val (get-in s key)
- *                 val (when val (transform val))]
- *             (when (and val (pos? val))
- *               [stat-tr val])))
+ * computed-stat: get a value, transform it, return entry if positive.
+ * Mirrors: computed-stat in end_of_game_stats.cljs
  */
 function computedStat(
   s: StatsData,
-  statTr: string[],
+  statTr: [string, string],
   key: string[],
   transform: (val: unknown) => number,
-): StatTuple | undefined {
-  const val = getIn(s, key) as unknown;
+): StatEntry | undefined {
+  const val = getIn(s, key);
   const transformed = val != null ? transform(val) : undefined;
   if (transformed !== undefined && transformed > 0) {
-    return [tr(statTr), transformed];
+    return [statTr, transformed];
   }
   return undefined;
 }
 
 /**
- * optional-stat: get a value, return tuple if positive.
- * Mirrors: (defn optional-stat [s stat-tr key]
- *           (let [val (get-in s key)]
- *             (when (and val (pos? val))
- *               [stat-tr (get-in s key)])))
+ * optional-stat: get a value, return entry if positive.
+ * Mirrors: optional-stat in end_of_game_stats.cljs
  */
 function optionalStat(
   s: StatsData,
-  statTr: string[],
+  statTr: [string, string],
   key: string[],
-): StatTuple | undefined {
+): StatEntry | undefined {
   const val = getIn(s, key) as number | undefined;
   if (val !== undefined && val > 0) {
-    return [tr(statTr), val];
+    return [statTr, val];
   }
   return undefined;
 }
 
 /* ── Corp stats ────────────────────────────────────────────────────────── */
-export function corpStats(s: StatsData): StatTuple[] {
-  const raw: (StatTuple | undefined)[] = [
-    [tr([":stats_clicks-gained", "Clicks Gained"]) as string,
-     getIn(s, ["gain", "click"]) as number],
-    [tr([":stats_credits-gained", "Credits Gained"]) as string,
-     getIn(s, ["gain", "credit"]) as number],
-    [tr([":stats_credits-spent", "Credits Spent"]) as string,
-     getIn(s, ["spent", "credit"]) as number],
-    [tr([":stats_credits-click", "Credits by the Basic Action"]) as string,
-     getIn(s, ["click", "credit"]) as number],
-    [tr([":stats_cards-drawn", "Cards Drawn"]) as string,
-     getIn(s, ["gain", "card"]) as number],
-    [tr([":stats_cards-click", "Cards Drawn by the Basic Action"]) as string,
-     getIn(s, ["click", "draw"]) as number],
-    [tr([":stats_damage-done", "Damage Done"]) as string,
-     getIn(s, ["damage", "all"]) as number],
-    [tr([":stats_cards-rezzed", "Cards Rezzed"]) as string,
-     getIn(s, ["cards", "rezzed"]) as number],
-    optionalStat(s, [":stats_shuffle-count", "Shuffle Count"], ["shuffle-count"]),
-    optionalStat(s, [":stats_operations-played", "Operations Played"], ["cards-played", "play-instant"]),
-    optionalStat(s, [":stats_rashida-count", "Rashida Count"], ["rashida-count"]),
-    // psi games
-    optionalStat(s, [":stats_psi-game-total", "Psi Game: Games Played"], ["psi-game", "games-played"]),
-    optionalStat(s, [":stats_psi-game-total-wins", "Psi Game: Wins"], ["psi-game", "wins"]),
-    optionalStat(s, [":stats_psi-game-total-bid-0", "Psi Game: Bid 0"], ["psi-game", "bet-0"]),
-    optionalStat(s, [":stats_psi-game-total-bid-1", "Psi Game: Bid 1"], ["psi-game", "bet-1"]),
-    optionalStat(s, [":stats_psi-game-total-bid-2", "Psi Game: Bid 2"], ["psi-game", "bet-2"]),
+export function corpStats(s: StatsData): StatEntry[] {
+  const raw: (StatEntry | undefined)[] = [
+    [["stats_clicks-gained", "Clicks Gained"], getIn(s, ["gain", "click"]) as number | undefined],
+    [["stats_credits-gained", "Credits Gained"], getIn(s, ["gain", "credit"]) as number | undefined],
+    [["stats_credits-spent", "Credits Spent"], getIn(s, ["spent", "credit"]) as number | undefined],
+    [["stats_credits-click", "Credits by the Basic Action"], getIn(s, ["click", "credit"]) as number | undefined],
+    [["stats_cards-drawn", "Cards Drawn"], getIn(s, ["gain", "card"]) as number | undefined],
+    [["stats_cards-click", "Cards Drawn by the Basic Action"], getIn(s, ["click", "draw"]) as number | undefined],
+    [["stats_damage-done", "Damage Done"], getIn(s, ["damage", "all"]) as number | undefined],
+    [["stats_cards-rezzed", "Cards Rezzed"], getIn(s, ["cards", "rezzed"]) as number | undefined],
+    optionalStat(s, ["stats_shuffle-count", "Shuffle Count"], ["shuffle-count"]),
+    optionalStat(s, ["stats_operations-played", "Operations Played"], ["cards-played", "play-instant"]),
+    optionalStat(s, ["stats_rashida-count", "Rashida Count"], ["rashida-count"]),
+    optionalStat(s, ["stats_psi-game-total", "Psi Game: Games Played"], ["psi-game", "games-played"]),
+    optionalStat(s, ["stats_psi-game-total-wins", "Psi Game: Wins"], ["psi-game", "wins"]),
+    optionalStat(s, ["stats_psi-game-total-bid-0", "Psi Game: Bid 0"], ["psi-game", "bet-0"]),
+    optionalStat(s, ["stats_psi-game-total-bid-1", "Psi Game: Bid 1"], ["psi-game", "bet-1"]),
+    optionalStat(s, ["stats_psi-game-total-bid-2", "Psi Game: Bid 2"], ["psi-game", "bet-2"]),
   ];
-  return raw.filter((x): x is StatTuple => x != null);
+  return raw.filter((x): x is StatEntry => x != null);
 }
 
 /* ── Runner stats ──────────────────────────────────────────────────────── */
-export function runnerStats(s: StatsData): StatTuple[] {
-  const raw: (StatTuple | undefined)[] = [
-    [tr([":stats_clicks-gained", "Clicks Gained"]) as string,
-     getIn(s, ["gain", "click"]) as number],
-    [tr([":stats_credits-gained", "Credits Gained"]) as string,
-     getIn(s, ["gain", "credit"]) as number],
-    [tr([":stats_credits-spent", "Credits Spent"]) as string,
-     getIn(s, ["spent", "credit"]) as number],
-    [tr([":stats_credits-click", "Credits by the Basic Action"]) as string,
-     getIn(s, ["click", "credit"]) as number],
-    [tr([":stats_cards-drawn", "Cards Drawn"]) as string,
-     getIn(s, ["gain", "card"]) as number],
-    [tr([":stats_cards-click", "Cards Drawn by the Basic Action"]) as string,
-     getIn(s, ["click", "draw"]) as number],
-    [tr([":stats_tags-gained", "Tags Gained"]) as string,
-     getIn(s, ["gain", "tag", "base"]) as number],
-    [tr([":stats_runs-made", "Runs Made"]) as string,
-     getIn(s, ["runs", "started"]) as number],
-    [tr([":stats_cards-accessed", "Cards Accessed"]) as string,
-     getIn(s, ["access", "cards"]) as number],
-    optionalStat(s, [":stats_shuffle-count", "Shuffle Count"], ["shuffle-count"]),
-    optionalStat(s, [":stats_cards-sabotaged", "Sabotage Count"], ["cards-sabotaged"]),
-    optionalStat(s, [":stats_events-played", "Events Played"], ["cards-played", "play-instant"]),
-    computedStat(
-      s,
-      [":stats_unique-accesses", "Unique Cards Accessed"],
-      ["access", "unique-cards"],
-      (v: unknown) => {
-        if (Array.isArray(v)) return v.length;
-        return 0;
-      },
-    ),
-    // psi games
-    optionalStat(s, [":stats_psi-game-total", "Psi Game: Games Played"], ["psi-game", "games-played"]),
-    optionalStat(s, [":stats_psi-game-total-wins", "Psi Game: Wins"], ["psi-game", "wins"]),
-    optionalStat(s, [":stats_psi-game-total-bid-0", "Psi Game: Bid 0"], ["psi-game", "bet-0"]),
-    optionalStat(s, [":stats_psi-game-total-bid-1", "Psi Game: Bid 1"], ["psi-game", "bet-1"]),
-    optionalStat(s, [":stats_psi-game-total-bid-2", "Psi Game: Bid 2"], ["psi-game", "bet-2"]),
+export function runnerStats(s: StatsData): StatEntry[] {
+  const raw: (StatEntry | undefined)[] = [
+    [["stats_clicks-gained", "Clicks Gained"], getIn(s, ["gain", "click"]) as number | undefined],
+    [["stats_credits-gained", "Credits Gained"], getIn(s, ["gain", "credit"]) as number | undefined],
+    [["stats_credits-spent", "Credits Spent"], getIn(s, ["spent", "credit"]) as number | undefined],
+    [["stats_credits-click", "Credits by the Basic Action"], getIn(s, ["click", "credit"]) as number | undefined],
+    [["stats_cards-drawn", "Cards Drawn"], getIn(s, ["gain", "card"]) as number | undefined],
+    [["stats_cards-click", "Cards Drawn by the Basic Action"], getIn(s, ["click", "draw"]) as number | undefined],
+    [["stats_tags-gained", "Tags Gained"], getIn(s, ["gain", "tag", "base"]) as number | undefined],
+    [["stats_runs-made", "Runs Made"], getIn(s, ["runs", "started"]) as number | undefined],
+    [["stats_cards-accessed", "Cards Accessed"], getIn(s, ["access", "cards"]) as number | undefined],
+    optionalStat(s, ["stats_shuffle-count", "Shuffle Count"], ["shuffle-count"]),
+    optionalStat(s, ["stats_cards-sabotaged", "Sabotage Count"], ["cards-sabotaged"]),
+    optionalStat(s, ["stats_events-played", "Events Played"], ["cards-played", "play-instant"]),
+    computedStat(s, ["stats_unique-accesses", "Unique Cards Accessed"], ["access", "unique-cards"],
+      (v) => Array.isArray(v) ? v.length : 0),
+    optionalStat(s, ["stats_psi-game-total", "Psi Game: Games Played"], ["psi-game", "games-played"]),
+    optionalStat(s, ["stats_psi-game-total-wins", "Psi Game: Wins"], ["psi-game", "wins"]),
+    optionalStat(s, ["stats_psi-game-total-bid-0", "Psi Game: Bid 0"], ["psi-game", "bet-0"]),
+    optionalStat(s, ["stats_psi-game-total-bid-1", "Psi Game: Bid 1"], ["psi-game", "bet-1"]),
+    optionalStat(s, ["stats_psi-game-total-bid-2", "Psi Game: Bid 2"], ["psi-game", "bet-2"]),
   ];
-  return raw.filter((x): x is StatTuple => x != null);
+  return raw.filter((x): x is StatEntry => x != null);
 }
 
 /* ── Map longest helper (mirrors nr.utils map-longest) ─────────────────── */
-/**
- * Like map but pads shorter arrays with a default value.
- * (defn map-longest [f default & colls]
- *   (lazy-seq
- *     (when (some seq colls)
- *       (cons (apply f (map #(if (seq %) (first %) default) colls))
- *             (apply map-longest f default (map rest colls))))))
- */
-export function mapLongest<A, T, R>(
-  f: (...args: T[]) => R,
-  defaultVal: T,
+export function mapLongest<T, R>(
+  f: (...args: (T | undefined)[]) => R,
+  defaultVal: T | undefined,
   ...colls: T[][]
 ): R[] {
   const result: R[] = [];
   let idx = 0;
   while (colls.some(c => idx < c.length)) {
-    const args = colls.map(c => (idx < c.length ? c[idx] : defaultVal)) as unknown as [...T[]];
+    const args = colls.map(c => (idx < c.length ? c[idx] : defaultVal));
     result.push(f(...args));
     idx++;
   }
   return result;
 }
 
-/* ── Show stat: returns value string or "-" ────────────────────────────── */
-export function showStat(stat: StatTuple | undefined): string {
-  if (stat != null && stat[1] > 0) {
-    return String(stat[1]);
-  }
+/** Show stat value: returns numeric string if positive, "-" otherwise.
+ *  Mirrors: show-stat in end_of_game_stats.cljs */
+export function showStat(stat: StatEntry | undefined): string | number {
+  if (!stat) return "";
+  const val = stat[1];
+  if (val != null && val > 0) return val;
   return "-";
 }
 
-/* ── Build the stats table (mirrors build-game-stats) ──────────────────── */
-export default function EndOfGameStats(corp: StatsData, runner: StatsData): React.ReactElement {
-  const stats = mapLongest(
-    (c: StatTuple | undefined, r: StatTuple | undefined) => [c, r] as [StatTuple | undefined, StatTuple | undefined],
-    undefined as unknown as StatTuple,
+/** Build the end-of-game stats table. Mirrors: build-game-stats */
+export default function EndOfGameStats({ corp, runner }: { corp: StatsData; runner: StatsData }): React.ReactElement {
+  const pairs = mapLongest<StatEntry, [StatEntry | undefined, StatEntry | undefined]>(
+    (c, r) => [c, r],
+    undefined,
     corpStats(corp),
     runnerStats(runner),
   );
@@ -188,25 +147,14 @@ export default function EndOfGameStats(corp: StatsData, runner: StatsData): Reac
             <td className="win th">{trSide("Runner")}</td>
             <td className="win th" />
           </tr>
-          {stats.map((pair: [StatTuple | undefined, StatTuple | undefined], i: number) => {
-            const [corpStat, runnerStat] = pair;
-            return (
-              <tr key={i}>
-                {corpStat ? (
-                  <td>{trElement("td", corpStat[0] as string[])}</td>
-                ) : (
-                  <td />
-                )}
-                <td>{showStat(corpStat)}</td>
-                {runnerStat ? (
-                  <td>{trElement("td", runnerStat[0] as string[])}</td>
-                ) : (
-                  <td />
-                )}
-                <td>{showStat(runnerStat)}</td>
-              </tr>
-            );
-          })}
+          {pairs.map(([corpStat, runnerStat], i) => (
+            <tr key={i}>
+              {corpStat ? trElement("td", corpStat[0]) : <td />}
+              <td>{showStat(corpStat)}</td>
+              {runnerStat ? trElement("td", runnerStat[0]) : <td />}
+              <td>{showStat(runnerStat)}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>

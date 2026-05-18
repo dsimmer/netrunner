@@ -104,7 +104,7 @@ function updateHostedCard(
   side: string,
   card: Card,
 ): Card | null {
-  const hostCard = getCard(state, card.host);
+  const hostCard = getCard(state, card.host ?? null);
   if (hostCard) {
     const cid = card.cid;
     const hosted = hostCard.hosted ?? [];
@@ -370,21 +370,14 @@ function updateSideAgendaPoints(state: GameState, side: string): boolean {
  * Updates agenda points for both sides.
  * Mirrors: update-all-agenda-points in agendas.clj
  */
+export function updateAllAgendaPoints(): boolean;
 export function updateAllAgendaPoints(state: GameState): boolean;
-/**
- * Updates agenda points for both sides.
- * (side parameter is ignored, mirrors Clojure multi-arities).
- * Mirrors: update-all-agenda-points in agendas.clj
- */
-export function updateAllAgendaPoints(
-  state: GameState,
-  _side: unknown,
-): boolean;
-export function updateAllAgendaPoints(
-  state: GameState,
-  side?: unknown,
-): boolean {
+export function updateAllAgendaPoints(state: GameState, _side: unknown): boolean;
+export function updateAllAgendaPoints(state?: GameState, _side?: unknown): boolean {
+  if (!state) return false;
   const corpChanged = updateSideAgendaPoints(state, CORP_SIDE);
   const runnerChanged = updateSideAgendaPoints(state, "runner");
   return corpChanged || runnerChanged;
 }
+
+export { score } from "./actions_2";

@@ -4,13 +4,26 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useAppState } from "./appstate";
 import { GET, PUT, POST, DELETE } from "./ajax";
 import { tr, trElement, trSpan, trFormat } from "./translations";
-import { formatDateTime, iSOIshFormatter, slugToFormat, nonGameToast, trNonGameToast, setScrollTop, storeScrollTop } from "./utils";
+import {
+  formatDateTime,
+  iSOIshFormatter,
+  slugToFormat,
+  nonGameToast,
+  trNonGameToast,
+  setScrollTop,
+  storeScrollTop,
+} from "./utils";
 import { insertLang, getBundle } from "../jinteki/i18n";
 import { AllCards } from "../jinteki/cards";
 import { cardBacksForSide } from "../jinteki/card_backs";
 import { ALL_SETTINGS } from "../jinteki/settings";
 import { updateLocalStorageSettings } from "./local_storage";
-import { bespokeSounds, playSfx, randomSound, selectRandomFromGrouping } from "./sounds";
+import {
+  bespokeSounds,
+  playSfx,
+  randomSound,
+  selectRandomFromGrouping,
+} from "./sounds";
 import Avatar from "./avatar";
 
 // ---------------------------------------------------------------------------
@@ -18,32 +31,63 @@ import Avatar from "./avatar";
 // ---------------------------------------------------------------------------
 
 const PRONOUN_LIST: [string, string][] = [
-  ["Unspecified", "none"], ["Any", "any"], ["Prefer not to say", "myodb"],
-  ["[blank]", "blank"], ["They/them", "they"], ["She/her", "she"],
-  ["She/it", "sheit"], ["She/they", "shethey"], ["He/him", "he"],
-  ["He/it", "heit"], ["He/they", "hethey"], ["He/She/they", "heshe"],
-  ["He/She", "heshe2"], ["It", "it"], ["Fae/faer", "faefaer"],
-  ["Ne/nem", "ne"], ["Ve/ver", "ve"], ["Ey/em", "ey"],
-  ["Ze/hir", "zehir"], ["Ze/zir", "zezir"], ["Xe/xem", "xe"], ["Xi/xir", "xi"],
+  ["Unspecified", "none"],
+  ["Any", "any"],
+  ["Prefer not to say", "myodb"],
+  ["[blank]", "blank"],
+  ["They/them", "they"],
+  ["She/her", "she"],
+  ["She/it", "sheit"],
+  ["She/they", "shethey"],
+  ["He/him", "he"],
+  ["He/it", "heit"],
+  ["He/they", "hethey"],
+  ["He/She/they", "heshe"],
+  ["He/She", "heshe2"],
+  ["It", "it"],
+  ["Fae/faer", "faefaer"],
+  ["Ne/nem", "ne"],
+  ["Ve/ver", "ve"],
+  ["Ey/em", "ey"],
+  ["Ze/hir", "zehir"],
+  ["Ze/zir", "zezir"],
+  ["Xe/xem", "xe"],
+  ["Xi/xir", "xi"],
 ];
 
 const BACKGROUND_LIST: [string, string][] = [
-  ["Apex", "apex-bg"], ["Find The Truth", "find-the-truth-bg"],
-  ["Freelancer", "freelancer-bg"], ["Monochrome", "monochrome-bg"],
-  ["Mushin No Shin", "mushin-no-shin-bg"], ["Push Your Luck", "push-your-luck-bg"],
-  ["Rumor Mill", "rumor-mill-bg"], ["The Root", "the-root-bg"],
-  ["Traffic Jam", "traffic-jam-bg"], ["Worlds 2020", "worlds2020"],
+  ["Apex", "apex-bg"],
+  ["Find The Truth", "find-the-truth-bg"],
+  ["Freelancer", "freelancer-bg"],
+  ["Monochrome", "monochrome-bg"],
+  ["Mushin No Shin", "mushin-no-shin-bg"],
+  ["Push Your Luck", "push-your-luck-bg"],
+  ["Rumor Mill", "rumor-mill-bg"],
+  ["The Root", "the-root-bg"],
+  ["Traffic Jam", "traffic-jam-bg"],
+  ["Worlds 2020", "worlds2020"],
   ["Custom BG (input URL below)", "custom-bg"],
 ];
 
 const LANGUAGE_LIST: [string, string][] = [
-  ["English", "en"], ["Spanish", "es"], ["中文 (Simplified)", "zh-simp"],
-  ["中文 (Traditional)", "zh-trad"], ["Français", "fr"], ["Deutsch", "de"],
-  ["Italiano", "it"], ["日本語", "ja"], ["한국어", "ko"], ["Polski", "pl"],
-  ["Português", "pt"], ["Русский", "ru"], ["Catalan", "ca"], ["Igpay Atinlay", "la-pig"],
+  ["English", "en"],
+  ["Spanish", "es"],
+  ["中文 (Simplified)", "zh-simp"],
+  ["中文 (Traditional)", "zh-trad"],
+  ["Français", "fr"],
+  ["Deutsch", "de"],
+  ["Italiano", "it"],
+  ["日本語", "ja"],
+  ["한국어", "ko"],
+  ["Polski", "pl"],
+  ["Português", "pt"],
+  ["Русский", "ru"],
+  ["Catalan", "ca"],
+  ["Igpay Atinlay", "la-pig"],
 ];
 
-const EMAIL_RE = /[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?/;
+const EMAIL_RE =
+  /[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?/;
 
 function validEmail(email: string): boolean {
   return EMAIL_RE.test(email.toLowerCase());
@@ -75,38 +119,75 @@ interface ApiKey {
 // State keys extracted from app-state options (mirrors select-keys in CLJS)
 // ---------------------------------------------------------------------------
 const STATE_KEYS = [
-  "pronouns", "bespoke-sounds", "language", "card-language", "sounds", "default-format",
-  "lobby-sounds", "sounds-volume", "background", "custom-bg-url", "card-zoom",
-  "pin-zoom", "show-alt-art", "card-resolution", "pass-on-rez",
-  "player-stats-icons", "stacked-cards", "ghost-trojans",
-  "corp-card-sleeve", "runner-card-sleeve", "prizes",
-  "display-encounter-info", "sides-overlap", "log-timestamps",
-  "runner-board-order", "log-width", "log-top", "log-player-highlight",
-  "blocked-users", "alt-arts", "gamestats", "deckstats", "disable-websockets",
-  "archives-sorted", "heap-sorted", "card-back-display",
-  "labeled-cards", "labeled-unrezzed-cards",
+  "pronouns",
+  "bespoke-sounds",
+  "language",
+  "card-language",
+  "sounds",
+  "default-format",
+  "lobby-sounds",
+  "sounds-volume",
+  "background",
+  "custom-bg-url",
+  "card-zoom",
+  "pin-zoom",
+  "show-alt-art",
+  "card-resolution",
+  "pass-on-rez",
+  "player-stats-icons",
+  "stacked-cards",
+  "ghost-trojans",
+  "corp-card-sleeve",
+  "runner-card-sleeve",
+  "prizes",
+  "display-encounter-info",
+  "sides-overlap",
+  "log-timestamps",
+  "runner-board-order",
+  "log-width",
+  "log-top",
+  "log-player-highlight",
+  "blocked-users",
+  "alt-arts",
+  "gamestats",
+  "deckstats",
+  "disable-websockets",
+  "archives-sorted",
+  "heap-sorted",
+  "card-back-display",
+  "labeled-cards",
+  "labeled-unrezzed-cards",
 ] as const;
 
 // ---------------------------------------------------------------------------
 // Alt art helpers (mirrors all-alt-art-types, alt-art-name)
 // ---------------------------------------------------------------------------
 function allAltArtTypes(): string[] {
-  const altInfo = useAppState.getState().altInfo as Record<string, unknown>[] | undefined;
+  const altInfo = useAppState.getState().altInfo as
+    | Record<string, unknown>[]
+    | undefined;
   if (!altInfo) return [];
-  return altInfo.map(a => String(a.version));
+  return altInfo.map((a) => String(a.version));
 }
 
 function altArtName(version: string): string {
-  const altInfo = useAppState.getState().altInfo as Record<string, unknown>[] | undefined;
+  const altInfo = useAppState.getState().altInfo as
+    | Record<string, unknown>[]
+    | undefined;
   if (!altInfo) return "Official";
-  const alt = altInfo.find(a => String(a.version) === version);
-  return alt ? (String(alt.name) || "Official") : "Official";
+  const alt = altInfo.find((a) => String(a.version) === version);
+  return alt ? String(alt.name) || "Official" : "Official";
 }
 
 // ---------------------------------------------------------------------------
 // Art availability / update helpers (mirrors art-available, update-card-art, etc.)
 // ---------------------------------------------------------------------------
-function artAvailable(card: Record<string, unknown>, art: string, lang: string, res: string): boolean {
+function artAvailable(
+  card: Record<string, unknown>,
+  art: string,
+  lang: string,
+  res: string,
+): boolean {
   const images = card.images as Record<string, unknown> | undefined;
   if (!images) return false;
   const langLevel = images[lang] as Record<string, unknown> | undefined;
@@ -119,9 +200,15 @@ function artAvailable(card: Record<string, unknown>, art: string, lang: string, 
 // ---------------------------------------------------------------------------
 // Log width/position option components (mirrors log-width-option, log-top-option)
 // ---------------------------------------------------------------------------
-function LogWidthOption({ s, setS }: { s: AccountState; setS: (updater: Partial<AccountState>) => void }) {
+function LogWidthOption({
+  s,
+  setS,
+}: {
+  s: AccountState;
+  setS: (updater: Partial<AccountState>) => void;
+}) {
   const [value, setValue] = useState(String(s.logWidth ?? 300));
-  const options = useAppState(state => state.options);
+  const options = useAppState((state) => state.options);
   return (
     <div>
       <input
@@ -129,7 +216,7 @@ function LogWidthOption({ s, setS }: { s: AccountState; setS: (updater: Partial<
         min={100}
         max={2000}
         value={value}
-        onChange={e => {
+        onChange={(e) => {
           const v = e.target.value;
           setValue(v);
           setS({ logWidth: v });
@@ -139,7 +226,7 @@ function LogWidthOption({ s, setS }: { s: AccountState; setS: (updater: Partial<
         className="update-log-width"
         type="button"
         onClick={() => {
-          const w = options["log-width"] ?? 300;
+          const w = (options["log-width"] as number | undefined) ?? 300;
           setS({ logWidth: w });
           setValue(String(w));
         }}
@@ -150,9 +237,15 @@ function LogWidthOption({ s, setS }: { s: AccountState; setS: (updater: Partial<
   );
 }
 
-function LogTopOption({ s, setS }: { s: AccountState; setS: (updater: Partial<AccountState>) => void }) {
+function LogTopOption({
+  s,
+  setS,
+}: {
+  s: AccountState;
+  setS: (updater: Partial<AccountState>) => void;
+}) {
   const [value, setValue] = useState(String(s.logTop ?? 419));
-  const options = useAppState(state => state.options);
+  const options = useAppState((state) => state.options);
   return (
     <div>
       <input
@@ -160,7 +253,7 @@ function LogTopOption({ s, setS }: { s: AccountState; setS: (updater: Partial<Ac
         min={100}
         max={2000}
         value={value}
-        onChange={e => {
+        onChange={(e) => {
           const v = e.target.value;
           setValue(v);
           setS({ logTop: v });
@@ -170,7 +263,7 @@ function LogTopOption({ s, setS }: { s: AccountState; setS: (updater: Partial<Ac
         className="update-log-width"
         type="button"
         onClick={() => {
-          const t = options["log-top"] ?? 419;
+          const t = (options["log-top"] as number | undefined) ?? 419;
           setS({ logTop: t });
           setValue(String(t));
         }}
@@ -198,10 +291,10 @@ function ChangeEmail({ s, onClose }: ChangeEmailProps): React.ReactElement {
     if (!validEmail(email)) return;
     const response = await PUT("/profile/email", { email }, "json");
     if (response.status === 200) {
-      window.location.reload(true);
+      window.location.reload();
     } else {
       const json = response.json as Record<string, unknown> | null;
-      setFlashMessage(json?.message as string ?? "Failed");
+      setFlashMessage((json?.message as string) ?? "Failed");
     }
   }
 
@@ -212,7 +305,11 @@ function ChangeEmail({ s, onClose }: ChangeEmailProps): React.ReactElement {
       <form onSubmit={handleSubmit}>
         {s.email ? (
           <p>
-            {trElement("label.email", ["settings_current-email", "Current email"])} :{" "}
+            {trElement("label.email", [
+              "settings_current-email",
+              "Current email",
+            ])}{" "}
+            :{" "}
             <input
               className="email"
               type="text"
@@ -223,7 +320,11 @@ function ChangeEmail({ s, onClose }: ChangeEmailProps): React.ReactElement {
           </p>
         ) : null}
         <p>
-          {trElement("label.email", ["settings_desired-email", "Desired email"])} :{" "}
+          {trElement("label.email", [
+            "settings_desired-email",
+            "Desired email",
+          ])}{" "}
+          :{" "}
           <input
             className="email"
             type="text"
@@ -231,10 +332,15 @@ function ChangeEmail({ s, onClose }: ChangeEmailProps): React.ReactElement {
             placeholder={tr(["settings_email-placeholder", "Email address"])}
             name="email"
             value={email}
-            onChange={e => setEmail(e.target.value)}
-            onBlur={e => {
+            onChange={(e) => setEmail(e.target.value)}
+            onBlur={(e) => {
               if (!validEmail(e.target.value)) {
-                setFlashMessage(tr(["settings_enter-valid", "Please enter a valid email address"]));
+                setFlashMessage(
+                  tr([
+                    "settings_enter-valid",
+                    "Please enter a valid email address",
+                  ]),
+                );
               } else {
                 setFlashMessage("");
               }
@@ -242,7 +348,10 @@ function ChangeEmail({ s, onClose }: ChangeEmailProps): React.ReactElement {
           />
         </p>
         <p className="float-right">
-          <button disabled={!validEmail(email)} className={!validEmail(email) ? "disabled" : ""}>
+          <button
+            disabled={!validEmail(email)}
+            className={!validEmail(email) ? "disabled" : ""}
+          >
             {trSpan(["settings_update", "Update"])}
           </button>
           <button type="button" onClick={onClose}>
@@ -257,7 +366,13 @@ function ChangeEmail({ s, onClose }: ChangeEmailProps): React.ReactElement {
 // ---------------------------------------------------------------------------
 // API Keys section (mirrors api-keys, create-api-key, delete-api-key)
 // ---------------------------------------------------------------------------
-function ApiKeysSection({ s, setS }: { s: AccountState; setS: (updater: Partial<AccountState>) => void }): React.ReactElement {
+function ApiKeysSection({
+  s,
+  setS,
+}: {
+  s: AccountState;
+  setS: (updater: Partial<AccountState>) => void;
+}): React.ReactElement {
   const keys = s.apiKeys ?? [];
 
   async function createApiKey() {
@@ -280,18 +395,28 @@ function ApiKeysSection({ s, setS }: { s: AccountState; setS: (updater: Partial<
               <span>
                 <button
                   className="delete"
-                  onClick={e => { e.preventDefault(); deleteApiKey(d._id); }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    deleteApiKey(d._id);
+                  }}
                 >
                   {trSpan(["settings_delete-api-key", "Delete"])}
                 </button>
               </span>
-              <span className="date">{formatDateTime(iSOIshFormatter, d.date)}</span>
+              <span className="date">
+                {formatDateTime(iSOIshFormatter, d.date)}
+              </span>
               <span className="title">{d["api-key"] ?? ""}</span>
             </li>
           ))}
         </ul>
       </div>
-      <button onClick={e => { e.preventDefault(); createApiKey(); }}>
+      <button
+        onClick={(e) => {
+          e.preventDefault();
+          createApiKey();
+        }}
+      >
         {trSpan(["settings_create-api-key", "Create API Key"])}
       </button>
     </section>
@@ -307,9 +432,17 @@ async function handleApiKeysResponse(
   if (status === 200 || status === 201) {
     const r = await GET("/data/api-keys");
     setS({ apiKeys: r.json as ApiKey[] });
-    trNonGameToast(["settings_api-keys-updated", "Updated API keys"], "success", null);
+    trNonGameToast(
+      ["settings_api-keys-updated", "Updated API keys"],
+      "success",
+      null,
+    );
   } else {
-    trNonGameToast(["settings_api-keys-not-updated", "Failed to update API keys"], "error", null);
+    trNonGameToast(
+      ["settings_api-keys-not-updated", "Failed to update API keys"],
+      "error",
+      null,
+    );
   }
 }
 
@@ -372,20 +505,48 @@ function stateKeyToSettingKey(key: string): string {
 
 function settingKeyToStateKey(key: string): string {
   const parts = key.split("-");
-  return parts[0] + parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join("");
+  return (
+    parts[0] +
+    parts
+      .slice(1)
+      .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+      .join("")
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Change Email Modal wrapper
 // ---------------------------------------------------------------------------
-function ChangeEmailModal({ s, onClose }: { s: AccountState; onClose: () => void }): React.ReactElement {
+function ChangeEmailModal({
+  s,
+  onClose,
+}: {
+  s: AccountState;
+  onClose: () => void;
+}): React.ReactElement {
   return (
-    <div className="modal fade" style={{ display: "block", position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1050 }}>
+    <div
+      className="modal fade"
+      style={{
+        display: "block",
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(0,0,0,0.5)",
+        zIndex: 1050,
+      }}
+    >
       <div className="modal-dialog" style={{ margin: "10vh auto" }}>
         <div className="modal-content">
           <div className="modal-header">
-            <button type="button" className="close" onClick={onClose}>&times;</button>
-            <h4 className="modal-title">{tr(["settings_email-title", "Change email address"])}</h4>
+            <button type="button" className="close" onClick={onClose}>
+              &times;
+            </button>
+            <h4 className="modal-title">
+              {tr(["settings_email-title", "Change email address"])}
+            </h4>
           </div>
           <div className="modal-body">
             <ChangeEmail s={s} onClose={onClose} />
@@ -400,10 +561,10 @@ function ChangeEmailModal({ s, onClose }: { s: AccountState; onClose: () => void
 // Main Account page
 // ---------------------------------------------------------------------------
 export default function AccountPage(): React.ReactElement {
-  const user = useAppState(state => state.user);
-  const options = useAppState(state => state.options);
-  const setOptions = useAppState(state => state.setOptions);
-  const altInfo = useAppState(state => state.altInfo);
+  const user = useAppState((state) => state.user);
+  const options = useAppState((state) => state.options);
+  const setOptions = useAppState((state) => state.setOptions);
+  const altInfo = useAppState((state) => state.altInfo);
 
   // Scroll position tracking (mirrors scroll-top atom + set-scroll-top/store-scroll-top)
   const scrollTopRef = useRef(0);
@@ -433,12 +594,12 @@ export default function AccountPage(): React.ReactElement {
 
   // Helper to update state immutably (mirrors swap!)
   const setS = useCallback((updater: Partial<AccountState>) => {
-    setSraw(prev => ({ ...prev, ...updater }));
+    setSraw((prev) => ({ ...prev, ...updater }));
   }, []);
 
   // Fetch email on mount (mirrors go block for GET /profile/email)
   useEffect(() => {
-    GET("/profile/email").then(response => {
+    GET("/profile/email").then((response) => {
       if (response.status === 200) {
         const json = response.json as Record<string, unknown> | null;
         if (json?.email) {
@@ -450,7 +611,7 @@ export default function AccountPage(): React.ReactElement {
 
   // Fetch API keys on mount (mirrors go block for GET /data/api-keys)
   useEffect(() => {
-    GET("/data/api-keys").then(response => {
+    GET("/data/api-keys").then((response) => {
       setS({ apiKeys: response.json as ApiKey[] });
     });
   }, []);
@@ -466,7 +627,9 @@ export default function AccountPage(): React.ReactElement {
   useEffect(() => {
     return () => {
       if (contentNodeRef.current) {
-        storeScrollTop(contentNodeRef.current, (n: number) => { scrollTopRef.current = n; });
+        storeScrollTop(contentNodeRef.current, (n: number) => {
+          scrollTopRef.current = n;
+        });
       }
     };
   }, []);
@@ -492,7 +655,7 @@ export default function AccountPage(): React.ReactElement {
     }
 
     // Update app-state (mirrors swap! app-state update :options merge)
-    setOptions(prev => ({ ...prev, ...settingsMap }));
+    setOptions({ ...useAppState.getState().options, ...settingsMap });
 
     // Update localStorage (mirrors ls/update-local-storage-settings!)
     updateLocalStorageSettings(settingsMap);
@@ -510,17 +673,32 @@ export default function AccountPage(): React.ReactElement {
   function postResponse(response: { status: number; json: unknown }) {
     switch (response.status) {
       case 401:
-        trNonGameToast(["settings_invalid-password", "Invalid login or password"], "error", null);
+        trNonGameToast(
+          ["settings_invalid-password", "Invalid login or password"],
+          "error",
+          null,
+        );
         break;
       case 404:
-        trNonGameToast(["settings_invalid-email", "No account with that email address exists"], "error", null);
+        trNonGameToast(
+          [
+            "settings_invalid-email",
+            "No account with that email address exists",
+          ],
+          "error",
+          null,
+        );
         break;
       default: {
         const json = response.json as Record<string, unknown> | null;
         if (json?.lang && json?.content) {
           insertLang(String(json.lang), String(json.content));
         }
-        trNonGameToast(["settings_updated", "Profile updated - Please refresh your browser"], "success", null);
+        trNonGameToast(
+          ["settings_updated", "Profile updated - Please refresh your browser"],
+          "success",
+          null,
+        );
         break;
       }
     }
@@ -532,7 +710,7 @@ export default function AccountPage(): React.ReactElement {
   // ---------------------------------------------------------------------------
   function addUserToBlockList() {
     const blockedUser = s.blockUserInput ?? "";
-    const myUserName = user?.username as string ?? "";
+    const myUserName = (user?.username as string) ?? "";
     const currentBlocked = s.blockedUsers ?? [];
     setS({ blockUserInput: "" });
     if (
@@ -546,7 +724,7 @@ export default function AccountPage(): React.ReactElement {
 
   function removeUserFromBlockList(userName: string) {
     const currentBlocked = s.blockedUsers ?? [];
-    setS({ blockedUsers: currentBlocked.filter(u => u !== userName) });
+    setS({ blockedUsers: currentBlocked.filter((u) => u !== userName) });
   }
 
   // ---------------------------------------------------------------------------
@@ -564,7 +742,12 @@ export default function AccountPage(): React.ReactElement {
     setS({ altArts: { ...(s.altArts ?? {}), [code]: art } });
   }
 
-  function updateCardArt(card: Record<string, unknown>, art: string, lang: string, res: string) {
+  function updateCardArt(
+    card: Record<string, unknown>,
+    art: string,
+    lang: string,
+    res: string,
+  ) {
     if (!card || typeof art !== "string") return;
     if (art === "default") {
       removeCardArt(card);
@@ -604,7 +787,8 @@ export default function AccountPage(): React.ReactElement {
   const blockedUsers = s.blockedUsers ?? [];
   const altArts = s.altArts ?? {};
   const prizes = s.prizes as Record<string, unknown> | undefined;
-  const cardBacksPrizes = (prizes?.["card-backs"] as Record<string, boolean>) ?? {};
+  const cardBacksPrizes =
+    (prizes?.["card-backs"] as Record<string, boolean>) ?? {};
   const unlockedCardBacks = new Set(
     Object.entries(cardBacksPrizes)
       .filter(([, v]) => v)
@@ -622,7 +806,9 @@ export default function AccountPage(): React.ReactElement {
   const runnerSleeveFile = runnerCardBacks[runnerSleeveKey]?.file ?? "nsg";
 
   // Bespoke sound groupings
-  const groupings = [...new Set(Object.values(bespokeSounds).map(bs => bs.grouping))];
+  const groupings = [
+    ...new Set(Object.values(bespokeSounds).map((bs) => bs.grouping)),
+  ];
 
   return (
     <div className="page-container">
@@ -641,7 +827,13 @@ export default function AccountPage(): React.ReactElement {
           {/* Email section */}
           <section>
             {trElement("h3", ["settings_email", "Email"])}
-            <a href="" onClick={e => { e.preventDefault(); setChangeEmailOpen(true); }}>
+            <a
+              href=""
+              onClick={(e) => {
+                e.preventDefault();
+                setChangeEmailOpen(true);
+              }}
+            >
               {trSpan(["settings_change-email", "Change email"])}
             </a>
           </section>
@@ -649,7 +841,10 @@ export default function AccountPage(): React.ReactElement {
           {/* Avatar section */}
           <section>
             {trElement("h3", ["settings_avatar", "Avatar"])}
-            <Avatar user={user as { emailhash?: string; username?: string }} opts={{ size: 38 }} />
+            <Avatar
+              user={user as { emailhash?: string; username?: string }}
+              opts={{ size: 38 }}
+            />
             <a href="http://gravatar.com" target="_blank" rel="noreferrer">
               {trSpan(["settings_change-avatar", "Change on gravatar.com"])}
             </a>
@@ -660,16 +855,24 @@ export default function AccountPage(): React.ReactElement {
             {trElement("h3", ["settings_pronouns", "Pronouns"])}
             <select
               value={s.pronouns ?? "none"}
-              onChange={e => setS({ pronouns: e.target.value })}
+              onChange={(e) => setS({ pronouns: e.target.value })}
             >
               {PRONOUN_LIST.map(([title, ref]) => (
-                <option key={ref} value={ref} data-i18n-key={":pronouns"} data-i18n-value={title}>
+                <option
+                  key={ref}
+                  value={ref}
+                  data-i18n-key={":pronouns"}
+                  data-i18n-value={title}
+                >
                   {tr(["pronouns", title], { pronoun: ref })}
                 </option>
               ))}
             </select>
             <div>
-              {trSpan(["settings_pronouns-request", "If your personal pronouns are not represented, you can request them"])}{" "}
+              {trSpan([
+                "settings_pronouns-request",
+                "If your personal pronouns are not represented, you can request them",
+              ])}{" "}
               <a href="https://github.com/mtgred/netrunner/issues">
                 {trSpan(["settings_pronouns-here", "here"])}
               </a>
@@ -681,14 +884,19 @@ export default function AccountPage(): React.ReactElement {
             {trElement("h3", ["settings_language", "Language"])}
             <select
               value={s.language ?? "en"}
-              onChange={e => setS({ language: e.target.value })}
+              onChange={(e) => setS({ language: e.target.value })}
             >
               {LANGUAGE_LIST.map(([name, ref]) => (
-                <option key={ref} value={ref}>{name}</option>
+                <option key={ref} value={ref}>
+                  {name}
+                </option>
               ))}
             </select>
             <div>
-              {trSpan(["settings_language-tip", "Some languages are not fully translated yet. If you would like to help with translations, please contact us."])}
+              {trSpan([
+                "settings_language-tip",
+                "Some languages are not fully translated yet. If you would like to help with translations, please contact us.",
+              ])}
             </div>
           </section>
 
@@ -697,25 +905,30 @@ export default function AccountPage(): React.ReactElement {
             {trElement("h3", ["settings_card-language", "Card language"])}
             <select
               value={s.cardLanguage ?? "en"}
-              onChange={e => setS({ cardLanguage: e.target.value })}
+              onChange={(e) => setS({ cardLanguage: e.target.value })}
             >
               {LANGUAGE_LIST.map(([name, ref]) => (
-                <option key={ref} value={ref}>{name}</option>
+                <option key={ref} value={ref}>
+                  {name}
+                </option>
               ))}
             </select>
           </section>
 
           {/* Card-Specific Sounds section */}
           <section>
-            {trElement("h3", ["settings_bespoke-sounds", "Card-Specific Sounds"], undefined, "header")}
-            {groupings.map(grouping => (
+            {trElement(
+              "h3",
+              ["settings_bespoke-sounds", "Card-Specific Sounds"],
+              undefined,
+            )}
+            {groupings.map((grouping) => (
               <div key={grouping}>
                 <label>
                   <input
                     type="checkbox"
-                    value={true}
                     checked={(s.bespokeSounds?.[grouping] as boolean) ?? false}
-                    onChange={e => {
+                    onChange={(e) => {
                       const checked = e.target.checked;
                       if (checked) {
                         const selected = selectRandomFromGrouping(grouping);
@@ -734,7 +947,9 @@ export default function AccountPage(): React.ReactElement {
                       });
                     }}
                   />
-                  {trSpan(["settings_bespoke-sounds", grouping], { sound: grouping })}
+                  {trSpan(["settings_bespoke-sounds", grouping], {
+                    sound: grouping,
+                  })}
                 </label>
               </div>
             ))}
@@ -742,11 +957,14 @@ export default function AccountPage(): React.ReactElement {
 
           {/* Default game format section */}
           <section>
-            {trElement("h3", ["lobby_default-game-format", "Default game format"])}
+            {trElement("h3", [
+              "lobby_default-game-format",
+              "Default game format",
+            ])}
             <select
               className="format"
               value={s.defaultFormat ?? "standard"}
-              onChange={e => setS({ defaultFormat: e.target.value })}
+              onChange={(e) => setS({ defaultFormat: e.target.value })}
             >
               {Object.entries(slugToFormat).map(([k, v]) => (
                 <option key={k} value={k} data-i18n-key={k}>
@@ -758,16 +976,21 @@ export default function AccountPage(): React.ReactElement {
 
           {/* Gameplay Settings section */}
           <section>
-            {trElement("h3", ["settings_gameplay-settings", "Gameplay Settings"])}
+            {trElement("h3", [
+              "settings_gameplay-settings",
+              "Gameplay Settings",
+            ])}
             <div>
               <label>
                 <input
                   type="checkbox"
-                  value={true}
                   checked={(s.passOnRez as boolean) ?? false}
-                  onChange={e => setS({ passOnRez: e.target.checked })}
+                  onChange={(e) => setS({ passOnRez: e.target.checked })}
                 />
-                {trSpan(["settings_pass-on-rez", "Pass priority when rezzing ice"])}
+                {trSpan([
+                  "settings_pass-on-rez",
+                  "Pass priority when rezzing ice",
+                ])}
               </label>
             </div>
           </section>
@@ -780,53 +1003,62 @@ export default function AccountPage(): React.ReactElement {
               <label>
                 <input
                   type="checkbox"
-                  value={true}
                   checked={(s.stackedCards as boolean) ?? true}
-                  onChange={e => setS({ stackedCards: e.target.checked })}
+                  onChange={(e) => setS({ stackedCards: e.target.checked })}
                 />
-                {trSpan(["settings_stacked-cards", "Card stacking (on by default)"])}
+                {trSpan([
+                  "settings_stacked-cards",
+                  "Card stacking (on by default)",
+                ])}
               </label>
             </div>
             <div>
               <label>
                 <input
                   type="checkbox"
-                  value={true}
                   checked={(s.ghostTrojans as boolean) ?? true}
-                  onChange={e => setS({ ghostTrojans: e.target.checked })}
+                  onChange={(e) => setS({ ghostTrojans: e.target.checked })}
                 />
-                {trSpan(["settings_ghost-trojans", "Display ghosts for hosted programs"])}
+                {trSpan([
+                  "settings_ghost-trojans",
+                  "Display ghosts for hosted programs",
+                ])}
               </label>
             </div>
             <div>
               <label>
                 <input
                   type="checkbox"
-                  value={true}
                   checked={(s.displayEncounterInfo as boolean) ?? false}
-                  onChange={e => setS({ displayEncounterInfo: e.target.checked })}
+                  onChange={(e) =>
+                    setS({ displayEncounterInfo: e.target.checked })
+                  }
                 />
-                {trSpan(["settings_display-encounter-info", "Always display encounter info"])}
+                {trSpan([
+                  "settings_display-encounter-info",
+                  "Always display encounter info",
+                ])}
               </label>
             </div>
             <div>
               <label>
                 <input
                   type="checkbox"
-                  value={true}
                   checked={(s.logTimestamps as boolean) ?? true}
-                  onChange={e => setS({ logTimestamps: e.target.checked })}
+                  onChange={(e) => setS({ logTimestamps: e.target.checked })}
                 />
-                {trSpan(["settings_toggle-log-timestamps", "Show log timestamps"])}
+                {trSpan([
+                  "settings_toggle-log-timestamps",
+                  "Show log timestamps",
+                ])}
               </label>
             </div>
             <div>
               <label>
                 <input
                   type="checkbox"
-                  value={true}
                   checked={(s.archivesSorted as boolean) ?? false}
-                  onChange={e => setS({ archivesSorted: e.target.checked })}
+                  onChange={(e) => setS({ archivesSorted: e.target.checked })}
                 />
                 {trSpan(["settings_sort-archives", "Sort Archives"])}
               </label>
@@ -835,16 +1067,18 @@ export default function AccountPage(): React.ReactElement {
               <label>
                 <input
                   type="checkbox"
-                  value={true}
                   checked={(s.heapSorted as boolean) ?? false}
-                  onChange={e => setS({ heapSorted: e.target.checked })}
+                  onChange={(e) => setS({ heapSorted: e.target.checked })}
                 />
                 {trSpan(["settings_sort-heap", "Sort Heap"])}
               </label>
             </div>
 
             <br />
-            {trElement("h4", ["settings_runner-layout", "Runner layout from Corp perspective"])}
+            {trElement("h4", [
+              "settings_runner-layout",
+              "Runner layout from Corp perspective",
+            ])}
             <div>
               <div className="radio">
                 <label>
@@ -853,9 +1087,12 @@ export default function AccountPage(): React.ReactElement {
                     type="radio"
                     value="jnet"
                     checked={(s.runnerBoardOrder ?? "irl") === "jnet"}
-                    onChange={e => setS({ runnerBoardOrder: e.target.value })}
+                    onChange={(e) => setS({ runnerBoardOrder: e.target.value })}
                   />
-                  {trSpan(["settings_runner-classic", "Runner rig layout is classic jnet (Top to bottom: Programs, Hardware, Resources)"])}
+                  {trSpan([
+                    "settings_runner-classic",
+                    "Runner rig layout is classic jnet (Top to bottom: Programs, Hardware, Resources)",
+                  ])}
                 </label>
               </div>
               <div className="radio">
@@ -865,15 +1102,21 @@ export default function AccountPage(): React.ReactElement {
                     type="radio"
                     value="irl"
                     checked={(s.runnerBoardOrder ?? "irl") === "irl"}
-                    onChange={e => setS({ runnerBoardOrder: e.target.value })}
+                    onChange={(e) => setS({ runnerBoardOrder: e.target.value })}
                   />
-                  {trSpan(["settings_runner-reverse", "Runner rig layout is reversed (Top to bottom: Resources, Hardware, Programs)"])}
+                  {trSpan([
+                    "settings_runner-reverse",
+                    "Runner rig layout is reversed (Top to bottom: Resources, Hardware, Programs)",
+                  ])}
                 </label>
               </div>
             </div>
 
             <br />
-            {trElement("h4", ["settings_log-player-highlight", "Log player highlight"])}
+            {trElement("h4", [
+              "settings_log-player-highlight",
+              "Log player highlight",
+            ])}
             <div>
               <div className="radio">
                 <label>
@@ -881,10 +1124,17 @@ export default function AccountPage(): React.ReactElement {
                     name="log-player-highlight"
                     type="radio"
                     value="blue-red"
-                    checked={(s.logPlayerHighlight ?? "blue-red") === "blue-red"}
-                    onChange={e => setS({ logPlayerHighlight: e.target.value })}
+                    checked={
+                      (s.logPlayerHighlight ?? "blue-red") === "blue-red"
+                    }
+                    onChange={(e) =>
+                      setS({ logPlayerHighlight: e.target.value })
+                    }
                   />
-                  {trSpan(["settings_log-player-highlight-red-blue", "Corp: Blue / Runner: Red"])}
+                  {trSpan([
+                    "settings_log-player-highlight-red-blue",
+                    "Corp: Blue / Runner: Red",
+                  ])}
                 </label>
               </div>
               <div className="radio">
@@ -894,7 +1144,9 @@ export default function AccountPage(): React.ReactElement {
                     type="radio"
                     value="none"
                     checked={(s.logPlayerHighlight ?? "blue-red") === "none"}
-                    onChange={e => setS({ logPlayerHighlight: e.target.value })}
+                    onChange={(e) =>
+                      setS({ logPlayerHighlight: e.target.value })
+                    }
                   />
                   {trSpan(["settings_log-player-highlight-none", "None"])}
                 </label>
@@ -913,7 +1165,7 @@ export default function AccountPage(): React.ReactElement {
                     name="background"
                     value={slug}
                     checked={(s.background ?? "worlds2020") === slug}
-                    onChange={e => setS({ background: e.target.value })}
+                    onChange={(e) => setS({ background: e.target.value })}
                   />
                   {trSpan(["settings_bg", title], { slug })}
                 </label>
@@ -924,7 +1176,7 @@ export default function AccountPage(): React.ReactElement {
                 type="text"
                 hidden={!customBgSelected}
                 value={customBgUrl}
-                onChange={e => setS({ customBgUrl: e.target.value })}
+                onChange={(e) => setS({ customBgUrl: e.target.value })}
               />
             </div>
           </section>
@@ -934,10 +1186,15 @@ export default function AccountPage(): React.ReactElement {
             {trElement("h3", ["settings_corp-card-sleeve", "Corp card backs"])}
             <select
               value={s.corpCardSleeve ?? "nsg-card-back"}
-              onChange={e => setS({ corpCardSleeve: e.target.value || "nsg-card-back" })}
+              onChange={(e) =>
+                setS({ corpCardSleeve: e.target.value || "nsg-card-back" })
+              }
             >
               {Object.entries(corpCardBacks).map(([k, v]) => {
-                const trKey: [string, string] = ["card-backs_" + k, String(v.name)];
+                const trKey: [string, string] = [
+                  "card-backs_" + k,
+                  String(v.name),
+                ];
                 return (
                   <option key={k} value={k}>
                     {tr(trKey)}
@@ -946,13 +1203,21 @@ export default function AccountPage(): React.ReactElement {
               })}
             </select>
 
-            {trElement("h3", ["settings_runner-card-sleeve", "Runner card backs"])}
+            {trElement("h3", [
+              "settings_runner-card-sleeve",
+              "Runner card backs",
+            ])}
             <select
               value={s.runnerCardSleeve ?? "nsg-card-back"}
-              onChange={e => setS({ runnerCardSleeve: e.target.value || "nsg-card-back" })}
+              onChange={(e) =>
+                setS({ runnerCardSleeve: e.target.value || "nsg-card-back" })
+              }
             >
               {Object.entries(runnerCardBacks).map(([k, v]) => {
-                const trKey: [string, string] = ["card-backs_" + k, String(v.name)];
+                const trKey: [string, string] = [
+                  "card-backs_" + k,
+                  String(v.name),
+                ];
                 return (
                   <option key={k} value={k}>
                     {tr(trKey)}
@@ -961,11 +1226,21 @@ export default function AccountPage(): React.ReactElement {
               })}
             </select>
             <div>
-              {trSpan(["settings_card-backs-tip", "You can earn more card backs by placing well in select online tournaments. If you're an artist with art that you think would make for a good card back, please feel free to contact us"])}
+              {trSpan([
+                "settings_card-backs-tip",
+                "You can earn more card backs by placing well in select online tournaments. If you're an artist with art that you think would make for a good card back, please feel free to contact us",
+              ])}
             </div>
 
             <div style={{ display: "flex", justifyContent: "center" }}>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", margin: "1rem" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  margin: "1rem",
+                }}
+              >
                 <img
                   src={`/img/card-backs/corp/${corpSleeveFile}.png`}
                   style={{ maxWidth: "200px" }}
@@ -975,7 +1250,14 @@ export default function AccountPage(): React.ReactElement {
                   {trSpan(["settings_corp-card-back", "Corp card back"])}
                 </div>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", margin: "1rem" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  margin: "1rem",
+                }}
+              >
                 <img
                   src={`/img/card-backs/runner/${runnerSleeveFile}.png`}
                   style={{ maxWidth: "200px" }}
@@ -987,13 +1269,21 @@ export default function AccountPage(): React.ReactElement {
               </div>
             </div>
 
-            {trElement("h3", ["settings_card-back-display", "Display Opponent Card backs"])}
-            {([
-              trOption(["settings_card-backs-their-choice", "Their Choice"], "them"),
-              trOption(["settings_card-backs-my-choice", "My Choice"], "me"),
-              trOption(["settings_card-backs-ffg", "FFG Card Back"], "ffg"),
-              trOption(["settings_card-backs-nsg", "NSG Card Back"], "nsg"),
-            ] as TrOption[]).map(option => (
+            {trElement("h3", [
+              "settings_card-back-display",
+              "Display Opponent Card backs",
+            ])}
+            {(
+              [
+                trOption(
+                  ["settings_card-backs-their-choice", "Their Choice"],
+                  "them",
+                ),
+                trOption(["settings_card-backs-my-choice", "My Choice"], "me"),
+                trOption(["settings_card-backs-ffg", "FFG Card Back"], "ffg"),
+                trOption(["settings_card-backs-nsg", "NSG Card Back"], "nsg"),
+              ] as TrOption[]
+            ).map((option) => (
               <div className="radio" key={option.name}>
                 <label>
                   <input
@@ -1001,9 +1291,11 @@ export default function AccountPage(): React.ReactElement {
                     name="card-back-display"
                     value={option.ref}
                     checked={(s.cardBackDisplay ?? "them") === option.ref}
-                    onChange={e => setS({ cardBackDisplay: e.target.value })}
+                    onChange={(e) => setS({ cardBackDisplay: e.target.value })}
                   />
-                  <span data-i18n-key={String(option.dataI18nKey)}>{option.name}</span>
+                  <span data-i18n-key={String(option.dataI18nKey)}>
+                    {option.name}
+                  </span>
                 </label>
               </div>
             ))}
@@ -1011,11 +1303,16 @@ export default function AccountPage(): React.ReactElement {
 
           {/* Card preview zoom section */}
           <section>
-            {trElement("h3", ["settings_card-preview-zoom", "Card preview zoom"])}
-            {([
-              trOption(["settings_card-image", "Card Image"], "image"),
-              trOption(["settings_card-text", "Card Text"], "text"),
-            ] as TrOption[]).map(option => (
+            {trElement("h3", [
+              "settings_card-preview-zoom",
+              "Card preview zoom",
+            ])}
+            {(
+              [
+                trOption(["settings_card-image", "Card Image"], "image"),
+                trOption(["settings_card-text", "Card Text"], "text"),
+              ] as TrOption[]
+            ).map((option) => (
               <div className="radio" key={option.name}>
                 <label>
                   <input
@@ -1023,9 +1320,11 @@ export default function AccountPage(): React.ReactElement {
                     name="card-zoom"
                     value={option.ref}
                     checked={(s.cardZoom ?? "image") === option.ref}
-                    onChange={e => setS({ cardZoom: e.target.value })}
+                    onChange={(e) => setS({ cardZoom: e.target.value })}
                   />
-                  <span data-i18n-key={String(option.dataI18nKey)}>{option.name}</span>
+                  <span data-i18n-key={String(option.dataI18nKey)}>
+                    {option.name}
+                  </span>
                 </label>
               </div>
             ))}
@@ -1036,9 +1335,12 @@ export default function AccountPage(): React.ReactElement {
                   type="checkbox"
                   name="pin-base-art"
                   checked={(s.pinBaseArt as boolean) ?? false}
-                  onChange={e => setS({ pinBaseArt: e.target.checked })}
+                  onChange={(e) => setS({ pinBaseArt: e.target.checked })}
                 />
-                {trSpan(["settings_pin-base-art", "Zoomed cards always use base art"])}
+                {trSpan([
+                  "settings_pin-base-art",
+                  "Zoomed cards always use base art",
+                ])}
               </label>
             </div>
             <br />
@@ -1048,7 +1350,7 @@ export default function AccountPage(): React.ReactElement {
                   type="checkbox"
                   name="pin-zoom"
                   checked={(s.pinZoom as boolean) ?? false}
-                  onChange={e => setS({ pinZoom: e.target.checked })}
+                  onChange={(e) => setS({ pinZoom: e.target.checked })}
                 />
                 {trSpan(["settings_pin-zoom", "Keep zoomed cards on screen"])}
               </label>
@@ -1057,12 +1359,20 @@ export default function AccountPage(): React.ReactElement {
 
           {/* Game stats section */}
           <section>
-            {trElement("h3", ["settings_game-stats", " Game Win/Lose statistics "])}
-            {([
-              trOption(["settings_always", "Always"], "always"),
-              trOption(["settings_comp-only", "Competitive Lobby Only"], "competitive"),
-              trOption(["settings_none", "None"], "none"),
-            ] as TrOption[]).map(option => (
+            {trElement("h3", [
+              "settings_game-stats",
+              " Game Win/Lose statistics ",
+            ])}
+            {(
+              [
+                trOption(["settings_always", "Always"], "always"),
+                trOption(
+                  ["settings_comp-only", "Competitive Lobby Only"],
+                  "competitive",
+                ),
+                trOption(["settings_none", "None"], "none"),
+              ] as TrOption[]
+            ).map((option) => (
               <div key={option.name}>
                 <label>
                   <input
@@ -1070,9 +1380,11 @@ export default function AccountPage(): React.ReactElement {
                     name="gamestats"
                     value={option.ref}
                     checked={(s.gamestats ?? "always") === option.ref}
-                    onChange={e => setS({ gamestats: e.target.value })}
+                    onChange={(e) => setS({ gamestats: e.target.value })}
                   />
-                  <span data-i18n-key={String(option.dataI18nKey)}>{option.name}</span>
+                  <span data-i18n-key={String(option.dataI18nKey)}>
+                    {option.name}
+                  </span>
                 </label>
               </div>
             ))}
@@ -1081,11 +1393,16 @@ export default function AccountPage(): React.ReactElement {
           {/* Deck stats section */}
           <section>
             {trElement("h3", ["settings_deck-stats", " Deck statistics "])}
-            {([
-              trOption(["settings_always", "Always"], "always"),
-              trOption(["settings_comp-only", "Competitive Lobby Only"], "competitive"),
-              trOption(["settings_none", "None"], "none"),
-            ] as TrOption[]).map(option => (
+            {(
+              [
+                trOption(["settings_always", "Always"], "always"),
+                trOption(
+                  ["settings_comp-only", "Competitive Lobby Only"],
+                  "competitive",
+                ),
+                trOption(["settings_none", "None"], "none"),
+              ] as TrOption[]
+            ).map((option) => (
               <div key={option.name}>
                 <label>
                   <input
@@ -1093,9 +1410,11 @@ export default function AccountPage(): React.ReactElement {
                     name="deckstats"
                     value={option.ref}
                     checked={(s.deckstats ?? "always") === option.ref}
-                    onChange={e => setS({ deckstats: e.target.value })}
+                    onChange={(e) => setS({ deckstats: e.target.value })}
                   />
-                  <span data-i18n-key={String(option.dataI18nKey)}>{option.name}</span>
+                  <span data-i18n-key={String(option.dataI18nKey)}>
+                    {option.name}
+                  </span>
                 </label>
               </div>
             ))}
@@ -1110,14 +1429,16 @@ export default function AccountPage(): React.ReactElement {
                   type="checkbox"
                   name="show-alt-art"
                   checked={(s.showAltArt as boolean) ?? true}
-                  onChange={e => setS({ showAltArt: e.target.checked })}
+                  onChange={(e) => setS({ showAltArt: e.target.checked })}
                 />
                 {trSpan(["settings_show-alt", "Show alternate card arts"])}
               </label>
             </div>
             <br />
 
-            {(user.special as boolean) && (s.showAltArt as boolean) && altInfo ? (
+            {(user.special as boolean) &&
+            (s.showAltArt as boolean) &&
+            altInfo ? (
               <div id="my-alt-art">
                 <div id="set-all">
                   {trSpan(["settings_set-all", "Set all cards to"])} :{" "}
@@ -1126,14 +1447,15 @@ export default function AccountPage(): React.ReactElement {
                       // In CLJS this was a ref for later access; not needed in React state model
                     }}
                     value={s.allArtSelect ?? "wc2015"}
-                    onChange={e => setS({ allArtSelect: e.target.value })}
+                    onChange={(e) => setS({ allArtSelect: e.target.value })}
                   >
                     {allAltArtTypes()
-                      .filter(t => t !== "prev")
-                      .map(t => (
-                        <option key={t} value={t}>{altArtName(t)}</option>
-                      ))
-                    }
+                      .filter((t) => t !== "prev")
+                      .map((t) => (
+                        <option key={t} value={t}>
+                          {altArtName(t)}
+                        </option>
+                      ))}
                   </select>
                   <button type="button" onClick={resetCardArt}>
                     {trSpan(["settings_set", "Set"])}
@@ -1143,7 +1465,9 @@ export default function AccountPage(): React.ReactElement {
                   <button
                     type="button"
                     disabled={Object.keys(altArts).length === 0}
-                    className={Object.keys(altArts).length === 0 ? "disabled" : ""}
+                    className={
+                      Object.keys(altArts).length === 0 ? "disabled" : ""
+                    }
                     onClick={clearCardArt}
                   >
                     {trSpan(["settings_reset", "Reset All to Official Art"])}
@@ -1161,8 +1485,8 @@ export default function AccountPage(): React.ReactElement {
                 type="text"
                 ref="block-user-input"
                 value={s.blockUserInput ?? ""}
-                onChange={e => setS({ blockUserInput: e.target.value })}
-                onKeyDown={e => {
+                onChange={(e) => setS({ blockUserInput: e.target.value })}
+                onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
                     addUserToBlockList();
@@ -1180,7 +1504,7 @@ export default function AccountPage(): React.ReactElement {
                 {trSpan(["settings_block", "Block user"])}
               </button>
             </div>
-            {blockedUsers.map(bu => (
+            {blockedUsers.map((bu) => (
               <div className="line" key={bu}>
                 <button
                   className="small unblock-user"
@@ -1196,28 +1520,35 @@ export default function AccountPage(): React.ReactElement {
 
           {/* Device-specific settings section */}
           <section>
-            {trElement("h3", ["settings_device-specific", "Device-specific settings"])}
-            {trElement("p", ["settings_device-specific-note", "These settings are stored locally on this device and do not sync across devices."])}
+            {trElement("h3", [
+              "settings_device-specific",
+              "Device-specific settings",
+            ])}
+            {trElement("p", [
+              "settings_device-specific-note",
+              "These settings are stored locally on this device and do not sync across devices.",
+            ])}
 
             {trElement("h4", ["settings_sounds", "Sounds"])}
             <div>
               <label>
                 <input
                   type="checkbox"
-                  value={true}
                   checked={(s.lobbySounds as boolean) ?? true}
-                  onChange={e => setS({ lobbySounds: e.target.checked })}
+                  onChange={(e) => setS({ lobbySounds: e.target.checked })}
                 />
-                {trSpan(["settings_enable-lobby-sounds", "Enable lobby sounds"])}
+                {trSpan([
+                  "settings_enable-lobby-sounds",
+                  "Enable lobby sounds",
+                ])}
               </label>
             </div>
             <div>
               <label>
                 <input
                   type="checkbox"
-                  value={true}
                   checked={(s.sounds as boolean) ?? true}
-                  onChange={e => setS({ sounds: e.target.checked })}
+                  onChange={(e) => setS({ sounds: e.target.checked })}
                 />
                 {trSpan(["settings_enable-game-sounds", "Enable game sounds"])}
               </label>
@@ -1230,11 +1561,18 @@ export default function AccountPage(): React.ReactElement {
                 max={100}
                 step={1}
                 value={(s.soundsVolume as number) ?? 50}
-                onMouseUp={e => {
-                  playSfx([randomSound()], { volume: parseInt(e.target.value, 10) });
+                onMouseUp={(e) => {
+                  playSfx([randomSound()], {
+                    volume: parseInt((e.target as HTMLInputElement).value, 10),
+                  });
                 }}
-                onChange={e => setS({ soundsVolume: parseInt(e.target.value, 10) })}
-                disabled={!((s.sounds as boolean) ?? true) && !((s.lobbySounds as boolean) ?? true)}
+                onChange={(e) =>
+                  setS({ soundsVolume: parseInt(e.target.value, 10) })
+                }
+                disabled={
+                  !((s.sounds as boolean) ?? true) &&
+                  !((s.lobbySounds as boolean) ?? true)
+                }
               />
             </div>
 
@@ -1243,31 +1581,34 @@ export default function AccountPage(): React.ReactElement {
               <label>
                 <input
                   type="checkbox"
-                  value={true}
                   checked={(s.playerStatsIcons as boolean) ?? true}
-                  onChange={e => setS({ playerStatsIcons: e.target.checked })}
+                  onChange={(e) => setS({ playerStatsIcons: e.target.checked })}
                 />
-                {trSpan(["settings_player-stats-icons", "Use icons for player stats"])}
+                {trSpan([
+                  "settings_player-stats-icons",
+                  "Use icons for player stats",
+                ])}
               </label>
             </div>
             <div>
               <label>
                 <input
                   type="checkbox"
-                  value={true}
                   checked={(s.sidesOverlap as boolean) ?? true}
-                  onChange={e => setS({ sidesOverlap: e.target.checked })}
+                  onChange={(e) => setS({ sidesOverlap: e.target.checked })}
                 />
-                {trSpan(["settings_sides-overlap", "Runner and Corp board may overlap"])}
+                {trSpan([
+                  "settings_sides-overlap",
+                  "Runner and Corp board may overlap",
+                ])}
               </label>
             </div>
             <div>
               <label>
                 <input
                   type="checkbox"
-                  value={true}
                   checked={(s.labeledCards as boolean) ?? false}
-                  onChange={e => setS({ labeledCards: e.target.checked })}
+                  onChange={(e) => setS({ labeledCards: e.target.checked })}
                 />
                 {trSpan(["settings_label-faceup-cards", "Label face up cards"])}
               </label>
@@ -1276,11 +1617,15 @@ export default function AccountPage(): React.ReactElement {
               <label>
                 <input
                   type="checkbox"
-                  value={true}
                   checked={(s.labeledUnrezzedCards as boolean) ?? false}
-                  onChange={e => setS({ labeledUnrezzedCards: e.target.checked })}
+                  onChange={(e) =>
+                    setS({ labeledUnrezzedCards: e.target.checked })
+                  }
                 />
-                {trSpan(["settings_label-unrezzed-cards", "Label unrezzed cards"])}
+                {trSpan([
+                  "settings_label-unrezzed-cards",
+                  "Label unrezzed cards",
+                ])}
               </label>
             </div>
 
@@ -1297,9 +1642,16 @@ export default function AccountPage(): React.ReactElement {
                   type="checkbox"
                   name="use-high-res"
                   checked={(s.cardResolution ?? "default") === "high"}
-                  onChange={e => setS({ cardResolution: e.target.checked ? "high" : "default" })}
+                  onChange={(e) =>
+                    setS({
+                      cardResolution: e.target.checked ? "high" : "default",
+                    })
+                  }
                 />
-                {trSpan(["settings_high-res", "Enable high-resolution card images"])}
+                {trSpan([
+                  "settings_high-res",
+                  "Enable high-resolution card images",
+                ])}
               </label>
             </div>
 
@@ -1310,9 +1662,14 @@ export default function AccountPage(): React.ReactElement {
                   type="checkbox"
                   name="disable-websockets"
                   checked={(s.disableWebsockets as boolean) ?? false}
-                  onChange={e => setS({ disableWebsockets: e.target.checked })}
+                  onChange={(e) =>
+                    setS({ disableWebsockets: e.target.checked })
+                  }
                 />
-                {trSpan(["settings_disable-websockets", "Disable websockets - requires browser refresh after clicking Update Profile [Not Recommended!]"])}
+                {trSpan([
+                  "settings_disable-websockets",
+                  "Disable websockets - requires browser refresh after clicking Update Profile [Not Recommended!]",
+                ])}
               </label>
             </div>
           </section>

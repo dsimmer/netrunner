@@ -93,7 +93,7 @@ function cardAsText(card: CardData, showExtraInfo: boolean): React.ReactElement 
           {subtypes ? `: ${subtypes}` : ""}
         </p>
         <pre>
-          {renderSafeHtml(trData("text", (AllCards as Record<string, CardData>)[card.title] ?? card))}
+          {renderSafeHtml(String(trData("text", (AllCards as Record<string, CardData>)[card.title] ?? card) ?? "")) as React.ReactNode}
         </pre>
         {showExtraInfo && (
           <>
@@ -194,7 +194,8 @@ function filterAltArtSet(setName: string, cards: CardData[]): CardData[] | null 
   const res = state.options.cardResolution as string ?? "default";
   return cards.filter((c) => {
     const images = c.images as Record<string, unknown> | undefined;
-    return !!(images?.[lang] as Record<string, unknown>)?.[res]?.[altKey];
+    const langLevel = images?.[lang] as Record<string, Record<string, unknown>> | undefined;
+    return !!langLevel?.[res]?.[altKey];
   });
 }
 

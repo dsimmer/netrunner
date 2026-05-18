@@ -14,8 +14,8 @@ import {
   hasSubtype,
   getCounters,
   isOperation,
-  getCard,
 } from "./card";
+import { getCard } from "./finding";
 import { accessBonus } from "./access";
 import { allInstalled, getAllCards } from "./board";
 import { chooseOneHelper } from "./choose_one";
@@ -74,21 +74,30 @@ export function waitFor(
   next: (asyncResult: unknown, innerEid: EID) => void,
 ): void {
   const inner = makeEIDFrom(state, parentEid);
-  registerEIDCallback(state, inner, (_s, _side, completed) => {
+  registerEIDCallback(state, inner, (_s: any, _side: any, completed: any) => {
     next((completed as EID).result, completed as EID);
   });
   start(inner);
 }
 
 /** continue-ability shorthand — fresh resolve at current eid. */
-export function continueAbility(
-  state: GameState,
-  side: string,
-  eid: EID,
-  ability: any,
-  card: Card | null,
-  targets: any[],
-): void {
+export function continueAbility(state: any, side?: any, eid?: any, ability?: any, card?: any, targets?: any): any;
+export function continueAbility(...args: any[]): any {
+  // Tolerate Clojure-style 3-or-4-arg calls: continueAbility(state, side, ability, card, targets?) or with eid.
+  let state: any, side: any, eid: any, ability: any, card: any, targets: any;
+  if (args.length === 6) {
+    [state, side, eid, ability, card, targets] = args;
+  } else if (args.length === 5) {
+    [state, side, ability, card, targets] = args;
+  } else if (args.length === 4) {
+    [state, side, ability, card] = args;
+    targets = [];
+  } else if (args.length === 3) {
+    [state, side, ability] = args;
+    card = null; targets = [];
+  } else {
+    return;
+  }
   resolveAbility(state, side, { ...ability, eid } as Ability, card, targets);
 }
 
@@ -306,7 +315,7 @@ export function breachAccessBonus(
           targets: any[],
         ) => server === targets?.[0]?.server,
     msg: args.msg,
-    effect: (state: GameState) => accessBonus(state, "runner", server, bonus),
+    effect: (state: GameState) => accessBonus(state, "runner", bonus, server),
   };
 }
 
@@ -624,15 +633,19 @@ export function runServerFromChoicesAbility(
 // take-credits / take-n-credits-ability
 // ---------------------------------------------------------------------------
 
-export function takeCredits(
-  state: GameState,
-  side: string,
-  eid: EID,
-  card: Card | null,
-  type: string,
-  n: number | "all",
-  args: any = null,
-): void {
+export function takeCredits(state: GameState, side: string, card: Card | null, type: string, n: number | "all" | ":all" | string, args?: any): void;
+export function takeCredits(state: GameState, side: string, eid: EID, card: Card | null, type: string, n: number | "all" | ":all" | string, args?: any): void;
+export function takeCredits(...rawArgs: any[]): void {
+  let state: GameState, side: string, eid: EID, card: Card | null, type: string, n: number | "all", args: any;
+  // Detect EID by 3rd-arg shape
+  if (rawArgs.length >= 5 && rawArgs[2] && typeof rawArgs[2] === "object" && "id" in rawArgs[2] && !("title" in rawArgs[2])) {
+    [state, side, eid, card, type, n] = rawArgs as any;
+    args = rawArgs[6] ?? null;
+  } else {
+    [state, side, card, type, n] = rawArgs as any;
+    eid = makeEID(state);
+    args = rawArgs[5] ?? null;
+  }
   const fresh = getCard(state, card);
   if (!fresh) {
     effectCompleted(state, side, eid);

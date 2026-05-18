@@ -28,7 +28,20 @@ import { bannedMsg, frontendVersion, setFrontendVersion, setBannedMsg } from "./
 import { getAppState, swapAppState } from "./app_state";
 import { tick } from "./utils";
 import type { Lobby } from "./app_state";
-import { initWebSocketServer, stopWebSocketServer } from "./ws";
+import { initWebSocketServer, stopWebSocketServer, setSystem as setWsSystem } from "./ws";
+import { clearInactiveLobbies } from "./lobby_3";
+import { makeApp, makeDevApp, type System as ApiSystem } from "./api";
+import { startLobbySubsCleanup, stopLobbySubsCleanup } from "./app_state";
+
+// Side-effect imports that register WebSocket message handlers.
+// Mirrors :require of web.game, web.lobby, web.telemetry, web.angel-arena.utils, etc.
+// in the Clojure system module — each of those namespaces uses defmethod to
+// register handlers at load time.
+import "./game";
+import "./lobby";
+import "./angel_arena";
+import "./angel_arena/utils";
+import { startStatsLogging, stopStatsLogging } from "./telemetry";
 
 // ---- Types ----
 
@@ -155,8 +168,8 @@ function loadConfigFile(filePath: string): Record<string, unknown> | null {
   }
 }
 
-function deepMerge<T extends Record<string, unknown>>(target: T, source: Record<string, unknown>): T {
-  const result = { ...target };
+function deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...target };
   for (const key of Object.keys(source)) {
     const sourceVal = source[key];
     const targetVal = result[key];
@@ -168,9 +181,9 @@ function deepMerge<T extends Record<string, unknown>>(target: T, source: Record<
       typeof targetVal === "object" &&
       !Array.isArray(targetVal)
     ) {
-      result[key] = deepMerge(targetVal as Record<string, unknown>, sourceVal);
+      result[key] = deepMerge(targetVal as Record<string, unknown>, sourceVal as Record<string, unknown>);
     } else if (sourceVal != null) {
-      result[key] = sourceVal as T[keyof T];
+      result[key] = sourceVal;
     }
   }
   return result;
@@ -186,7 +199,7 @@ export function serverConfig(): ServerConfig {
 
   // deep-merge: dev overrides prod (mirrors Clojure order)
   if (devConfig && prodConfig) {
-    return deepMerge(prodConfig, devConfig);
+    return deepMerge(prodConfig as Record<string, unknown>, devConfig as Record<string, unknown>) as ServerConfig;
   }
   return (devConfig ?? prodConfig ?? {}) as ServerConfig;
 }
@@ -246,12 +259,6 @@ export function initAuth(settings: AuthSettings): AuthSettings {
 }
 
 // ---- Lobby cleanup ticker (mirrors :web/lobby) ----
-
-// NOTE: clearInactiveLobbies is not yet ported to TypeScript.
-// Placeholder that will be replaced when lobby.clj is fully ported.
-async function clearInactiveLobbies(_db: Db, _timeInactive: number): Promise<void> {
-  // TODO: implement clear-inactive-lobbies from lobby.ts
-}
 
 export function initLobby(
   interval: number,
@@ -418,8 +425,8 @@ export async function initCards(mongo: MongoConnectionResult): Promise<CardsResu
   const db = mongo.db;
 
   const cards = await db.collection("cards").find({}).toArray();
-  const strippedCards = cards.map((c: Record<string, unknown>) => ({
-    ...c,
+  const strippedCards: Record<string, unknown>[] = cards.map((c) => ({
+    ...(c as Record<string, unknown>),
     _id: String(c._id),
   }));
   const allCards: Record<string, Record<string, unknown>> = {};
@@ -560,6 +567,30 @@ export async function start(config?: ServerConfig): Promise<SystemComponents> {
     system.lobbyStopper = stopper;
   }
 
+  // 13. HTTP server (mirrors :web/app + :web/server)
+  const serverOpts = cfg["web/server"];
+  if (serverOpts?.port) {
+    const apiSystem: ApiSystem = {
+      db: system.mongo?.db,
+      "server-mode": serverMode,
+      auth: system.authSettings as Record<string, unknown> | undefined,
+      chat: system.chatSettings as Record<string, unknown> | undefined,
+      email: system.emailSettings as Record<string, unknown> | undefined,
+    };
+    const app = serverMode === "dev" ? makeDevApp(apiSystem) : makeApp(apiSystem);
+    system.server = initServer(app, serverOpts.port);
+
+    // 14. WebSocket router (mirrors :sente/router)
+    setWsSystem(apiSystem as unknown as Record<string, unknown>);
+    system.wsServer = initWebSocketServer(system.server);
+  }
+
+  // 15. Lobby subscription cleanup loop (mirrors cleanup-lobby-subs go-block)
+  startLobbySubsCleanup();
+
+  // 16. Periodic stats logging (mirrors telemetry/log-stats go-block)
+  startStatsLogging();
+
   return system;
 }
 
@@ -573,6 +604,12 @@ export async function stop(system: SystemComponents): Promise<void> {
   if (!system) return;
 
   // Halt in reverse order of initialization
+
+  // 0. Periodic stats logging
+  stopStatsLogging();
+
+  // 0. Lobby subscription cleanup loop
+  stopLobbySubsCleanup();
 
   // 1. Lobby stoppers
   if (system.lobbyStopper) {

@@ -4,6 +4,7 @@ import React from "react";
 import { useAppState } from "./appstate";
 import { concede, muteSpectators, leaveGame } from "./gameboard/actions";
 import { setReplaySide } from "./gameboard/replay";
+import { filterGames } from "./lobby";
 import { trSpan } from "./translations";
 import { chskReconnect } from "./ws";
 import { playerView } from "./player_view";
@@ -21,14 +22,11 @@ export function CurrentGameCount(): React.ReactElement {
   // Mirrors: (r/track (fn [] (count (filter-games @user @games (:visible-formats @app-state)))))
   const filteredCount = (() => {
     if (!games.length || !user || !visibleFormats) return 0;
-    const isVisible = (game: Record<string, unknown>) => {
-      const hasPlayer = (game.players as Array<{ user?: Record<string, unknown> }> | undefined)?.some(
-        (p) => p.user?.username === (user.username as string)
-      );
-      const formatVisible = visibleFormats.has(game.format as string);
-      return hasPlayer || formatVisible;
-    };
-    return games.filter(isVisible).length;
+    return filterGames(
+      user as unknown as { username: string },
+      games as Parameters<typeof filterGames>[1],
+      visibleFormats as Set<string>,
+    ).length;
   })();
 
   return (

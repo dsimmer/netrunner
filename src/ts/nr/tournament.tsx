@@ -338,7 +338,7 @@ function TimerManagement(): React.ReactElement {
             label="Encourage self-reporting?"
           />
           <TextHelper
-            state={tsRef as React.MutableRefObject<Record<string, unknown>>}
+            state={tsRef as unknown as React.MutableRefObject<Record<string, unknown>>}
             keyseq={["reporting", "selfReportingUrl"]}
             label="Link for reporting: "
           />
@@ -375,7 +375,7 @@ function TimerManagement(): React.ReactElement {
             labelPost=" minutes long"
           />
           <TextHelper
-            state={tsRef as React.MutableRefObject<Record<string, unknown>>}
+            state={tsRef as unknown as React.MutableRefObject<Record<string, unknown>>}
             keyseq={["round", "timeExpiryText"]}
             label="Time call: "
           />
@@ -385,7 +385,7 @@ function TimerManagement(): React.ReactElement {
             label="Explain resolution when calling time in round (text below)?"
           />
           <TextHelper
-            state={tsRef as React.MutableRefObject<Record<string, unknown>>}
+            state={tsRef as unknown as React.MutableRefObject<Record<string, unknown>>}
             keyseq={["round", "timeExpiryRulesText"]}
             label="Time rules explainer: "
           />
@@ -699,14 +699,12 @@ onWSEvent("tournament/view-tables", (rawData) => {
     competitiveLobbies?: CompetitiveLobby[];
     tournamentState?: ActiveRoundData | null;
   };
-  const d = rawData as Record<string, unknown>;
   const playerSplit = splitPlayers(data.competitiveLobbies ?? []);
   storedTablesRef = playerSplit;
   invariableTablesRef = playerSplit;
   actionSummaryRef = playerSplit.filter(
     (t) => (t.timeExtension ?? 0) > 0 || !!t.excluded
   );
-  console.log("Data: " + JSON.stringify(d));
   activeRoundRef = data.tournamentState ?? null;
   nonGameToast("tables refreshed!", "info", null);
   tick();

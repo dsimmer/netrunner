@@ -519,7 +519,7 @@ export default function Help(): React.ReactElement {
     }
 
     const docHandler = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
+      const target = e.target as HTMLAnchorElement;
       if (target && target.href && target.tagName === "A") {
         const handler = handlerRef.current;
         if (handler) {

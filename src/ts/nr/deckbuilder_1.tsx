@@ -143,7 +143,7 @@ function imageOrFace(card: CardData): Record<string, unknown> | undefined {
   return front?.images as Record<string, unknown> | undefined;
 }
 
-export function imageUrl(card: CardData): string | null {
+export function imageUrl(card: CardData): string | undefined {
   const options = useAppState.getState().options;
   const lang = (options.cardLanguage as string) ?? "en";
   const res = (options.cardResolution as string) ?? "default";
@@ -152,7 +152,7 @@ export function imageUrl(card: CardData): string | null {
   const images = imageOrFace(card);
   const artUrls = getImagePath(images, lang, res, art);
   if (artUrls && artUrls.length > 0) return artUrls[0];
-  return null;
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -526,9 +526,9 @@ export function cardInfluenceHtml(
 ): React.ReactElement {
   const influence = (card.factioncost ?? 0) * qty;
   const cardStatus = formatStatus(format, card);
-  const banned = cardStatus.banned;
-  const restricted = cardStatus.restricted;
-  const rotated = cardStatus.rotated;
+  const banned = !!cardStatus.banned;
+  const restricted = !!cardStatus.restricted;
+  const rotated = !!cardStatus.rotated;
   const points = cardStatus.points as number | undefined;
 
   return (
@@ -573,10 +573,10 @@ export function cardCostHtml(
     <div className="card-cost-wrapper">
       <span className={`card-cost${isEdit ? " edit" : ""}`}>
         {showMuCost && card.memoryunits != null && (
-          <div className="cost-item">{renderMessage(`${card.memoryunits}[mu] `)}</div>
+          <div className="cost-item">{renderMessage(`${card.memoryunits}[mu] `) as React.ReactNode}</div>
         )}
         {showCreditCost && card.cost != null && (
-          <div className="cost-item">{renderMessage(`${card.cost}[credit]`)}</div>
+          <div className="cost-item">{renderMessage(`${card.cost}[credit]`) as React.ReactNode}</div>
         )}
       </span>
     </div>

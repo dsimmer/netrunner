@@ -1,51 +1,17 @@
-pi-remote -p "Finish the typescript conversion for src/ts/game/cards/resources.ts";
-pi-remote -p "Finish the typescript conversion for src/ts/game/core/expend.ts";
-pi-remote -p "Finish the typescript conversion for src/ts/game/core/virus.ts";
-pi-remote -p "Finish the typescript conversion for src/ts/tasks/sort_card.tests.ts";
-pi-remote -p "Finish the typescript conversion for src/ts/web/angel_arena.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/cards/events.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/cards/hardware.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/cards/identities.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/cards/operations.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/cards/programs.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/cards/resources.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/cards/upgrades.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/abilities.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/access.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/actions.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/agendas.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/async.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/board.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/card.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/change_vals.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/charge.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/costs.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/effects.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/engine.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/flags.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/ice.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/init_game.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/installing.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/mark.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/memory.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/optional.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/rezzing.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/rules.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/runs.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/sabotage.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/say.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/scenarios.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/set_up.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/stats.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/core/subtypes.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/quotes.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/rewrite.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/test.framework.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/test_framework/asserts.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/utils.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/game/web/deck.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/jinteki/i18n.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/web/deck.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/web/nrdb.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/web/stats.test.ts";
-pi-remote -p "Finish the typescript conversion for test/ts/web/user.test.ts";
+Fix the typescript and any other errors for all files in src/ts/game/cards
+Fix the typescript and any other errors for all files in src/ts/game/core
+
+Check every file in src/clj/game/core has been converted to an equivalent typescript file in src/ts/game. CHECK EVERY FILE ONE BY ONE. Some conversions were poor quality and will need to be fixed, so make sure that every function is present and fully implemented with no stubs and no errors.
+
+Check every file in src/cljc/game has been converted to an equivalent typescript file in src/ts/game. CHECK EVERY FILE ONE BY ONE. Some conversions were poor quality and will need to be fixed, so make sure that every function is present and fully implemented with no stubs and no errors.
+
+Done:
+Check every file in src/clj/tasks has been converted to an equivalent typescript file in src/ts/game. CHECK EVERY FILE ONE BY ONE. Some conversions were poor quality and will need to be fixed, so make sure that every function is present and fully implemented with no stubs and no errors.
+
+Check every file in src/clj/web has been converted to an equivalent typescript file in src/ts/game. CHECK EVERY FILE ONE BY ONE. Some conversions were poor quality and will need to be fixed, so make sure that every function is present and fully implemented with no stubs and no errors.
+
+Check every file in src/cljc/jinteki has been converted to an equivalent typescript file in src/ts/game. CHECK EVERY FILE ONE BY ONE. Some conversions were poor quality and will need to be fixed, so make sure that every function is present and fully implemented with no stubs and no errors.
+
+Check every file in src/cljs/nr has been converted to an equivalent typescript file in src/ts/game. CHECK EVERY FILE ONE BY ONE. Some conversions were poor quality and will need to be fixed, so make sure that every function is present and fully implemented with no stubs and no errors.
+
+Check:

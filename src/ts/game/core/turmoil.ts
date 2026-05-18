@@ -322,7 +322,7 @@ function replaceId(state: GameState, side: string): void {
     ...makeCard(newIdData),
     zone: ["identity"],
   };
-  const numOldBlanks = oldId.numDisables ?? 0;
+  const numOldBlanks = (oldId.numDisables as number | undefined) ?? 0;
 
   player.identity = newId;
   cardInit(state, side, newId);
