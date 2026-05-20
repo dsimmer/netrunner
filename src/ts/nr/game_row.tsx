@@ -649,7 +649,7 @@ function PlayersRow({ game }: { game: Game }): React.ReactElement {
   return (
     <div>
       {players.map((player, idx) => (
-        <PlayerView key={(player.user as any)._id ?? idx} user={player.user} />
+        <PlayerView key={(player.user._id as string | undefined) ?? idx} user={player.user} />
       ))}
     </div>
   );

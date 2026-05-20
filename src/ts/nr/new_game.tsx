@@ -12,7 +12,7 @@ import {
 } from "./translations";
 import { condButton, slugToFormat } from "./utils";
 import { strToInt } from "../jinteki/utils";
-import { allMatchups, matchupByKey } from "../jinteki/preconstructed";
+import { allMatchups, matchupByKey, type MatchupKey } from "../jinteki/preconstructed";
 import { wsSend } from "./ws";
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -231,7 +231,7 @@ function createNewGame(
 
   const renderPreconChoice = () => {
     const display = state.format === "preconstructed" ? "block" : "none";
-    const matchup = matchupByKey(state.precon as any);
+    const matchup = matchupByKey(state.precon as MatchupKey);
     return (
       <div style={{ display }}>
         <span>

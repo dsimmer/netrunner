@@ -609,8 +609,8 @@ function expandFlips(acc: CardData[], card: CardData): CardData[] {
   const namedFaces = (card.named_faces as Record<string, string>) ?? {};
   const expanded = Object.keys(faces).map((faceKey) => {
     const c = { ...card };
-    (c as Record<string, unknown>).images = (faces[faceKey] as any).images;
-    (c as Record<string, unknown>).title = namedFaces[faceKey] ?? (faces[faceKey] as any).title;
+    (c as Record<string, unknown>).images = faces[faceKey].images;
+    (c as Record<string, unknown>).title = namedFaces[faceKey] ?? faces[faceKey].title;
     delete (c as Record<string, unknown>).faces;
     delete (c as Record<string, unknown>).named_faces;
     return c;

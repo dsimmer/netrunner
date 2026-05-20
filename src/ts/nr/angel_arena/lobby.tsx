@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useAppState } from "../appstate";
 import { Avatar } from "../avatar";
 import { DeckFormatStatusSpan } from "../deck_status";
+import type { Deck } from "../../jinteki/validator";
 import { joinGame, LobbyState, Game as GameRowGame } from "../game_row";
 import { AllCards } from "../../jinteki/cards";
 import { superuser } from "../../jinteki/utils";
@@ -318,7 +319,7 @@ function DeckSelectModal({
   side: string;
   onClose: () => void;
 }): React.ReactElement {
-  const decks = useAppState((s: any) => s.decks) as DeckData[];
+  const decks = useAppState((s) => s.decks) as DeckData[];
   const format = chosenFormatRef.current;
 
   const sameSide = (deck: DeckData) =>
@@ -368,7 +369,7 @@ function DeckSelectModal({
                     alt={(deck.identity?.title as string) ?? ""}
                   />
                   <div className="float-right">
-                    <DeckFormatStatusSpan deck={deck as any} fmt={fmt} useTrustedInfo={true} />
+                    <DeckFormatStatusSpan deck={deck as unknown as Deck} fmt={fmt} useTrustedInfo={true} />
                   </div>
                   <h4>{deck.name ?? ""}</h4>
                   <div className="float-right">
@@ -494,7 +495,7 @@ function LatestRunView({ run }: { run: ArenaRun }): React.ReactElement {
                   title={opponent?.identity ?? ""}
                 />
                 <div className="name-area">
-                  <Avatar user={{ username: opponent?.username } as any} opts={{ size: 32 }} />
+                  <Avatar user={{ username: opponent?.username }} opts={{ size: 32 }} />
                   <div className="name-box">
                     <div className="username">{opponent?.username ?? ""}</div>
                     {opponent?.pronouns && opponent.pronouns !== "blank" && (

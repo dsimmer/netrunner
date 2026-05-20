@@ -131,7 +131,7 @@ export default function AdminPage(): React.ReactElement {
 
   function updateAnnounceResponse(response: unknown): void {
     // Mirrors sente/cb-success? + case on response
-    const status = typeof response === "number" ? response : (response as any)?.status;
+    const status = typeof response === "number" ? response : (response as { status?: number } | null)?.status;
     if (status === 200) {
       nonGameToast("Sent announcement", "success", undefined);
     } else if (status === 403) {

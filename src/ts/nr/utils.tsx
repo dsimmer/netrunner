@@ -6,6 +6,7 @@ import { ZoneId, ZonedDateTime, DateTimeFormatter } from "@js-joda/core";
 import { Locale } from "@js-joda/locale_en-us";
 import { useAppState } from "./appstate";
 import { tr, trSpan, trData } from "./translations";
+// Global `window.toastr` is declared in src/ts/globals.d.ts.
 
 // ---------------------------------------------------------------------------
 // Zero-width space dot characters
@@ -179,9 +180,8 @@ export function toastrOptions(options?: ToastrOptions | null): object {
 }
 
 export function nonGameToast(msg: string, toastType: string, options?: object | null): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (window as any).toastr.options = toastrOptions(options as ToastrOptions ?? {});
-  const f = (window as any).toastr[toastType];
+  window.toastr.options = toastrOptions(options as ToastrOptions ?? {});
+  const f = window.toastr[toastType];
   if (typeof f === "function") f(msg);
 }
 
@@ -219,9 +219,8 @@ export function trNonGameToast(
   }
 
   const opts = actualOptions ?? {};
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (window as any).toastr.options = toastrOptions(opts as ToastrOptions);
-  const f = (window as any).toastr[actualToastType];
+  window.toastr.options = toastrOptions(opts as ToastrOptions);
+  const f = window.toastr[actualToastType];
   const trResource = trVec as unknown as [string, string];
   const msg = trParams
     ? ReactDOMServer.renderToString(trSpan(trResource, trParams as Record<string, string>))

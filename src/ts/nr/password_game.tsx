@@ -9,7 +9,7 @@ interface PasswordGameInfo {
   "request-side"?: string;
 }
 
-export interface LobbyState {
+interface LobbyState {
   "password-game"?: PasswordGameInfo | null;
   editing?: boolean;
   [key: string]: unknown;
@@ -105,6 +105,7 @@ export const passwordGame = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!game) return;
     joinGame(setLobbyState, setInputState, inputState, game, action ?? "", requestSide);
   };
 

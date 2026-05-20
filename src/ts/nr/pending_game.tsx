@@ -1,8 +1,8 @@
 // Pending/waiting game lobby: player list, deck select, ready toggle, start.
 // Mirrors: src/cljs/nr/pending_game.cljs
 import React, { useRef, useEffect } from "react";
-import { singletonDeck, trustedDeckStatus } from "../jinteki/validator";
-import { matchupByKey } from "../jinteki/preconstructed";
+import { singletonDeck, trustedDeckStatus, type Deck as ValidatorDeck } from "../jinteki/validator";
+import { matchupByKey, type MatchupKey } from "../jinteki/preconstructed";
 import { useAppState, currentGameID } from "./appstate";
 import { formatDateTime, mdyFormatter, trNonGameToast, condButton } from "./utils";
 import { tr, trElement, trElementWithEmbeddedContent, trSpan, trSide } from "./translations";
@@ -141,7 +141,7 @@ function isDeckLegal(deck: Deck | undefined, fmt: string | undefined): boolean {
     if (fmtStatus?.["legal"]) return true;
   }
   // Fallback: compute trusted status
-  const trusted = trustedDeckStatus({ ...deck, format: fmt } as any);
+  const trusted = trustedDeckStatus({ ...deck, format: fmt } as unknown as ValidatorDeck);
   const fmtResult = trusted[fmt as keyof typeof trusted] as { legal?: boolean } | undefined;
   return !!fmtResult?.legal;
 }
@@ -168,14 +168,14 @@ function SelectDeckModal({ user, currentGame, onClose }: SelectDeckModalProps): 
   function filterDecks(): Deck[] {
     return decks
       .filter((d: Deck) => d.identity?.side === side)
-      .filter((d: Deck) => !singleton || singletonDeck(d as any))
+      .filter((d: Deck) => !singleton || singletonDeck(d as unknown as ValidatorDeck))
       .filter((d: Deck) => isDeckLegal(d, fmt))
       .sort((a: Deck, b: Deck) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime());
   }
 
   function handleSelectDeck(deck: Deck) {
     const gid = currentGameID();
-    wsSend(["lobby/deck", { gameid: gid, "deck-id": deck._id }] as any);
+    wsSend("lobby/deck", { gameid: gid, "deck-id": deck._id });
     onClose();
   }
 
@@ -199,7 +199,7 @@ function SelectDeckModal({ user, currentGame, onClose }: SelectDeckModalProps): 
                     alt={(deck.identity as DeckIdentity)?.title ?? ""}
                   />
                   <div className="float-right">
-                    <DeckFormatStatusSpan deck={deck as any} fmt={fmt ?? "standard"} useTrustedInfo={true} />
+                    <DeckFormatStatusSpan deck={deck as unknown as ValidatorDeck} fmt={fmt ?? "standard"} useTrustedInfo={true} />
                   </div>
                   <h4>{deck.name ?? ""}</h4>
                   <div className="float-right">
@@ -280,7 +280,7 @@ function SwapSidesButton({
 
   if (playerCount <= 1) {
     return (
-      <button onClick={() => wsSend(["lobby/swap", { gameid }] as any)}>
+      <button onClick={() => wsSend("lobby/swap", { gameid })}>
         {tr(["lobby_swap", "Swap sides"])}
       </button>
     );
@@ -342,7 +342,7 @@ function ButtonBar({
 function PreconInfoBox({ currentGame }: { currentGame: CurrentGame }): React.ReactElement | null {
   const precon = currentGame.precon;
   if (!precon) return null;
-  const matchup = matchupByKey(precon as any);
+  const matchup = matchupByKey(precon as MatchupKey);
   if (!matchup) return null;
   const trDesc = Array.isArray(matchup.trDesc)
     ? matchup.trDesc as [string, string]
@@ -420,7 +420,7 @@ function PlayerItem({
       {deck && (
         <div className="float-right">
           <DeckFormatStatusSpan
-            deck={deck as any}
+            deck={deck as unknown as ValidatorDeck}
             fmt={(currentGame.format ?? "standard") as string}
             useTrustedInfo={true}
           />
@@ -542,11 +542,11 @@ export function PendingGame({ currentGame, user }: PendingGameProps): React.Reac
 
   // Handle auto-deck selection on mount (mirrors create-game-deck handling in CLJS)
   useEffect(() => {
-    const cg = useAppState.getState();
-    const deck = (cg as any).createGameDeck as Deck | undefined;
+    const cg = useAppState.getState() as Record<string, unknown>;
+    const deck = cg.createGameDeck as Deck | undefined;
     if (deck) {
       const gid = currentGameID();
-      wsSend(["lobby/deck", { gameid: gid, "deck-id": deck._id }] as any);
+      wsSend("lobby/deck", { gameid: gid, "deck-id": deck._id });
       // Clear the create-game-deck state
       // (In the full port, this would use a Zustand action)
     }

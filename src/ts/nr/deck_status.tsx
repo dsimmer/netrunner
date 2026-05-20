@@ -26,14 +26,15 @@ interface ParsedDeckStatus extends ValidatorDeckStatus {
 // Simple memoize (mirrors clojure.core/memoize)
 // ──────────────────────────────────────────────────────────────────
 
-function memoize<T extends (...args: any[]) => any>(fn: T): T {
+function memoize<T extends (...args: never[]) => unknown>(fn: T): T {
   const cache = new Map<string, ReturnType<T>>();
-  const memoized = function (...args: any[]): any {
+  const memoized = function (...args: Parameters<T>): ReturnType<T> {
     const key = JSON.stringify(args);
-    if (cache.has(key)) {
-      return cache.get(key)!;
+    const cached = cache.get(key);
+    if (cached !== undefined) {
+      return cached;
     }
-    const result = fn(...args);
+    const result = fn(...args) as ReturnType<T>;
     cache.set(key, result);
     return result;
   };

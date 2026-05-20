@@ -10,8 +10,7 @@ export interface WSMessage {
 }
 
 // Mirrors: defmulti event-msg-handler
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type WSEventHandler = (data: any) => void;
+export type WSEventHandler = (data: unknown) => void;
 const handlers: Map<string, WSEventHandler> = new Map();
 
 let socket: WebSocket | null = null;
@@ -109,8 +108,11 @@ export function chskReconnect(): void {
 
 // Register a handler for an event id.
 // Mirrors: defmethod event-msg-handler :some-event
-export function onWSEvent(id: string, fn: WSEventHandler): void {
-  handlers.set(id, fn);
+// Generic over the payload type so callers can declare the expected shape
+// (the runtime payload is `unknown` and the handler is responsible for shape
+// checks; the type parameter is only for the call site's convenience).
+export function onWSEvent<T = unknown>(id: string, fn: (data: T) => void): void {
+  handlers.set(id, fn as WSEventHandler);
 }
 
 function dispatch(msg: WSMessage): void {
