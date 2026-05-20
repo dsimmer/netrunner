@@ -19,6 +19,8 @@ import { getCard } from "./finding";
 import { initMuCost } from "./memory";
 import { update } from "./update";
 import { makeTimestamp, removeOnce, sameCard } from "../utils";
+import type { Counter } from './types';
+
 
 // ---------------------------------------------------------------------------
 // Type aliases for hosted-gained / hosted-lost callbacks

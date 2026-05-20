@@ -5,7 +5,7 @@
  * Contains ~118 card definitions with their abilities and events.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State, Zone } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreBadPublicity from '../core/bad_publicity';
 import * as coreBoard from '../core/board';
@@ -45,8 +45,6 @@ import * as coreToasts from '../core/toasts';
 import * as coreUpdate from '../core/update';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
-import type { CardDef } from '../../types';
-
 // __cardScopeShim — placeholders for legacy literal-scope references
 const state: any = undefined as any;
 const side: any = undefined as any;
@@ -61,7 +59,7 @@ const asyncResult: any = undefined as any;
 // Helper functions
 // ============================================================================
 
-function mobileSysopEventFn(ev?: string, callback?: any): any {
+export function mobileSysopEventFn(ev?: string, callback?: any): any {
   return {
     event: ev || ':corp-turn-ends',
     skippable: true,

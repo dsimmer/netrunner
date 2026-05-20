@@ -92,17 +92,12 @@ export interface Card {
 // cid / title helpers  (get-cid, get-title)
 // ---------------------------------------------------------------------------
 
-/** Gets the cid of a given card when wrapped in an effect-handler map. */
+/** Gets the cid of a given card when wrapped in an effect-handler map.
+ *  Mirrors `(get-in card [:card :cid])`. */
 export function getCid(
-  card: Card | { card?: Card | null } | null,
+  card: { card?: Card | null } | null,
 ): string | undefined {
-  if (!card) return undefined;
-  // If wrapped in an effect-handler map with a :card key
-  const wrapper = card as { card?: Card | null };
-  if ("card" in wrapper && wrapper.card) {
-    return wrapper.card.cid;
-  }
-  return (card as Card).cid;
+  return card?.card?.cid;
 }
 
 /** Title or printed title if the card is a counter or fake agenda. */
@@ -186,27 +181,54 @@ export function inRoot(card: Card | null): boolean {
   return inArchivesRoot(card) || inHqRoot(card) || inRdRoot(card);
 }
 
+/** Internal helper: accept either `(card)` or `(state, card)` and return the card.
+ *  The clj source takes only `[card]`; some callers in this codebase still
+ *  pass a leading state argument, so both forms are accepted. */
+function pickCard(
+  stateOrCard: GameState | Card | null,
+  cardArg?: Card | null,
+): Card | null {
+  return cardArg !== undefined ? cardArg : (stateOrCard as Card | null);
+}
+
 /** Checks if the card is protecting the archives. */
-export function protectingArchives(_stateOrCard: any, cardArg?: Card | null): boolean {
-  const card = cardArg !== undefined ? cardArg : _stateOrCard;
-  return zoneEquals(card, ["servers", "archives", "ices"]);
+export function protectingArchives(card: Card | null): boolean;
+export function protectingArchives(state: GameState | null, card: Card | null): boolean;
+export function protectingArchives(
+  stateOrCard: GameState | Card | null,
+  cardArg?: Card | null,
+): boolean {
+  return zoneEquals(pickCard(stateOrCard, cardArg), ["servers", "archives", "ices"]);
 }
 
 /** Checks if the card is protecting HQ. */
-export function protectingHq(_stateOrCard: any, cardArg?: Card | null): boolean {
-  const card = cardArg !== undefined ? cardArg : _stateOrCard;
-  return zoneEquals(card, ["servers", "hq", "ices"]);
+export function protectingHq(card: Card | null): boolean;
+export function protectingHq(state: GameState | null, card: Card | null): boolean;
+export function protectingHq(
+  stateOrCard: GameState | Card | null,
+  cardArg?: Card | null,
+): boolean {
+  return zoneEquals(pickCard(stateOrCard, cardArg), ["servers", "hq", "ices"]);
 }
 
 /** Checks if the card is protecting R&D. */
-export function protectingRd(_stateOrCard: any, cardArg?: Card | null): boolean {
-  const card = cardArg !== undefined ? cardArg : _stateOrCard;
-  return zoneEquals(card, ["servers", "rd", "ices"]);
+export function protectingRd(card: Card | null): boolean;
+export function protectingRd(state: GameState | null, card: Card | null): boolean;
+export function protectingRd(
+  stateOrCard: GameState | Card | null,
+  cardArg?: Card | null,
+): boolean {
+  return zoneEquals(pickCard(stateOrCard, cardArg), ["servers", "rd", "ices"]);
 }
 
 /** Checks if the card is protecting any central. */
-export function protectingACentral(_stateOrCard: any, cardArg?: Card | null): boolean {
-  const card = cardArg !== undefined ? cardArg : _stateOrCard;
+export function protectingACentral(card: Card | null): boolean;
+export function protectingACentral(state: GameState | null, card: Card | null): boolean;
+export function protectingACentral(
+  stateOrCard: GameState | Card | null,
+  cardArg?: Card | null,
+): boolean {
+  const card = pickCard(stateOrCard, cardArg);
   return protectingArchives(card) || protectingHq(card) || protectingRd(card);
 }
 
@@ -357,8 +379,7 @@ export function hasSubtype(
   subtype: string,
 ): string | undefined {
   if (!card || !card.subtypes) return undefined;
-  const found = card.subtypes.find((s) => s === subtype);
-  return found ?? undefined;
+  return card.subtypes.find((s) => s === subtype);
 }
 
 /** Checks if any of the provided subtypes is present on the card. */
@@ -549,7 +570,8 @@ export function sameCard<T>(
 // card-index / verbal-card-index
 // ---------------------------------------------------------------------------
 
-/** Get the zero-based index of the given card in its server's list of content. */
+/** Get the zero-based index of the given card in its server's list of content.
+ *  Mirrors `(get-in @state (cons :corp (get-zone card)))`. */
 export function cardIndex(
   state: GameState,
   card: Card | null,
@@ -557,18 +579,17 @@ export function cardIndex(
   if (!card) return undefined;
   if (card.index !== undefined) return card.index;
   const z = getZone(card);
-  const zones: (string | symbol)[] = ["corp", ...z];
-  // Navigate into state.corp[...]
-  let collection: unknown = state;
-  for (const seg of zones) {
-    if (typeof seg === "string") {
-      collection = (collection as any)?.[seg];
+  let collection: unknown = state.corp;
+  for (const seg of z) {
+    if (collection && typeof collection === "object") {
+      collection = (collection as Record<string, unknown>)[seg];
     } else {
-      collection = (collection as any)?.[String(seg).replace(/^:/, "")];
+      return undefined;
     }
   }
   if (!Array.isArray(collection)) return undefined;
-  const idx = collection.findIndex((c: Card | null) => sameCard(c, card));
+  const cards = collection as Card[];
+  const idx = cards.findIndex((c) => sameCard(c, card));
   return idx >= 0 ? idx : undefined;
 }
 
@@ -582,7 +603,8 @@ export function verbalCardIndex(
   return ordinalWord(idx + 1);
 }
 
-/** Convert a number (1-based) to its English ordinal word: 1->"first", 2->"second", etc. */
+/** Convert a number (1-based) to its English ordinal suffix string.
+ *  Mirrors Common Lisp's `~:R` format directive used by the clj source. */
 function ordinalWord(n: number): string {
   const small: Record<number, string> = {
     1: "first",
@@ -607,7 +629,19 @@ function ordinalWord(n: number): string {
     20: "twentieth",
   };
   if (n in small) return small[n];
-  return `${n}th`;
+  // Fall back to numeric ordinal (21st, 22nd, 23rd, 24th, ...)
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -768,23 +802,32 @@ export const isIce = ice;
 
 /** Credit cost of a card. */
 export function cost(card: Card | null): number {
-  return (card as any)?.cost ?? 0;
+  return card?.cost ?? 0;
 }
 
 /**
  * True when a card is installed in a server that has no ICE protecting it.
  * Mirrors the `unprotected` binding from clj's req-macro.
  */
-export function unprotected(state: GameState, sideOrCard?: any, maybeCard?: Card | null): boolean;
 export function unprotected(state: GameState, card: Card | null): boolean;
-export function unprotected(state: GameState, arg2: any, arg3?: Card | null): boolean {
+export function unprotected(state: GameState, side: string | null, card: Card | null): boolean;
+export function unprotected(
+  state: GameState,
+  arg2: Card | string | null,
+  arg3?: Card | null,
+): boolean {
   // Accept (state, side, card) or (state, card)
-  const card: Card | null = arg3 !== undefined ? arg3 : arg2;
+  const card: Card | null = arg3 !== undefined ? arg3 : (arg2 as Card | null);
   if (!card) return false;
   const z = getZone(card);
   const server = z[1];
   if (!server) return false;
-  const ices = (state as any)?.corp?.servers?.[server]?.ices ?? [];
+  const servers = state.corp.servers;
+  let ices: Card[] = [];
+  if (server === "hq") ices = servers.hq.ices;
+  else if (server === "rd") ices = servers.rd.ices;
+  else if (server === "archives") ices = servers.archives.ices;
+  else ices = servers.remote[server]?.ices ?? [];
   return ices.length === 0;
 }
 
@@ -795,10 +838,9 @@ export function hasKeyword(card: Card | null, keyword: string): boolean {
 
 /** Number of times `keyword` appears in the subtype list. */
 export function getKeyword(card: Card | null, keyword: string): number {
-  if (!card) return 0;
-  const subs = ((card as any)?.subtypes ?? []) as string[];
+  if (!card || !card.subtypes) return 0;
   let n = 0;
-  for (const s of subs) if (s === keyword) n++;
+  for (const s of card.subtypes) if (s === keyword) n++;
   return n;
 }
 
@@ -836,15 +878,15 @@ export function getRootZoneIndex(card: Card | null): number {
 }
 
 export function isDisabled(card: Card | null): boolean {
-  return !!(card && (card as any).disabled);
+  return !!card?.disabled;
 }
 
 export function isHosted(card: Card | null): boolean {
   if (!card) return false;
   const z = getZone(card);
-  return z?.[0] === "hosted" || !!(card as any).host;
+  return z[0] === "hosted" || !!card.host;
 }
 
 export function isPlayable(card: Card | null): boolean {
-  return !!(card && (card as any).playable);
+  return !!card?.playable;
 }

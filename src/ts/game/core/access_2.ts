@@ -111,19 +111,19 @@ function resolveAccessAbility(
 function accessible(state: GameState, card: Card): boolean {
   if (coreCard.agenda(card)) return true;
   const cdef = coreTypes.getCardDef(card);
-  const onAccess = (cdef as any)?.["on-access"] as Ability | undefined;
+  const onAccess = (cdef as unknown as Record<string, unknown>)?.["on-access"] as Ability | undefined;
   if (!onAccess) return false;
   return shouldTrigger(state, "corp", coreEid.makeEID(state), card, [], onAccess);
 }
 
 // Mirrors: get-archives-accessible (private)
 function getArchivesAccessible(state: GameState): Card[] {
-  return state.corp.discard.filter((c) => c.seen && accessible(state, c));
+  return state.corp.discard.filter((c: Card) => c.seen && accessible(state, c));
 }
 
 // Mirrors: get-archives-inactive (private)
 function getArchivesInactive(state: GameState): Card[] {
-  return state.corp.discard.filter((c) => c.seen && !accessible(state, c));
+  return state.corp.discard.filter((c: Card) => c.seen && !accessible(state, c));
 }
 
 // Mirrors: faceup-accessible
@@ -133,7 +133,7 @@ export function faceupAccessible(
 ): Card[] {
   const only = getOnlyCardToAccess(state);
   const source = only ? [only] : getArchivesAccessible(state);
-  return source.filter((c) => !alreadyAccessedFn(c));
+  return source.filter((c: Card) => !alreadyAccessedFn(c));
 }
 
 // Mirrors: facedown-cards
@@ -143,7 +143,7 @@ export function facedownCards(
 ): Card[] {
   const only = getOnlyCardToAccess(state);
   const source = only ? [only] : state.corp.discard;
-  return source.filter((c) => !c.seen && !alreadyAccessedFn(c));
+  return source.filter((c: Card) => !c.seen && !alreadyAccessedFn(c));
 }
 
 // Mirrors: archives-inactive (kept for back-compat; matches get-archives-inactive
@@ -152,7 +152,7 @@ export function archivesInactive(
   state: GameState,
   alreadyAccessedFn: (card: Card) => boolean,
 ): Card[] {
-  return getArchivesInactive(state).filter((c) => !alreadyAccessedFn(c));
+  return getArchivesInactive(state).filter((c: Card) => !alreadyAccessedFn(c));
 }
 
 // Mirrors: access-inactive-archives-cards (private). Walks the inactive cards
@@ -166,7 +166,7 @@ function accessInactiveArchivesCards(
   accessAmount: AccessAmount,
   accessedCards: Card[] = [],
 ): void {
-  const maxAccessVal = (state.run as any)?.["max-access"] as number | undefined;
+  const maxAccessVal = (state.run as unknown as Record<string, unknown>)?.["max-access"] as number | undefined;
   const totalMod = accessAmount["total-mod"] ?? 0;
   const limitReached =
     typeof maxAccessVal === "number" && maxAccessVal + totalMod <= accessAmount.chosen;
@@ -181,7 +181,7 @@ function accessInactiveArchivesCards(
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, _binds: any) {
+      function (s: GameState, _e: EID, _binds: unknown) {
         const nextAmount: AccessAmount = {
           "total-mod": accessBonusCount(s, side, "total"),
           chosen: accessAmount.chosen + 1,
@@ -197,7 +197,7 @@ function accessInactiveArchivesCards(
 // runner's :rd-access-fn (e.g. patched by R&D Interface effects) and applies
 // it to the deck. The function takes the deck as its sole argument.
 export function accessCardsFromRd(state: GameState): Card[] {
-  const accessFn = (state.runner as any)["rd-access-fn"] as
+  const accessFn = (state.runner as unknown as Record<string, unknown>)["rd-access-fn"] as
     | ((deck: Card[]) => Card[])
     | undefined;
   const deck = state.corp.deck;
@@ -206,7 +206,7 @@ export function accessCardsFromRd(state: GameState): Card[] {
 
 // Mirrors: access-cards-from-hq (private).
 export function accessCardsFromHq(state: GameState): Card[] {
-  const accessFn = (state.runner as any)["hq-access-fn"] as
+  const accessFn = (state.runner as unknown as Record<string, unknown>)["hq-access-fn"] as
     | ((hand: Card[]) => Card[])
     | undefined;
   const hand = state.corp.hand;
@@ -232,7 +232,7 @@ export function accessHelperRemote(
   const serverKey = server[0];
 
   const currentAvailable = new Set(
-    rootContent(state, serverKey).map((c) => c.cid),
+    rootContent(state, serverKey).map((c: Card) => c.cid),
   );
   const filteredAccessed = new Set<string>();
   for (const cid of alreadyAccessed) {
@@ -250,8 +250,8 @@ export function accessHelperRemote(
 
   const recurseAfter = (
     accessed: Card,
-  ): ((s: GameState, _e: EID, _b: any) => void) =>
-    function (s: GameState, _e: EID, _b: any) {
+  ): ((s: GameState, _e: EID, _b: unknown) => void) =>
+    function (s: GameState, _e: EID, _b: unknown) {
       const newAccessed = new Set(filteredAccessed);
       newAccessed.add(accessed.cid);
       const nextAmount: AccessAmount = {
@@ -281,10 +281,10 @@ export function accessHelperRemote(
     async: true,
     prompt: "Click a card to access it. You must access all cards in this server.",
     choices: {
-      card: (c: Card) => available.some((a) => utils.sameCard(a, c)),
+      card: (c: Card) => available.some((a: Card) => utils.sameCard(a, c)),
       all: true,
     },
-    effect: req(function (s: GameState, _side: string, e: EID, _card: Card, targets: any[]) {
+    effect: req(function (s: GameState, _side: string, e: EID, _card: Card, targets: unknown[]) {
       const target = targets?.[0] as Card;
       wait_for(
         s,
@@ -311,7 +311,7 @@ export function accessHelperRd(
   const randomLimit = accessAmount["random-access-limit"] ?? 0;
 
   const deck = accessCardsFromRd(state);
-  const cardToAccess = deck.find((c) => !accessedFn(c)) ?? null;
+  const cardToAccess = deck.find((c: Card) => !accessedFn(c)) ?? null;
 
   const CARD_FROM = "Card from deck";
   const disableRandomAccesses = coreEffects.anyEffects(
@@ -328,11 +328,11 @@ export function accessHelperRd(
   const root = rootContent(state, "rd", accessedFn);
   const upgradeButtons = noRoot
     ? []
-    : root.filter((c) => coreCard.rezzed(c)).map((c) => c.title);
+    : root.filter((c: Card) => coreCard.rezzed(c)).map((c: Card) => c.title);
 
   const UNREZZED = "Unrezzed upgrade";
   const unrezzedButton =
-    !noRoot && root.some((c) => !coreCard.rezzed(c)) ? [UNREZZED] : [];
+    !noRoot && root.some((c: Card) => !coreCard.rezzed(c)) ? [UNREZZED] : [];
 
   const choices = [...cardFromButton, ...upgradeButtons, ...unrezzedButton];
 
@@ -359,18 +359,19 @@ export function accessHelperRd(
       s,
       [
         { asyncResult: "result" },
-        function (s2: GameState, _e: EID, _b: any) {
-          const shuffled = (s2.run as any)?.["shuffled-during-access"]?.["rd"];
+        function (s2: GameState, _e: EID, _b: unknown) {
+          const shuffled = ((s2.run as unknown as Record<string, unknown>)
+            ?.["shuffled-during-access"] as Record<string, unknown> | undefined)?.["rd"];
           let newAccessed: Set<string>;
           if (shuffled) {
             const rootCids = new Set(
-              rootContent(s2, "rd").map((c) => c.cid),
+              rootContent(s2, "rd").map((c: Card) => c.cid),
             );
             newAccessed = new Set();
             for (const cid of alreadyAccessed) {
               if (rootCids.has(cid)) newAccessed.add(cid);
             }
-            const sd = (s2.run as any)["shuffled-during-access"] as Record<string, unknown>;
+            const sd = (s2.run as unknown as Record<string, unknown>)["shuffled-during-access"] as Record<string, unknown>;
             delete sd["rd"];
           } else {
             newAccessed = new Set(alreadyAccessed);
@@ -395,14 +396,14 @@ export function accessHelperRd(
     _side: string,
     e: EID,
   ) {
-    const unrezzed = root.filter((c) => !coreCard.rezzed(c));
+    const unrezzed = root.filter((c: Card) => !coreCard.rezzed(c));
     if (unrezzed.length === 1) {
       const only = unrezzed[0];
       wait_for(
         s,
         [
           { asyncResult: "result" },
-          function (s2: GameState, _e: EID, _b: any) {
+          function (s2: GameState, _e: EID, _b: unknown) {
             const newAccessed = new Set(alreadyAccessed);
             newAccessed.add(only.cid);
             const next = accessHelperRd(
@@ -425,7 +426,7 @@ export function accessHelperRd(
         async: true,
         prompt: "Choose an upgrade in root of R&D to access",
         choices: {
-          card: (c: Card) => unrezzed.some((u) => utils.sameCard(u, c)),
+          card: (c: Card) => unrezzed.some((u: Card) => utils.sameCard(u, c)),
         },
         eid: e,
         effect: req(function (
@@ -433,14 +434,14 @@ export function accessHelperRd(
           _side2: string,
           e2: EID,
           _c: Card,
-          targets: any[],
+          targets: unknown[],
         ) {
           const target = targets?.[0] as Card;
           wait_for(
             s2,
             [
               { asyncResult: "result" },
-              function (s3: GameState, _e3: EID, _b: any) {
+              function (s3: GameState, _e3: EID, _b: unknown) {
                 const newAccessed = new Set(alreadyAccessed);
                 newAccessed.add(target.cid);
                 const next = accessHelperRd(
@@ -474,12 +475,12 @@ export function accessHelperRd(
     return {
       async: true,
       effect: req(function (s: GameState, _side: string, e: EID) {
-        const upgrade = root.find((c) => coreCard.rezzed(c))!;
+        const upgrade = root.find((c: Card) => coreCard.rezzed(c))!;
         wait_for(
           s,
           [
             { asyncResult: "result" },
-            function (s2: GameState, _e: EID, _b: any) {
+            function (s2: GameState, _e: EID, _b: unknown) {
               const newAccessed = new Set(alreadyAccessed);
               newAccessed.add(upgrade.cid);
               const next = accessHelperRd(
@@ -507,18 +508,18 @@ export function accessHelperRd(
       side: string,
       e: EID,
       _c: Card,
-      targets: any[],
+      targets: unknown[],
     ) {
       const target = targets?.[0] as string;
       if (target === CARD_FROM) {
-        cardFromDeckFn(s, side, e, null as any, []);
+        cardFromDeckFn(s, side, e, null as unknown as Card, []);
         return null;
       }
       if (target === UNREZZED) {
-        unrezzedCardsFn(s, side, e, null as any, []);
+        unrezzedCardsFn(s, side, e, null as unknown as Card, []);
         return null;
       }
-      const accessed = root.find((c) => c.title === target);
+      const accessed = root.find((c: Card) => c.title === target);
       if (!accessed) {
         resolveAccessAbility(s, "runner", e, null);
         return null;
@@ -527,7 +528,7 @@ export function accessHelperRd(
         s,
         [
           { asyncResult: "result" },
-          function (s2: GameState, _e2: EID, _b: any) {
+          function (s2: GameState, _e2: EID, _b: unknown) {
             const newAccessed = new Set(alreadyAccessed);
             newAccessed.add(accessed.cid);
             const next = accessHelperRd(
@@ -561,7 +562,7 @@ export function accessHelperHq(
   const randomLimit = accessAmount["random-access-limit"] ?? 0;
   const accessedFn = alreadyAccessedFnFor(alreadyAccessed);
 
-  const preventHandAccess = Boolean((state.run as any)?.["prevent-hand-access"]);
+  const preventHandAccess = Boolean((state.run as unknown as Record<string, unknown>)?.["prevent-hand-access"]);
   const disableRandomAccesses = coreEffects.anyEffects(
     state,
     "runner",
@@ -574,16 +575,16 @@ export function accessHelperHq(
 
   const CARD_FROM = "Card from hand";
   const cardFromButton =
-    randomLimit > 0 && hand.some((c) => !accessedFn(c)) ? [CARD_FROM] : [];
+    randomLimit > 0 && hand.some((c: Card) => !accessedFn(c)) ? [CARD_FROM] : [];
 
   const root = rootContent(state, "hq", accessedFn);
   const upgradeButtons = noRoot
     ? []
-    : root.filter((c) => coreCard.rezzed(c)).map((c) => c.title);
+    : root.filter((c: Card) => coreCard.rezzed(c)).map((c: Card) => c.title);
 
   const UNREZZED = "Unrezzed upgrade";
   const unrezzedButton =
-    !noRoot && root.some((c) => !coreCard.rezzed(c)) ? [UNREZZED] : [];
+    !noRoot && root.some((c: Card) => !coreCard.rezzed(c)) ? [UNREZZED] : [];
 
   const choices = [...cardFromButton, ...upgradeButtons, ...unrezzedButton];
 
@@ -648,14 +649,14 @@ export function accessHelperHq(
             _side2: string,
             e2: EID,
             _c: Card,
-            targets: any[],
+            targets: unknown[],
           ) {
             const target = targets?.[0] as Card;
             wait_for(
               s2,
               [
                 { asyncResult: "result" },
-                function (s3: GameState, _e: EID, _b: any) {
+                function (s3: GameState, _e: EID, _b: unknown) {
                   continueAfter(target, true)(s3, e2);
                 },
               ],
@@ -666,7 +667,7 @@ export function accessHelperHq(
           cancel: {
             async: true,
             effect: req(function (s2: GameState, side2: string, e2: EID) {
-              const accessed = accessCardsFromHq(s2).find((c) => !accessedFn(c));
+              const accessed = accessCardsFromHq(s2).find((c: Card) => !accessedFn(c));
               if (!accessed) {
                 resolveAccessAbility(s2, "runner", e2, null);
                 return null;
@@ -680,7 +681,7 @@ export function accessHelperHq(
                 s2,
                 [
                   { asyncResult: "result" },
-                  function (s3: GameState, _e: EID, _b: any) {
+                  function (s3: GameState, _e: EID, _b: unknown) {
                     continueAfter(accessed, true)(s3, e2);
                   },
                 ],
@@ -695,7 +696,7 @@ export function accessHelperHq(
       );
       return null;
     }
-    const accessed = accessCardsFromHq(s).find((c) => !accessedFn(c));
+    const accessed = accessCardsFromHq(s).find((c: Card) => !accessedFn(c));
     if (!accessed) {
       resolveAccessAbility(s, "runner", e, null);
       return null;
@@ -704,7 +705,7 @@ export function accessHelperHq(
       s,
       [
         { asyncResult: "result" },
-        function (s2: GameState, _e: EID, _b: any) {
+        function (s2: GameState, _e: EID, _b: unknown) {
           continueAfter(accessed, true)(s2, e);
         },
       ],
@@ -718,14 +719,14 @@ export function accessHelperHq(
     _side: string,
     e: EID,
   ) {
-    const unrezzed = root.filter((c) => !coreCard.rezzed(c));
+    const unrezzed = root.filter((c: Card) => !coreCard.rezzed(c));
     if (unrezzed.length === 1) {
       const only = unrezzed[0];
       wait_for(
         s,
         [
           { asyncResult: "result" },
-          function (s2: GameState, _e: EID, _b: any) {
+          function (s2: GameState, _e: EID, _b: unknown) {
             continueAfter(only, false)(s2, e);
           },
         ],
@@ -740,7 +741,7 @@ export function accessHelperHq(
         async: true,
         prompt: "Choose an upgrade in root of HQ to access",
         choices: {
-          card: (c: Card) => unrezzed.some((u) => utils.sameCard(u, c)),
+          card: (c: Card) => unrezzed.some((u: Card) => utils.sameCard(u, c)),
         },
         eid: e,
         effect: req(function (
@@ -748,14 +749,14 @@ export function accessHelperHq(
           _side2: string,
           e2: EID,
           _c: Card,
-          targets: any[],
+          targets: unknown[],
         ) {
           const target = targets?.[0] as Card;
           wait_for(
             s2,
             [
               { asyncResult: "result" },
-              function (s3: GameState, _e: EID, _b: any) {
+              function (s3: GameState, _e: EID, _b: unknown) {
                 continueAfter(target, false)(s3, e2);
               },
             ],
@@ -781,7 +782,7 @@ export function accessHelperHq(
           s,
           [
             { asyncResult: "result" },
-            function (s2: GameState, _e: EID, _b: any) {
+            function (s2: GameState, _e: EID, _b: unknown) {
               continueAfter(accessed, true, {
                 ...args,
                 "access-first": accessFirst.slice(1),
@@ -806,12 +807,12 @@ export function accessHelperHq(
     return {
       async: true,
       effect: req(function (s: GameState, _side: string, e: EID) {
-        const upgrade = root.find((c) => coreCard.rezzed(c))!;
+        const upgrade = root.find((c: Card) => coreCard.rezzed(c))!;
         wait_for(
           s,
           [
             { asyncResult: "result" },
-            function (s2: GameState, _e: EID, _b: any) {
+            function (s2: GameState, _e: EID, _b: unknown) {
               continueAfter(upgrade, false)(s2, e);
             },
           ],
@@ -831,18 +832,18 @@ export function accessHelperHq(
       side: string,
       e: EID,
       _c: Card,
-      targets: any[],
+      targets: unknown[],
     ) {
       const target = targets?.[0] as string;
       if (target === CARD_FROM) {
-        cardFromHandFn(s, side, e, null as any, []);
+        cardFromHandFn(s, side, e, null as unknown as Card, []);
         return null;
       }
       if (target === UNREZZED) {
-        unrezzedCardsFn(s, side, e, null as any, []);
+        unrezzedCardsFn(s, side, e, null as unknown as Card, []);
         return null;
       }
-      const accessed = root.find((c) => c.title === target);
+      const accessed = root.find((c: Card) => c.title === target);
       if (!accessed) {
         resolveAccessAbility(s, "runner", e, null);
         return null;
@@ -851,7 +852,7 @@ export function accessHelperHq(
         s,
         [
           { asyncResult: "result" },
-          function (s2: GameState, _e: EID, _b: any) {
+          function (s2: GameState, _e: EID, _b: unknown) {
             continueAfter(accessed, false)(s2, e);
           },
         ],
@@ -876,8 +877,8 @@ export function accessHelperArchives(
 
   // Filter alreadyAccessed to current cids (cards may have moved zones).
   const currentAvailable = new Set<string>([
-    ...state.corp.discard.map((c) => c.cid),
-    ...rootContent(state, "archives").map((c) => c.cid),
+    ...state.corp.discard.map((c: Card) => c.cid),
+    ...rootContent(state, "archives").map((c: Card) => c.cid),
   ]);
   const filteredAccessed = new Set<string>();
   for (const cid of alreadyAccessed) {
@@ -885,19 +886,19 @@ export function accessHelperArchives(
   }
   const accessedFn = alreadyAccessedFnFor(filteredAccessed);
 
-  const faceupCardsButtons = faceupAccessible(state, accessedFn).map((c) => c.title);
+  const faceupCardsButtons = faceupAccessible(state, accessedFn).map((c: Card) => c.title);
   const UNREZZED = "Unrezzed upgrade";
   const root = rootContent(state, "archives", accessedFn);
   const unrezzedButton =
-    !noRoot && root.some((c) => !coreCard.rezzed(c)) ? [UNREZZED] : [];
+    !noRoot && root.some((c: Card) => !coreCard.rezzed(c)) ? [UNREZZED] : [];
   const upgradeButtons = noRoot
     ? []
-    : root.filter((c) => coreCard.rezzed(c)).map((c) => c.title);
+    : root.filter((c: Card) => coreCard.rezzed(c)).map((c: Card) => c.title);
   const FACEDOWN = "Facedown card in Archives";
   const facedownButton =
     facedownCards(state, accessedFn).length > 0 ? [FACEDOWN] : [];
   const EVERYTHING_ELSE = "Everything else";
-  const inactiveCids = new Set(getArchivesInactive(state).map((c) => c.cid));
+  const inactiveCids = new Set(getArchivesInactive(state).map((c: Card) => c.cid));
   const everythingElseButton = (() => {
     for (const cid of inactiveCids) {
       if (!filteredAccessed.has(cid)) return [EVERYTHING_ELSE];
@@ -940,14 +941,14 @@ export function accessHelperArchives(
     _side: string,
     e: EID,
   ) {
-    const unrezzed = root.filter((c) => !coreCard.rezzed(c));
+    const unrezzed = root.filter((c: Card) => !coreCard.rezzed(c));
     if (unrezzed.length === 1) {
       const only = unrezzed[0];
       wait_for(
         s,
         [
           { asyncResult: "result" },
-          function (s2: GameState, _e: EID, _b: any) {
+          function (s2: GameState, _e: EID, _b: unknown) {
             continueAfter(only)(s2, e);
           },
         ],
@@ -964,7 +965,7 @@ export function accessHelperArchives(
         choices: {
           card: (c: Card) => {
             const zone = coreCard.getZone(c);
-            return (zone as any)?.[1] === "archives" && !filteredAccessed.has(c.cid);
+            return (zone as string[])?.[1] === "archives" && !filteredAccessed.has(c.cid);
           },
         },
         eid: e,
@@ -973,14 +974,14 @@ export function accessHelperArchives(
           _side2: string,
           e2: EID,
           _c: Card,
-          targets: any[],
+          targets: unknown[],
         ) {
           const target = targets?.[0] as Card;
           wait_for(
             s2,
             [
               { asyncResult: "result" },
-              function (s3: GameState, _e: EID, _b: any) {
+              function (s3: GameState, _e: EID, _b: unknown) {
                 continueAfter(target)(s3, e2);
               },
             ],
@@ -1015,7 +1016,7 @@ export function accessHelperArchives(
       s,
       [
         { asyncResult: "result" },
-        function (s2: GameState, _e: EID, _b: any) {
+        function (s2: GameState, _e: EID, _b: unknown) {
           continueAfter(accessed)(s2, e);
         },
       ],
@@ -1035,7 +1036,7 @@ export function accessHelperArchives(
       s,
       [
         { asyncResult: "result" },
-        function (s2: GameState, _e: EID, binds: any) {
+        function (s2: GameState, _e: EID, binds: { asyncResult?: unknown }) {
           const accessedList = (binds?.asyncResult as Card[]) ?? [];
           const newAccessed = new Set(filteredAccessed);
           for (const c of accessedList) newAccessed.add(c.cid);
@@ -1061,12 +1062,12 @@ export function accessHelperArchives(
     return {
       async: true,
       effect: req(function (s: GameState, _side: string, e: EID) {
-        const upgrade = root.find((c) => coreCard.rezzed(c))!;
+        const upgrade = root.find((c: Card) => coreCard.rezzed(c))!;
         wait_for(
           s,
           [
             { asyncResult: "result" },
-            function (s2: GameState, _e: EID, _b: any) {
+            function (s2: GameState, _e: EID, _b: unknown) {
               continueAfter(upgrade)(s2, e);
             },
           ],
@@ -1085,7 +1086,7 @@ export function accessHelperArchives(
           s,
           [
             { asyncResult: "result" },
-            function (s2: GameState, _e: EID, _b: any) {
+            function (s2: GameState, _e: EID, _b: unknown) {
               continueAfter(card)(s2, e);
             },
           ],
@@ -1111,24 +1112,24 @@ export function accessHelperArchives(
       side: string,
       e: EID,
       _c: Card,
-      targets: any[],
+      targets: unknown[],
     ) {
       const target = targets?.[0] as string;
       if (target === UNREZZED) {
-        unrezzedCardsFn(s, side, e, null as any, []);
+        unrezzedCardsFn(s, side, e, null as unknown as Card, []);
         return null;
       }
       if (target === FACEDOWN) {
-        facedownCardsFn(s, side, e, null as any, []);
+        facedownCardsFn(s, side, e, null as unknown as Card, []);
         return null;
       }
       if (target === EVERYTHING_ELSE) {
-        everythingElseFn(s, side, e, null as any, []);
+        everythingElseFn(s, side, e, null as unknown as Card, []);
         return null;
       }
       const accessed =
-        faceupAccessible(s, accessedFn).find((c) => c.title === target) ??
-        rootContent(s, "archives", accessedFn).find((c) => c.title === target);
+        faceupAccessible(s, accessedFn).find((c: Card) => c.title === target) ??
+        rootContent(s, "archives", accessedFn).find((c: Card) => c.title === target);
       if (!accessed) {
         resolveAccessAbility(s, "runner", e, null);
         return null;
@@ -1137,7 +1138,7 @@ export function accessHelperArchives(
         s,
         [
           { asyncResult: "result" },
-          function (s2: GameState, _e: EID, _b: any) {
+          function (s2: GameState, _e: EID, _b: unknown) {
             continueAfter(accessed)(s2, e);
           },
         ],
@@ -1154,11 +1155,11 @@ export function accessHelperArchives(
 
 registerChooseAccess("remote", (state, side, eid, accessAmount, _server, args) => {
   const totalMod = accessAmount["total-mod"] ?? 0;
-  const maxAccessVal = (state.run as any)?.["max-access"] as number | undefined;
+  const maxAccessVal = (state.run as unknown as Record<string, unknown>)?.["max-access"] as number | undefined;
   const posMax = typeof maxAccessVal === "number" ? maxAccessVal + totalMod > 0 : true;
   const server = args.server as string[];
   const content =
-    (state.corp.servers as any)?.[server?.[0]]?.content ?? [];
+    (state.corp.servers as unknown as Record<string, { content?: Card[]; ices?: Card[] }>)?.[server?.[0]]?.content ?? [];
   const totalCards = getAllContent(content).length;
   const posTotal = totalCards + totalMod > 0;
 
@@ -1175,13 +1176,13 @@ registerChooseAccess("rd", (state, side, eid, accessAmount, _server, args) => {
   const randomLimit = accessAmount["random-access-limit"] ?? 0;
   const noRoot = Boolean(args["no-root"]);
   const only = getOnlyCardToAccess(state);
-  const maxAccessVal = (state.run as any)?.["max-access"] as number | undefined;
+  const maxAccessVal = (state.run as unknown as Record<string, unknown>)?.["max-access"] as number | undefined;
   const posMax = typeof maxAccessVal === "number" ? maxAccessVal + totalMod > 0 : true;
 
   const totalCardsCount = only
     ? 1
     : accessCardsFromRd(state).slice(0, randomLimit).length +
-      (noRoot ? 0 : (state.corp.servers as any)?.rd?.content?.length ?? 0);
+      (noRoot ? 0 : (state.corp.servers as unknown as Record<string, { content?: Card[]; ices?: Card[] }>)?.rd?.content?.length ?? 0);
   const posTotal = totalCardsCount + totalMod > 0;
 
   if (posMax && posTotal && only) {
@@ -1206,15 +1207,15 @@ registerChooseAccess("hq", (state, side, eid, accessAmount, _server, args) => {
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, _b: any) {
+      function (s: GameState, _e: EID, _b: unknown) {
         const totalMod = accessAmount["total-mod"] ?? 0;
         const noRoot = Boolean(args["no-root"]);
         const only = getOnlyCardToAccess(s);
-        const maxAccessVal = (s.run as any)?.["max-access"] as number | undefined;
+        const maxAccessVal = (s.run as unknown as Record<string, unknown>)?.["max-access"] as number | undefined;
         const posMax =
           typeof maxAccessVal === "number" ? maxAccessVal + totalMod > 0 : true;
 
-        const preventHandAccess = Boolean((s.run as any)?.["prevent-hand-access"]);
+        const preventHandAccess = Boolean((s.run as unknown as Record<string, unknown>)?.["prevent-hand-access"]);
         const totalCards = only
           ? 1
           : (preventHandAccess ? 0 : s.corp.hand.length) +
@@ -1246,7 +1247,7 @@ registerChooseAccess("archives", (state, side, eid, accessAmount, _server, args)
   const totalMod = accessAmount["total-mod"] ?? 0;
   const noRoot = Boolean(args["no-root"]);
   const only = getOnlyCardToAccess(state);
-  const maxAccessVal = (state.run as any)?.["max-access"] as number | undefined;
+  const maxAccessVal = (state.run as unknown as Record<string, unknown>)?.["max-access"] as number | undefined;
   const posMax = typeof maxAccessVal === "number" ? maxAccessVal + totalMod > 0 : true;
 
   const totalCards = only
@@ -1275,9 +1276,9 @@ registerChooseAccess("archives", (state, side, eid, accessAmount, _server, args)
 // ---------------------------------------------------------------------------
 
 export function maxAccess(state: GameState, n: number): void {
-  const currentMax = (state.run as any)?.["max-access"] as number | undefined;
+  const currentMax = (state.run as unknown as Record<string, unknown>)?.["max-access"] as number | undefined;
   const newMax = typeof currentMax === "number" ? Math.min(currentMax, n) : n;
-  if (state.run) (state.run as any)["max-access"] = newMax;
+  if (state.run) (state.run as unknown as Record<string, unknown>)["max-access"] = newMax;
 }
 
 export function accessBonus(
@@ -1287,12 +1288,11 @@ export function accessBonus(
   duration?: string,
 ): void {
   const dur = duration || (state.run ? ":end-of-run" : ":end-of-access");
-  (state.bonus as any) = {
-    ...((state.bonus as any) || {}),
-    "access-bonus": [
-      ...(((state.bonus as any)?.["access-bonus"]) || []),
-      [n, dur],
-    ],
+  const bonus = (state.bonus as unknown as Record<string, unknown>) || {};
+  const accessBonus = (bonus["access-bonus"] as unknown[]) || [];
+  (state.bonus as unknown as Record<string, unknown>) = {
+    ...bonus,
+    "access-bonus": [...accessBonus, [n, dur]],
   };
 }
 
@@ -1393,14 +1393,14 @@ export function turnArchivesFaceup(
   }
   const discard = state.corp.discard;
   const known = discard
-    .filter((c) => c.seen)
-    .map((c) => {
-      const { ["new"]: _drop, ...rest } = c as any;
+    .filter((c: Card) => c.seen)
+    .map((c: Card) => {
+      const { ["new"]: _drop, ...rest } = c as Card & Record<string, unknown>;
       return rest as Card;
     });
   const unknown = discard
-    .filter((c) => !c.seen)
-    .map((c) => ({ ...c, seen: true, new: true } as Card));
+    .filter((c: Card) => !c.seen)
+    .map((c: Card) => ({ ...c, seen: true, new: true } as Card));
   // pseudo-shuffle the unknown portion (mirrors CLJ comment about preventing info leak)
   for (let i = unknown.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -1426,7 +1426,9 @@ export function turnArchivesFaceup(
  * Mirrors: clean-access-args. Normalizes :access-first to a sequence so the
  * helpers can pop from it; passes all other keys through unchanged.
  */
-export function cleanAccessArgs(args: any): any {
+export function cleanAccessArgs(
+  args: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
   if (!args || typeof args !== "object") return args ?? {};
   const accessFirst = args["access-first"];
   if (!accessFirst) return args;
@@ -1448,15 +1450,15 @@ export function accessNCards(
 ): void {
   const accessAmount = numCardsToAccess(state, side, server, n);
   if (state.run) {
-    (state.run as any)["did-access"] = true;
+    (state.run as unknown as Record<string, unknown>)["did-access"] = true;
     maxAccess(state, n);
   }
   wait_for(
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, _b: any) {
-        coreEngine.unregisterFloatingEvents(s, side, ":end-of-access" as any);
+      function (s: GameState, _e: EID, _b: unknown) {
+        coreEngine.unregisterFloatingEvents(s, side, ":end-of-access");
         coreEid.effectCompleted(s, side, eid);
       },
     ],
@@ -1480,28 +1482,28 @@ export function breachServer(
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e1: EID, _b1: any) {
-        (s as any).breach = { "breach-server": server[0], "from-server": server[0] };
+      function (s: GameState, _e1: EID, _b1: unknown) {
+        (s.breach as Record<string, unknown> | null | undefined) = { "breach-server": server[0], "from-server": server[0] };
         const cleanedArgs = cleanAccessArgs(args);
         const accessAmount = numCardsToAccess(s, side, server, null);
         wait_for(
           s,
           [
             { asyncResult: "result" },
-            function (s2: GameState, _e2: EID, _b2: any) {
-              if (s2.run) (s2.run as any)["did-access"] = true;
+            function (s2: GameState, _e2: EID, _b2: unknown) {
+              if (s2.run) (s2.run as unknown as Record<string, unknown>)["did-access"] = true;
               wait_for(
                 s2,
                 [
                   { asyncResult: "result" },
-                  function (s3: GameState, _e3: EID, _b3: any) {
+                  function (s3: GameState, _e3: EID, _b3: unknown) {
                     wait_for(
                       s3,
                       [
                         { asyncResult: "result" },
-                        function (s4: GameState, _e4: EID, _b4: any) {
-                          (s4 as any).breach = null;
-                          coreEngine.unregisterFloatingEvents(s4, side, ":end-of-access" as any);
+                        function (s4: GameState, _e4: EID, _b4: unknown) {
+                          (s4.breach as Record<string, unknown> | null | undefined) = null;
+                          coreEngine.unregisterFloatingEvents(s4, side, ":end-of-access");
                           coreEid.effectCompleted(s4, side, eid);
                         },
                       ],
@@ -1511,7 +1513,7 @@ export function breachServer(
                         side,
                         eid,
                         ":end-breach-server",
-                        (s3 as any).breach,
+                        (s3.breach as Record<string, unknown> | null | undefined),
                       ],
                       { eid },
                     );

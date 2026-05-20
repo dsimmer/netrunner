@@ -90,7 +90,7 @@ function updateSelectable(
   const choiceArr = choices as Array<{ value?: { cid?: string } }>;
   const cids = choiceArr
     .filter(Boolean)
-    .map((c) => (c?.value as { cid?: string })?.cid)
+    .map((c: any) => (c?.value as { cid?: string })?.cid)
     .filter((cid): cid is string => typeof cid === "string");
   return [...(prevSelectable ?? []), ...cids];
 }
@@ -353,7 +353,7 @@ export function firstPromptByEid(
   type?: string,
 ): Prompt | undefined {
   const queue = getSidePrompt(state, side);
-  return queue.find((p) => {
+  return queue.find((p: any) => {
     const eidMatch = p.eid?.id === eid.id;
     if (type) return eidMatch && p.promptType === type;
     return eidMatch;
@@ -377,7 +377,7 @@ export function firstSelectionByEid(
     | (Runner & { selected?: SelectionEntry[] });
   const selected = (player as any).selected as SelectionEntry[] | undefined;
   if (!selected) return undefined;
-  return selected.find((s) => {
+  return selected.find((s: any) => {
     const abilityEid = (s.ability as any)?.eid as EID | undefined;
     return abilityEid?.id === eid.id;
   });
@@ -419,7 +419,7 @@ export function resolveSelect(
   const queue = getSidePrompt(state, side);
   const prompt =
     firstPromptByEid(state, side, eid, "select") ??
-    queue.find((p) => p.promptType === "select");
+    queue.find((p: any) => p.promptType === "select");
 
   // Remove the selection entry
   const player = (side === CORP_SIDE ? state.corp : state.runner) as any;
@@ -484,7 +484,7 @@ export function resolveSelectBadPublicity(
   });
 
   const queue = getSidePrompt(state, side);
-  const prompt = queue.find((p) => p.promptType === "select");
+  const prompt = queue.find((p: any) => p.promptType === "select");
 
   if (player.selected) {
     player.selected = player.selected.slice(1);
@@ -521,7 +521,7 @@ function computeSelectable(
 ): string[] {
   const allCards = getAllCards(state);
   // Filter out cards in deck zone
-  let valid = allCards.filter((c) => !isInZone(c, ["deck"]));
+  let valid = allCards.filter((c: any) => !isInZone(c, ["deck"]));
   // Filter by card function
   if (cardFn) {
     valid = valid.filter(cardFn);
@@ -529,9 +529,9 @@ function computeSelectable(
   // Filter by req function
   if (reqFn) {
     const eid = makeEID(state);
-    valid = valid.filter((c) => reqFn(state, side, eid, card, [c]));
+    valid = valid.filter((c: any) => reqFn(state, side, eid, card, [c]));
   }
-  return valid.map((c) => c.cid);
+  return valid.map((c: any) => c.cid);
 }
 
 /** Helper: check if a card's zone equals a target zone path. */
@@ -817,7 +817,7 @@ export function clearWaitPrompt(...args: any[]): void {
   const state = args[0] as GameState;
   const side = args[1] as string;
   const queue = getSidePrompt(state, side);
-  const waitPrompt = queue.find((p) => p.promptType === "waiting");
+  const waitPrompt = queue.find((p: any) => p.promptType === "waiting");
   if (waitPrompt) {
     removeFromPromptQueue(state, side, waitPrompt);
   }
@@ -853,13 +853,13 @@ export function showRunPrompts(
  */
 export function clearRunPrompts(state: GameState): void {
   const runnerQueue = getSidePrompt(state, RUNNER_SIDE);
-  const runnerPrompt = runnerQueue.find((p) => p.promptType === "run");
+  const runnerPrompt = runnerQueue.find((p: any) => p.promptType === "run");
   if (runnerPrompt) {
     removeFromPromptQueue(state, RUNNER_SIDE, runnerPrompt);
   }
 
   const corpQueue = getSidePrompt(state, CORP_SIDE);
-  const corpPrompt = corpQueue.find((p) => p.promptType === "run");
+  const corpPrompt = corpQueue.find((p: any) => p.promptType === "run");
   if (corpPrompt) {
     removeFromPromptQueue(state, CORP_SIDE, corpPrompt);
   }
@@ -885,7 +885,7 @@ export function cancellable(
         : !!sorted;
   if (sortFlag) {
     return [
-      ...(choices as Array<{ title?: string }>).sort((a, b) =>
+      ...(choices as Array<{ title?: string }>).sort((a: any, b: any) =>
         ((a as any).title ?? "").localeCompare((b as any).title ?? ""),
       ),
       "Cancel",

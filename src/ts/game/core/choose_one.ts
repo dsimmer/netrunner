@@ -6,8 +6,7 @@
 import type { GameState } from "./state";
 import type { EID } from "./eid";
 import type { Card } from "./card";
-import type { Ability, ReqFn, NumberFn, MsgFn } from "./types.ts";
-
+import type { Ability, MsgFn, NumberFn, ReqFn } from "./types.ts";
 import { continue_ability } from "../macros";
 import { buildCostString, canPay } from "./payment";
 import { effectCompleted, makeEID, registerEIDCallback } from "./eid";
@@ -192,7 +191,10 @@ function buildChooseOne(args: ChooseOneArgs, xs: ChoiceOption[]): Ability {
     if (!x.req) {
       return costedStr(x);
     }
-    if (x.req(state, side, eid, card, targets)) {
+    const reqResult = typeof x.req === "function"
+      ? x.req(state, side, eid, card, targets)
+      : !!x.req;
+    if (reqResult) {
       return costedStr(x);
     }
     return undefined;
@@ -202,7 +204,7 @@ function buildChooseOne(args: ChooseOneArgs, xs: ChoiceOption[]): Ability {
   const meaningfulReq: ReqFn | undefined = args.requireMeaningfulChoice
     ? (state: GameState, side: string, eid: EID, card: Card, targets: any[]) => {
         const cs = processedXs
-          .map((x) => choicesFn(x, state, side, eid, card, targets))
+          .map((x: any) => choicesFn(x, state, side, eid, card, targets))
           .filter(Boolean) as (string | { title: string })[];
         return (
           cs.length !== 1 ||
@@ -255,7 +257,7 @@ function buildChooseOne(args: ChooseOneArgs, xs: ChoiceOption[]): Ability {
           };
           const newXs = args.noPrune
             ? full
-            : full.filter((x) => costedStr(x) !== remainingTarget);
+            : full.filter((x: any) => costedStr(x) !== remainingTarget);
           continue_ability(
             newState,
             newSide,
@@ -296,7 +298,7 @@ function buildChooseOne(args: ChooseOneArgs, xs: ChoiceOption[]): Ability {
     ...baseMap,
     choices: (state: GameState, side: string, eid: EID, card: Card, targets: any[]) => {
       return processedXs
-        .map((x) => choicesFn(x, state, side, eid, card, targets))
+        .map((x: any) => choicesFn(x, state, side, eid, card, targets))
         .filter(Boolean) as (string | { title: string })[];
     },
     waitingPrompt: args.waitingPrompt ?? !args.noWaitMsg,

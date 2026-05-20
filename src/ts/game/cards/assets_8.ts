@@ -1,4 +1,4 @@
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreActions from '../core/actions';
 import * as coreAgendas from '../core/agendas';
@@ -48,8 +48,6 @@ import * as coreUpdate from '../core/update';
 import * as coreWinning from '../core/winning';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
-import type { CardDef } from '../../types';
-
 import { executiveTrashEffect } from './assets_1';
 import { expose } from './assets_3';
 
@@ -93,7 +91,7 @@ export const thePowersThatBe: CardDef = {
     event: ':agenda-scored',
     prompt: 'Choose a card from Archives or HQ to install, ignoring all costs',
     'show-discard': true,
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     async: true,
     choices: {
       card: (c: Card) =>
@@ -230,7 +228,7 @@ export const triesteModelBioroids: CardDef = {
 
 export const trojan: CardDef = {
   title: 'Trojan',
-  flags: { 'rd-reveal': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'rd-reveal': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   poison: true,
   'on-access': {
     async: true,
@@ -299,7 +297,7 @@ export const urbanRenewal: CardDef = {
     event: ':corp-turn-begins',
     automatic: ':corp-damage',
     async: true,
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       yield wait_for(state, [{ asyncResult: 'result' },
         coreProps.addCounter(state, side, card, ':power', -1, null)], []);
@@ -539,7 +537,7 @@ export const wallToWall: CardDef = (() => {
   const ability: any = {
     async: true,
     automatic: ':last',
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     label: 'resolve an ability (start of turn)',
     once: ':per-turn',
     effect: effect(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
@@ -623,7 +621,7 @@ export const warmReception: CardDef = (() => {
     'derezzed-events': [coreDefHelpers.corpRezToast],
     events: [{
       event: ':corp-turn-begins',
-      interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+      interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
       async: true,
       effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
         yield wait_for(state, [{ asyncResult: 'result' },

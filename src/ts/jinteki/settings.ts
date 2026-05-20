@@ -1,3 +1,4 @@
+import type { Card } from '../types';
 // Centralized settings definitions for the application.
 // Mirrors: src/cljc/jinteki/settings.cljc
 //

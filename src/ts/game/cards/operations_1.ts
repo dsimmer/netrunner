@@ -5,7 +5,7 @@
  * This file contains ~219 corp operation card definitions with their abilities and events.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreActions from '../core/actions';
 import * as coreBadPublicity from '../core/bad_publicity';
@@ -56,8 +56,6 @@ import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 
 import { cardDef } from '../core/card_defs';
-import type { CardDef } from '../../types';
-
 // __cardScopeShim: 'state', 'target', etc. are referenced at CardDef literal
 // scope in cards that were not yet rewritten to use req/effect callbacks.
 // These ambient names keep the file compiling; the affected predicates were

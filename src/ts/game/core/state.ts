@@ -3,8 +3,7 @@
 
 import type { Card, Zone } from "./card";
 import type { EID } from "./eid";
-import type { Ability, AbilityFn, ReqFn } from "./types.ts";
-
+import type { Ability, AbilityFn, ReqFn, Side } from "./types.ts";
 // ---------------------------------------------------------------------------
 // Side constants
 // ---------------------------------------------------------------------------
@@ -106,6 +105,15 @@ export interface ChoicesMap {
     targets: Card[],
   ) => number;
   notSelf?: boolean;
+  counter?: string;
+  "card-title"?: (
+    state: GameState,
+    side: string,
+    eid: EID,
+    card: Card | null,
+    targets: Card[],
+  ) => unknown;
+  [key: string]: unknown;
 }
 
 export interface Prompt {
@@ -122,6 +130,23 @@ export interface Prompt {
   waiting?: string;
 }
 
+export interface RunEffectEntry {
+  card: Card;
+  ability: Ability;
+  mandatory?: boolean;
+}
+
+export interface RunSourceCard {
+  code?: string;
+  cid?: string;
+  zone?: Zone;
+  title?: string;
+  side?: string;
+  type?: string;
+  art?: string;
+  implementation?: string | boolean;
+}
+
 export interface RunState {
   runId?: EID;
   eid?: EID;
@@ -129,7 +154,7 @@ export interface RunState {
   position: number;
   phase: string;
   nextPhase?: string;
-  noAction?: boolean;
+  noAction?: boolean | string;
   successful?: boolean;
   unsuccessful?: boolean;
   preventAccess?: boolean;
@@ -137,7 +162,11 @@ export interface RunState {
   corpAutoNoAction?: boolean;
   ended?: boolean;
   cardsAccessed?: Record<string, number>;
-  runEffects?: unknown[];
+  runEffects?: RunEffectEntry[];
+  sourceCard?: RunSourceCard;
+  badPublicityAvailable?: number;
+  subroutinesFired?: number;
+  "marked-server"?: boolean;
 }
 
 export interface Encounter {
@@ -234,13 +263,14 @@ export interface TraceState {
 }
 
 export interface GameStats {
-  time: {
+  time?: {
     started: Date;
     ended?: Date;
     elapsed?: number;
   };
   corp?: Record<string, unknown>;
   runner?: Record<string, unknown>;
+  [key: string]: any;
 }
 
 // ---------------------------------------------------------------------------
@@ -306,6 +336,7 @@ export interface Runner {
   clickPerTurn: number;
   credit: number;
   runCredit: number;
+  nextRunCredit?: number;
   badPubCredit: number;
   link: number;
   tag: Tags;
@@ -425,10 +456,20 @@ export interface GameState {
   trace?: TraceState | null;
 
   // Undo state
-  trash?: unknown;
+  trash?: any;
   clickState?: unknown;
-  endRun?: unknown;
-  bonus?: unknown;
+  endRun?: { ended?: boolean } & Record<string, unknown>;
+  bonus?: any;
+
+  // Per-encounter scratch space (cleared between encounters).
+  perEncounter?: Record<string, unknown> | null;
+  // Active count of nested forced encounters (Border Control etc.).
+  forcedEncounter?: number;
+
+  // Prevention state — shape varies per category (trash/damage/tag/encounter/etc.)
+  // Each entry carries `remaining`, `count`, `uses`, and category-specific keys,
+  // so we use a loose record here pending full typing of the prevention engine.
+  prevent?: any;
 
   // Breach state (set during a server breach; reset to null on end-breach-server)
   breach?: Record<string, unknown> | null;

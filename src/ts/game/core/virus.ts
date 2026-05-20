@@ -14,7 +14,7 @@ export function getVirusCounters(state: GameState, card: Card): number {
       )
     : [];
   const cards = [card, ...hiveminds];
-  return cards.reduce((sum, c) => sum + getCounters(c, "virus"), 0);
+  return cards.reduce((sum: any, c: any) => sum + getCounters(c, "virus"), 0);
 }
 
 /**

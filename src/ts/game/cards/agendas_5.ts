@@ -6,7 +6,7 @@
  * Each card has properties like on-score, on-access, events, static-abilities, etc.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAgendas from '../core/agendas';
 import * as coreBoard from '../core/board';
 import * as coreCard from '../core/card';
@@ -49,8 +49,6 @@ import * as coreWinning from '../core/winning';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 import { iceBoostAgenda } from './_helpers';
-import type { CardDef } from '../../types';
-
 import { agendaCounters } from './agendas_1';
 import * as coreBadPublicity from '../core/bad_publicity';
 
@@ -171,7 +169,7 @@ export const sensorNetActivation: CardDef = {
     effect: effect(function*(state: State, Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       yield wait_for(state, [{ asyncResult: 'result' }, coreRezzing.rez(state, side, target, { 'ignore-cost': ':all-costs', msgKeys: { includeCostFromEid: eid } })], []);
       const c = (asyncResult || {}).card;
-      const ev = ((state as any).activePlayer === ':corp') ? ':corp-turn-ends' : ':runner-turn-ends';
+      const ev = (state.activePlayer === ':corp') ? ':corp-turn-ends' : ':runner-turn-ends';
       coreEngine.registerEvents(state, side, card, [{
         event: ev,
         'unregister-once-resolved': true,
@@ -755,7 +753,7 @@ export const viralWeaponization: CardDef = {
   title: 'Viral Weaponization',
   'on-score': {
     effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreEngine.registerEvents(card, [{
-      event: ((state as any).activePlayer === ':corp') ? ':corp-turn-ends' : ':runner-turn-ends',
+      event: (state.activePlayer === ':corp') ? ':corp-turn-ends' : ':runner-turn-ends',
       'unregister-once-resolved': true,
       duration: ':end-of-turn',
       msg: (state: State, side: Side, eid: EID, card: Card, targets: any[]) => `do ${(state as any).runner?.hand?.length} net damage`,

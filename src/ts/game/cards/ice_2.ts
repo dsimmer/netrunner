@@ -5,7 +5,7 @@
  * Contains ~317 card definitions with their abilities and events.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreBadPublicity from '../core/bad_publicity';
 import * as coreBoard from '../core/board';
 import * as coreCard from '../core/card';
@@ -40,8 +40,6 @@ import * as coreUpdate from '../core/update';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 import { morphIce } from './_helpers';
-import type { CardDef } from '../../types';
-
 import { addRunnerCardToGrip, bioraidBreak, corpsGainsAndRunnerLosesCredits, doPsi, endTheRun, forcedToAvoidTags, gainCreditsSub, installFromHqOrArchivesSub, runnerTrashProgramSub, takeBadPub, traceAbility, trashProgramSub, trashTypeOrEndTheRun } from './ice_1';
 
 // Stub helpers (to be ported from clj cards/*.clj)
@@ -181,7 +179,7 @@ export const anansi: CardDef = (() => {
 // Archangel
 export const archangel: CardDef = {
   title: 'Archangel',
-  flags: { 'rd-reveal': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'rd-reveal': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   'on-access': {
     optional: {
       req: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
@@ -641,7 +639,7 @@ export const boto: CardDef = (() => {
 export const brainstorm: CardDef = {
   title: 'Brainstorm',
   'on-encounter': {
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       const subCount = ((state as any).runner?.hand?.length ?? 0);
       coreEffects.registerLingeringEffect(state, side, card, {
@@ -650,7 +648,7 @@ export const brainstorm: CardDef = {
           return coreCard.sameCard(card, tgts[0]);
         }),
         duration: ':end-of-run',
-        value: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> {
+        value: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> {
           return { subroutines: Array(subCount).fill(coreDefHelpers.doBrainDamage(1)) };
         }),
       });

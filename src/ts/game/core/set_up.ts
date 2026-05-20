@@ -195,8 +195,8 @@ interface GameData {
  */
 function initGameState(game: GameData): GameState {
   const players = game.players ?? [];
-  const corpPlayer = players.find((p) => p.side === "Corp") ?? null;
-  const runnerPlayer = players.find((p) => p.side === "Runner") ?? null;
+  const corpPlayer = players.find((p: any) => p.side === "Corp") ?? null;
+  const runnerPlayer = players.find((p: any) => p.side === "Runner") ?? null;
 
   const corpDeck = createDeck(corpPlayer?.deck ?? {});
   const runnerDeck = createDeck(runnerPlayer?.deck ?? {});
@@ -230,7 +230,7 @@ function initGameState(game: GameData): GameState {
     corpPlayer?.user ?? {},
     corpIdentity,
     corpOptions,
-    corpDeck.map((c) => ({ ...c, zone: ["deck"] }) as Card),
+    corpDeck.map((c: any) => ({ ...c, zone: ["deck"] }) as Card),
     corpDeckId,
     corpQuote,
   );
@@ -239,7 +239,7 @@ function initGameState(game: GameData): GameState {
     runnerPlayer?.user ?? {},
     runnerIdentity,
     runnerOptions,
-    runnerDeck.map((c) => ({ ...c, zone: ["deck"] }) as Card),
+    runnerDeck.map((c: any) => ({ ...c, zone: ["deck"] }) as Card),
     runnerDeckId,
     runnerQuote,
   );
@@ -310,7 +310,7 @@ function sortDeckForDisplay(deck: Card[]): Array<[string, string | number]> {
   }
 
   // Sort by [type, title]
-  entries.sort((a, b) => {
+  entries.sort((a: any, b: any) => {
     if (a[2] < b[2]) return -1;
     if (a[2] > b[2]) return 1;
     if (a[0] < b[0]) return -1;
@@ -357,7 +357,7 @@ export function initGame(game: GameData): GameState {
   const runnerIdentity = state.runner.identity;
 
   if (game.messages && game.messages.length > 0) {
-    state.log.public = game.messages.map((m) => ({
+    state.log.public = game.messages.map((m: any) => ({
       user: "__system__",
       text: m,
     }));

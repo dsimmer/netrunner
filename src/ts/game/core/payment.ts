@@ -4,7 +4,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { Ability } from "./types.ts";
+import type { Ability, Cost } from "./types.ts";
 import { isICE } from "./card";
 import { makeEID } from "./eid";
 import { anyEffects } from "./effects";
@@ -182,15 +182,15 @@ export function mergeCosts(
   const additionalGroups = groupCosts(additional);
 
   const merged = [...realGroups, ...additionalGroups]
-    .map((group) => group.reduce(mergeCostImpl, null as CostData | null))
+    .map((group: any) => group.reduce(mergeCostImpl, null as CostData | null))
     .filter((c): c is CostData => c != null)
-    .filter((c) => {
+    .filter((c: any) => {
       if (removeZeroCreditCost && c.type === "credit" && (c.amount ?? 0) === 0)
         return false;
       return true;
     });
 
-  return merged.sort((a, b) => implCostRank(a) - implCostRank(b));
+  return merged.sort((a: any, b: any) => implCostRank(a) - implCostRank(b));
 }
 
 // ---------------------------------------------------------------------------
@@ -226,7 +226,7 @@ export function canPay(
 ): CostData[] | null {
   const removeZeroCreditCost = isCorpInstallSource(eid) && !isICE(card);
   const costs = mergeCosts(
-    args.filter((c) => c != null),
+    args.filter((c: any) => c != null),
     removeZeroCreditCost,
   );
 
@@ -277,8 +277,8 @@ export function buildCostLabel(
 ): string | null {
   const parts = mergeCosts(costs)
     .slice()
-    .sort((a, b) => displayCostRank(a) - displayCostRank(b))
-    .map((c) => label(c as any));
+    .sort((a: any, b: any) => displayCostRank(a) - displayCostRank(b))
+    .map((c: any) => label(c as any));
   const cost = parts.join(", ");
   if (!cost.trim()) return null;
   return capitalize(cost);
@@ -328,7 +328,7 @@ export function buildCostString(
   costs: Array<CostData | CostData[] | null | undefined>,
 ): string | null {
   const parts = mergeCosts(costs)
-    .map((c) => costToString(c))
+    .map((c: any) => costToString(c))
     .filter((s): s is string => !!s);
   const result = parts.join(" and ");
   if (!result.trim()) return null;

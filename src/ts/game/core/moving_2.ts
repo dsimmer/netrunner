@@ -5,7 +5,6 @@ import type { GameState } from "./state";
 import type { Card, Zone } from "./card";
 import type { EID } from "./eid";
 import type { Ability, ReqFn } from "./types.ts";
-
 import {
   isAgenda,
   isAsset,
@@ -158,7 +157,7 @@ export function setDurationOnTrashEvents(
   card: Card,
   trashEvent: string,
 ): void {
-  state.events = state.events.map((cur) => {
+  state.events = state.events.map((cur: any) => {
     if (
       sameCard(card, cur.card) &&
       cur.event === trashEvent &&
@@ -231,7 +230,7 @@ export function trashCards(...rawArgs: any[]): void {
 
         updateCurrentIceToTrash(
           s,
-          trashlist.map((t) => t.card),
+          trashlist.map((t: any) => t.card),
         );
 
         wait_for(
@@ -245,7 +244,7 @@ export function trashCards(...rawArgs: any[]): void {
                   keepServerAlive: args.keepServerAlive,
                 });
 
-              const shouldShuffleRD = trashlist.some((t) => t["shuffle-rd"]);
+              const shouldShuffleRD = trashlist.some((t: any) => t["shuffle-rd"]);
 
               type MovedEntry = {
                 movedCard?: Card | null;
@@ -293,7 +292,7 @@ export function trashCards(...rawArgs: any[]): void {
               const accessed = (s2 as any).access;
               if (
                 accessed &&
-                trashlist.some((t) => sameCard(accessed, t.card)) &&
+                trashlist.some((t: any) => sameCard(accessed, t.card)) &&
                 side === "runner"
               ) {
                 ((s2.runner.register ??= {}) as any)["trashed-accessed-card"] =
@@ -302,7 +301,7 @@ export function trashCards(...rawArgs: any[]): void {
               if (
                 (s2 as any).breach &&
                 accessed &&
-                trashlist.some((t) => sameCard(accessed, t.card)) &&
+                trashlist.some((t: any) => sameCard(accessed, t.card)) &&
                 side === "runner"
               ) {
                 ((s2 as any).breach as any)["did-trash"] = true;
@@ -315,8 +314,8 @@ export function trashCards(...rawArgs: any[]): void {
 
               if (side) {
                 const otherSides = trashlist
-                  .map((t) => toKeyword(t.card.side ?? ""))
-                  .filter((sd) => sd !== side);
+                  .map((t: any) => toKeyword(t.card.side ?? ""))
+                  .filter((sd: any) => sd !== side);
                 if (otherSides.length) {
                   const reg = ((s2 as any)[side].register ??= {});
                   reg["trashed-card"] = true;
@@ -334,7 +333,7 @@ export function trashCards(...rawArgs: any[]): void {
 
               const completionEid = makeResult(
                 eid,
-                movedCards.map((m) => m.movedCard).filter(Boolean),
+                movedCards.map((m: any) => m.movedCard).filter(Boolean),
               );
 
               for (const { movedCard, trashEffect } of movedCards) {
@@ -367,7 +366,7 @@ export function trashCards(...rawArgs: any[]): void {
             side,
             makeEID(state),
             "pre-trash-interrupt",
-            trashlist.map((t) => t.card),
+            trashlist.map((t: any) => t.card),
           ],
           { eid },
         );
@@ -494,7 +493,7 @@ export function swapLegal(
     let cur: any = state;
     for (const k of path) cur = cur?.[k];
     const list: Card[] = Array.isArray(cur) ? cur : [];
-    return !list.some((c) => isAsset(c) || isAgenda(c));
+    return !list.some((c: any) => isAsset(c) || isAgenda(c));
   }
 
   // No two regions in the same server
@@ -508,7 +507,7 @@ export function swapLegal(
     let cur: any = state;
     for (const k of path) cur = cur?.[k];
     const list: Card[] = Array.isArray(cur) ? cur : [];
-    return !list.some((c) => hasSubtype(c, "Region"));
+    return !list.some((c: any) => hasSubtype(c, "Region"));
   }
 
   // Cannot swap ICE with a non-ICE card
@@ -559,7 +558,7 @@ export function swapInstalled(
           state,
           side,
           newCard,
-          dre.map((d) => ({ ...d, condition: "derezzed" }) as any),
+          dre.map((d: any) => ({ ...d, condition: "derezzed" }) as any),
         );
       }
     }
@@ -692,7 +691,7 @@ export function swapCards(
           state,
           side,
           moved,
-          dre.map((d) => ({ ...d, condition: "derezzed" }) as any),
+          dre.map((d: any) => ({ ...d, condition: "derezzed" }) as any),
         );
       }
     }

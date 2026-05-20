@@ -1,6 +1,8 @@
 /* eslint-disable no-console */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import type { Card } from '../types';
+
 
 // ---------------------------------------------------------------------------
 // update_prizes (mirrors tasks.update-prizes)

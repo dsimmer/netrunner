@@ -190,11 +190,11 @@ export function shuffleCardsIntoDeck(
   flatten(targets);
 
   const resolvedCards = flat
-    .map((t) => getCard(state, t as Card) ?? (t as Card))
+    .map((t: any) => getCard(state, t as Card) ?? (t as Card))
     .filter((c): c is Card => c != null);
 
   // Filter out cards in locked discard
-  const filtered = resolvedCards.filter((c) => {
+  const filtered = resolvedCards.filter((c: any) => {
     const z = getZone(c);
     return !(
       z.length === 1 &&
@@ -297,7 +297,7 @@ export function shuffleIntoDeck(
   const side = kw(sideOrZone as string);
   const zones = restZones
     .filter((z): z is string => typeof z === "string")
-    .map((z) => kw(z));
+    .map((z: any) => kw(z));
 
   for (const z of zones) {
     moveZone(state, side, z, "deck");
@@ -367,7 +367,7 @@ export function shuffleIntoRdEffect(
     {
       showDiscard: true,
       choices: {
-        max: Math.min((state as any).corp?.discard?.length ?? 0, n),
+        max: Math.min(state.corp?.discard?.length ?? 0, n),
         card: (c: Card) => corp(c) && inDiscard(c),
         all,
       },

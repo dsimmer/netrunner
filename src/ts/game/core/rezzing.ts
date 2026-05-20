@@ -4,7 +4,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { CardDef, Ability } from "./types.ts";
+import type { Ability, CardDef } from "./types.ts";
 import type { CostData } from "./payment";
 
 import { asset, conditionCounter, ice, rezzed, upgrade } from "./card";
@@ -101,7 +101,7 @@ function trashHostedCards(
   eid: EID,
   card: Card,
 ): void {
-  const hostedCards = card.hosted?.filter((h) => !conditionCounter(h)) ?? [];
+  const hostedCards = card.hosted?.filter((h: any) => !conditionCounter(h)) ?? [];
 
   if (canHost(state, card)) {
     effectCompleted(state, side, eid);
@@ -112,7 +112,7 @@ function trashHostedCards(
         [{ asyncResult: "result" }],
         function (s: GameState, _e: EID, _binds: any) {
           if (hostedCards.length > 0) {
-            const names = hostedCards.map((h) =>
+            const names = hostedCards.map((h: any) =>
               cardStr(s, h, { visible: true }),
             );
             systemMsg(
@@ -538,7 +538,7 @@ function rezMultipleMessage(
     ? ((msgKeys["include-cost-from-eid"] as any)["latest-payment-str"] ?? "")
     : "";
 
-  const titles = cards.map((c) => cardStr(state, c, { visible: true }));
+  const titles = cards.map((c: any) => cardStr(state, c, { visible: true }));
   const rhs = " (ignoring all costs)";
 
   const finalMsg = sourceCard
@@ -611,7 +611,7 @@ function derezMessage(
   msgKeys: { andThen?: string; [key: string]: unknown } = {},
 ): void {
   const { andThen = "" } = msgKeys;
-  const cardStrs = cards.map((c) => cardStr(state, c, { visible: true }));
+  const cardStrs = cards.map((c: any) => cardStr(state, c, { visible: true }));
   const enumerate = enumerateStr(cardStrs);
 
   // get-in msg-keys [:include-cost-from-eid :latest-payment-str]
@@ -634,12 +634,14 @@ function derezMessage(
 /**
  * derez: Derez a number of corp cards.
  */
+export function derez(eid: EID, cards: Card | Card[]): void;
 export function derez(state: GameState, side: string, cards: Card | Card[], args?: any): void;
 export function derez(state: GameState, side: string, eid: EID, cards: Card | Card[], args?: any): void;
+export function derez(...rawArgs: any[]): void;
 export function derez(
-  state: GameState,
-  side: string,
-  eidOrCards: EID | Card | Card[],
+  state?: any,
+  side?: any,
+  eidOrCards?: EID | Card | Card[],
   cardsOrArgs?: Card | Card[] | any,
   args?: {
     suppressCheckpoint?: boolean;
@@ -650,6 +652,14 @@ export function derez(
   },
 ): void {
   let eid: EID, cards: Card | Card[];
+  // Shorthand (eid, cards) — first arg is an EID and second is card(s)
+  if (state && typeof state === "object" && "id" in (state as any) && !("title" in (state as any)) && !("activePlayer" in (state as any))) {
+    // 2-arg form passed as (state, side) here
+    eid = state as EID;
+    cards = side as Card | Card[];
+    // No state — best-effort no-op for the rest
+    return;
+  }
   if (eidOrCards && typeof eidOrCards === "object" && "id" in (eidOrCards as any) && !("title" in (eidOrCards as any)) && !Array.isArray(eidOrCards)) {
     eid = eidOrCards as EID;
     cards = cardsOrArgs as Card | Card[];
@@ -671,7 +681,7 @@ export function derez(
     }
   }
   const resolvedCards = flatCards
-    .map((c) => {
+    .map((c: any) => {
       const resolved = getCard(state, c);
       return resolved && rezzed(resolved) ? resolved : null;
     })

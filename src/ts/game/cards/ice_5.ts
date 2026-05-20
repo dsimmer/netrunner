@@ -5,7 +5,7 @@
  * Contains ~317 card definitions with their abilities and events.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreBadPublicity from '../core/bad_publicity';
 import * as coreBoard from '../core/board';
 import * as coreCard from '../core/card';
@@ -39,8 +39,6 @@ import * as coreToasts from '../core/toasts';
 import * as coreUpdate from '../core/update';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
-import type { CardDef } from '../../types';
-
 import { bioraidBreak, doPsi, endTheRun, endTheRunIfTagged, gainCreditsSub, runnerLosesClick, runnerLosesCredits, runnerTrashInstalledSub, subtypeIceCount, tagOrPayCredits, tagTrace, traceAbility, trashProgramSub, wonderSub } from './ice_1';
 
 // Stub helpers (to be ported from clj cards/*.clj)
@@ -71,7 +69,7 @@ export const heimdall20: CardDef = {
 // Herald
 export const herald: CardDef = {
   title: 'Herald',
-  flags: { 'rd-reveal': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'rd-reveal': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   subroutines: [
     gainCreditsSub(2),
     {
@@ -569,7 +567,7 @@ export const jaguarundi: CardDef = {
       const ability = {
         player: ':runner',
         prompt: 'Choose one',
-        choices: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> {
+        choices: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> {
           return ['Take 1 tag', canSpendClick ? 'Spend [Click]' : null].filter(Boolean);
         }),
         'waiting-prompt': true,
@@ -801,7 +799,7 @@ export const klevetnik: CardDef = (() => {
     }),
     effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       const t = targets[0];
-      const activePlayer = (state as any).activePlayer;
+      const activePlayer = state.activePlayer;
       const duration = activePlayer === ':corp' ? ':until-next-corp-turn-ends' : ':until-corp-turn-ends';
       yield wait_for(state, [{ asyncResult: 'result' },
         coreGaining.gainCredits(state, ':runner', coreEid.makeEid(state, eid), 2)], []);
@@ -850,7 +848,7 @@ export const knowledgeSeeker: CardDef = {
     req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       return coreCard.sameCard(targets[0]?.ice, card) && coreCard.getCounters(card, ':virus') >= 3;
     }),
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     async: true,
     msg: 'purge virus counters and derez itself',
     effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
@@ -890,7 +888,7 @@ export const knowledgeSeeker: CardDef = {
 export const komainu: CardDef = {
   title: 'Komainu',
   'on-encounter': {
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     effect: effect(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       const subCount = (state as any).runner?.hand?.length ?? 0;
       coreEffects.registerLingeringEffect(state, side, card, {
@@ -899,7 +897,7 @@ export const komainu: CardDef = {
           return coreCard.sameCard(card, tgts[0]);
         }),
         duration: ':end-of-run',
-        value: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> {
+        value: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> {
           return { subroutines: Array(subCount).fill(coreDefHelpers.doNetDamage(1)) };
         }),
       });
@@ -951,7 +949,7 @@ export const labDog: CardDef = {
 export const lamplighter: CardDef = (() => {
   const trashSelf: any = {
     async: true,
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     automatic: ':pre-draw-cards',
     req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       const context = targets[0];

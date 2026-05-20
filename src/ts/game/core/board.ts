@@ -205,7 +205,7 @@ export function allInstalledRunnerType(
  * Mirrors: all-active-installed in board.clj
  */
 export function allActiveInstalled(state: GameState, side: string, _ignored?: unknown): Card[] {
-  return allInstalled(state, side).filter((c) =>
+  return allInstalled(state, side).filter((c: any) =>
     side === RUNNER_SIDE ? !isFacedown(c) : isRezzed(c),
   );
 }
@@ -235,7 +235,7 @@ export function allActive(state: GameState, side: string): Card[] {
   const combined = [...ids, ...activeInstalled, ...current, ...playArea];
   if (side === CORP_SIDE) combined.push(...scored);
 
-  return combined.filter((c) => c != null && !c.disabled);
+  return combined.filter((c: any) => c != null && !c.disabled);
 }
 
 // ---------------------------------------------------------------------------
@@ -250,7 +250,7 @@ export function installedByName(
   side: string,
   title: string,
 ): Card | null {
-  return allActiveInstalled(state, side).find((c) => c.title === title) ?? null;
+  return allActiveInstalled(state, side).find((c: any) => c.title === title) ?? null;
 }
 
 /**
@@ -343,7 +343,7 @@ export function getZones(state: GameState): string[] {
  * Mirrors: get-remote-zones in board.clj
  */
 export function getRemoteZones(state: GameState): string[] {
-  return getZones(state).filter((z) => isRemoteZone(z));
+  return getZones(state).filter((z: any) => isRemoteZone(z));
 }
 
 /**
@@ -368,7 +368,7 @@ export function serverList(state: GameState): string[] {
  */
 export function serverListExclude(state: GameState, excludeList: string[]): string[] {
   const exclude = new Set(excludeList);
-  return zonesToSortedNamesLocal(getZones(state).filter((z) => !exclude.has(z)));
+  return zonesToSortedNamesLocal(getZones(state).filter((z: any) => !exclude.has(z)));
 }
 
 function isRemoteZone(z: string): boolean {
@@ -396,7 +396,7 @@ function zoneDisplayLocal(zone: string): string {
 }
 
 function zonesToSortedNamesLocal(zones: string[]): string[] {
-  return [...zones].sort((a, b) => zoneSortKeyLocal(a) - zoneSortKeyLocal(b)).map(zoneDisplayLocal);
+  return [...zones].sort((a: any, b: any) => zoneSortKeyLocal(a) - zoneSortKeyLocal(b)).map(zoneDisplayLocal);
 }
 
 /**
@@ -423,7 +423,7 @@ export function installableServers(
   state: GameState,
   card: Card,
 ): string[] {
-  const baseList = ["HQ", "R&D", "Archives", ...getRemotes(state).map((k) => `Remote ${k}`)];
+  const baseList = ["HQ", "R&D", "Archives", ...getRemotes(state).map((k: any) => `Remote ${k}`)];
   return baseList;
 }
 
@@ -444,11 +444,30 @@ export function getZoneCards(state: GameState, side: string, zone: string[]): Ca
 }
 
 /** First card in zone matching the cid. */
-export function getCardInZone(state: GameState, side: string, zone: string[], cid: string): Card | null {
-  return getZoneCards(state, side, zone).find((c) => c.cid === cid) ?? null;
+export function getCardInZone(state: GameState, side: string, zone: string[], cid: string): Card | null;
+export function getCardInZone(player: any, zone: any): Card[] | null;
+export function getCardInZone(...args: any[]): Card[] | Card | null {
+  if (args.length === 2) {
+    // 2-arg form: (player, zone) — return cards at that zone path
+    const player = args[0];
+    const zone = args[1];
+    if (!player || !zone) return [];
+    // zone is like ["servers", "remote1", "content"] — walk into player
+    let node: any = player;
+    const pathParts = Array.isArray(zone) ? zone : [zone];
+    for (const seg of pathParts) {
+      if (node == null) return [];
+      node = node[seg];
+    }
+    return Array.isArray(node) ? (node as Card[]) : [];
+  }
+  const [state, side, zone, cid] = args as [GameState, string, string[], string];
+  return getZoneCards(state, side, zone).find((c: any) => c.cid === cid) ?? null;
 }
 
 import { getRunnableZones } from "./runs";
+import type { Server } from './types';
+
 
 /** Sorted names of zones the runner can currently run. */
 export function runnableServers(state: GameState, side?: string, eid?: any, card?: any): string[] {

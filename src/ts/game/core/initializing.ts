@@ -5,7 +5,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { CardDef, Ability, AbilityFn, Subroutine } from "./types.ts";
+import type { Ability, AbilityFn, CardDef, Server, Subroutine } from "./types.ts";
 import {
   isRunner,
   isProgram,
@@ -148,7 +148,7 @@ function subroutinesInit(
   const subroutinesDef = cdef.subroutines ?? [];
   if (!state) {
     // No state available (e.g. during makeCard) - create basic wrappers
-    return subroutinesDef.map((sub) => ({
+    return subroutinesDef.map((sub: any) => ({
       ...sub,
       printed: true,
       broken: false,
@@ -158,7 +158,7 @@ function subroutinesInit(
   }
   // Full initialization with state
   const baseCard = { ...card, subroutines: undefined };
-  return subroutinesDef.map((sub) => buildSub(sub as any, baseCard.cid ?? "", { printed: true }) as any);
+  return subroutinesDef.map((sub: any) => buildSub(sub as any, baseCard.cid ?? "", { printed: true }) as any);
 }
 
 // ---------------------------------------------------------------------------
@@ -171,7 +171,7 @@ function subroutinesInit(
  */
 export function abilityInit(cdef: CardDef): Ability[] {
   const abilities = cdef.abilities ?? [];
-  return abilities.map((ab) => {
+  return abilities.map((ab: any) => {
     const withLabel = { ...ab, label: makeLabel(ab) };
     return addCostLabelToAbility(withLabel) as unknown as Ability;
   }) as Ability[];
@@ -183,7 +183,7 @@ export function abilityInit(cdef: CardDef): Ability[] {
  */
 export function corpAbilityInit(cdef: CardDef): Ability[] {
   const abilities = cdef.corpAbilities ?? [];
-  return abilities.map((ab) => {
+  return abilities.map((ab: any) => {
     const withCost = { cost: ab.cost, label: makeLabel(ab) };
     return addCostLabelToAbility(withCost) as unknown as Ability;
   }) as Ability[];
@@ -195,7 +195,7 @@ export function corpAbilityInit(cdef: CardDef): Ability[] {
  */
 export function runnerAbilityInit(cdef: CardDef): Ability[] {
   const abilities = cdef.runnerAbilities ?? [];
-  return abilities.map((ab) => {
+  return abilities.map((ab: any) => {
     const cost = ab.breakCost ?? ab.cost;
     const withCost = {
       cost: ab.cost,

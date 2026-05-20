@@ -3,7 +3,7 @@
 
 import type { GameState, Effect, MemoryBucket } from "./state";
 import type { Card } from "./card";
-import type { ReqFn, StaticAbility, ValueFn } from "./types.ts";
+import type { EID, ReqFn, Side, State, StaticAbility, ValueFn } from "./types.ts";
 import { hasSubtype, isProgram } from "./card";
 import { cardDef } from "./card_defs";
 import { makeEID } from "./eid";
@@ -332,12 +332,15 @@ function shallowEqualMu(
  */
 export function someMuEffect(state: GameState, card: Card): number {
   const def = cardDef(card);
-  const ab = def.staticAbilities?.find((a) => a.type === "used-mu");
+  const ab = def.staticAbilities?.find((a: any) => a.type === "used-mu");
   if (!ab) return 0;
   const eid = makeEID(state);
-  if (ab.req && !ab.req(state, "runner", eid, card, [])) return 0;
+  if (ab.req) {
+    const ok = typeof ab.req === "function" ? (ab.req as any)(state, "runner", eid, card, []) : !!ab.req;
+    if (!ok) return 0;
+  }
   if (!ab.value) return 0;
-  const v = ab.value(state, "runner", eid, card, []);
+  const v = typeof ab.value === "function" ? (ab.value as any)(state, "runner", eid, card, []) : ab.value;
   return typeof v === "number" ? v : 0;
 }
 
@@ -406,7 +409,7 @@ export function initMuCost(state: GameState, card: Card): void {
 import { getXFn } from "./def_helpers_2";
 
 /** Resolved get-x-fn — see clojure `get-x-fn`. */
-export const getxFn = (state: any, side: any, eid: any, card: any, targets: any) =>
+export const getxFn = (state: State, side: Side, eid: EID, card: Card, targets: any[]) =>
   getXFn()(state, side, eid, card, targets);
 
 /** Returns total MU. Alias for availableMu summing. */

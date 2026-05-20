@@ -3,6 +3,8 @@
 
 import { isAgenda, isCorp, isIdentity, isRunner } from "../game/core/card";
 import { AllCards } from "./cards";
+import type { Counter, Server, Side } from '../types';
+
 
 export const runnerEconList = new Set<string>([
   "Bravado",

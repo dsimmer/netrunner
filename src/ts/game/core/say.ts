@@ -42,7 +42,7 @@ export function makeMessage(opts: {
       ? opts.text.trim()
       : Array.isArray(opts.text)
         ? opts.text
-            .map((t) => (typeof t === "string" ? t.trim() : String(t)))
+            .map((t: any) => (typeof t === "string" ? t.trim() : String(t)))
             .join(" ")
         : "";
   return {
@@ -356,8 +356,8 @@ export function nLastLogs(
         : state.log.runner;
 
   return logArr
-    .filter((entry) => entry.user === "__system__")
-    .map((entry) => entry.text ?? "")
+    .filter((entry: any) => entry.user === "__system__")
+    .map((entry: any) => entry.text ?? "")
     .slice(-n)
     .join("\n\t");
 }

@@ -148,7 +148,7 @@ function unregisterExpiredDurations(
  * Mirrors get-old-uniques.
  */
 function getOldUniques(state: GameState, side: string): Card[] {
-  const active = allActiveInstalled(state, side).filter((c) => isUnique(c));
+  const active = allActiveInstalled(state, side).filter((c: any) => isUnique(c));
   const byTitle = new Map<string, Card[]>();
   for (const c of active) {
     const title = getTitle(c) ?? "";
@@ -159,7 +159,7 @@ function getOldUniques(state: GameState, side: string): Card[] {
   const out: Card[] = [];
   for (const cards of byTitle.values()) {
     if (cards.length > 1) {
-      const sorted = cards.slice().sort((a, b) => {
+      const sorted = cards.slice().sort((a: any, b: any) => {
         const ta = (a as any).timestamp ?? 0;
         const tb = (b as any).timestamp ?? 0;
         return ta - tb;
@@ -185,7 +185,7 @@ function checkUniqueAndConsoles(state: GameState, eid: EID): void {
   ).filter((c: Card) => consoleCard(c)) as Card[];
   const extraConsoles =
     allConsoles.length > 1
-      ? allConsoles.slice().sort((a, b) => {
+      ? allConsoles.slice().sort((a: any, b: any) => {
           const ta = (a as any).timestamp ?? 0;
           const tb = (b as any).timestamp ?? 0;
           return ta - tb;
@@ -263,7 +263,7 @@ function checkRestrictions(state: GameState, eid: EID): void {
   const memory = (state as any)?.runner?.memory ?? { available: 0, used: 0 };
   const available = (memory.available ?? 0) - (memory.used ?? 0);
   if (available < 0) {
-    const installedPrograms = allInstalled(state, "runner").filter((c) =>
+    const installedPrograms = allInstalled(state, "runner").filter((c: any) =>
       isProgram(c),
     );
     const ability = {

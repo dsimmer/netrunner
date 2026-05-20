@@ -1,7 +1,7 @@
 // Charge ability: place power counters on cards that have at least one power counter.
 // Mirrors: src/clj/game/core/charge.clj
 
-import type { GameState, EID, Card, Ability } from "./types.ts";
+import type { Ability, Card, EID, GameState } from "./types.ts";
 import { allInstalled } from "./board";
 import { getCard } from "./finding";
 import { effectCompleted } from "./eid";
@@ -28,7 +28,7 @@ export function canCharge(
     return (c?.counter?.power || 0) > 0;
   }
   const cards = allInstalled(state, side);
-  return cards.some((c) => canCharge(state, side, c));
+  return cards.some((c: any) => canCharge(state, side, c));
 }
 
 /**

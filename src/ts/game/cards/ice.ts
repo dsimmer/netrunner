@@ -6,3 +6,4 @@ export * from './ice_5';
 export * from './ice_6';
 export * from './ice_7';
 export * from './ice_8';
+export * from './ice_9';

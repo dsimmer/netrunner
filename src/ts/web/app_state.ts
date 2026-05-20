@@ -1,3 +1,4 @@
+import type { State } from '../types';
 // Application state. Mirrors: src/clj/web/app_state.clj
 // Manages connected users, lobbies, tournament state, and lobby update subscriptions.
 

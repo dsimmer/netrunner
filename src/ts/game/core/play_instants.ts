@@ -4,7 +4,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { Ability } from "./types.ts";
+import type { Ability, Zone } from "./types.ts";
 import type { CostData } from "./payment";
 
 import { getZone, getTitle, hasSubtype } from "./card";
@@ -39,7 +39,7 @@ import { getCard } from "./finding";
 export interface PlayInstantArgs {
   ignoreCost?: boolean;
   "ignore-cost"?: boolean;
-  baseCost?: number;
+  baseCost?: any;
   "base-cost"?: any;
   noAdditionalCost?: boolean;
   "no-additional-cost"?: boolean;
@@ -261,7 +261,7 @@ function completePlayInstant(
  * keeping x-costs. Mirrors remove-negative-costs in play_instants.clj.
  */
 function removeNegativeCosts(costVec: CostData[]): CostData[] {
-  return costVec.filter((c) => {
+  return costVec.filter((c: any) => {
     if (!c) return false;
     if (c.type === "credit") {
       (c as any).amount = Math.max(c.amount ?? 0, 0);

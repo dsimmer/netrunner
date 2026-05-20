@@ -1,11 +1,12 @@
 // Replay viewer page: load replay from URL or local file.
 // Mirrors: src/cljs/nr/replay_game.cljs
 import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { GET } from "./ajax";
 import { authenticated } from "./auth";
 import { launchGame } from "./gameboard/actions";
 import type { GameStateData } from "./gameboard/state";
+import { trSpan } from "./translations";
 
 function startReplayFromData(replayData: unknown, gameid?: string) {
   const replay = replayData as {
@@ -31,6 +32,7 @@ function startReplayFromData(replayData: unknown, gameid?: string) {
 function LocalReplayLoader(): React.ReactElement {
   const [file, setFile] = useState<File | null>(null);
   const [flash, setFlash] = useState("");
+  const navigate = useNavigate();
 
   function start() {
     authenticated(() => {
@@ -51,7 +53,12 @@ function LocalReplayLoader(): React.ReactElement {
   return (
     <div>
       <div className="button-bar">
-        <button onClick={start}>Start replay</button>
+        <button type="button" onClick={start}>
+          {trSpan(["lobby_start-replay", "Start replay"])}
+        </button>
+        <button type="button" onClick={() => navigate("/play")}>
+          {trSpan(["lobby_cancel", "Cancel"])}
+        </button>
       </div>
       {flash && <p className="flash-message">{flash}</p>}
       <div>

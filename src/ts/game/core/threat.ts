@@ -13,8 +13,8 @@ import { req, continue_ability } from "../macros";
  * Mirrors `threat-level` in threat.clj.
  */
 export function threatLevel(threshold: number, state: GameState): boolean {
-  const runnerAp = (state as any).runner?.agendaPoint ?? 0;
-  const corpAp = (state as any).corp?.agendaPoint ?? 0;
+  const runnerAp = state.runner?.agendaPoint ?? 0;
+  const corpAp = state.corp?.agendaPoint ?? 0;
   return threshold <= runnerAp || threshold <= corpAp;
 }
 
@@ -23,8 +23,8 @@ export function threatLevel(threshold: number, state: GameState): boolean {
  * Mirrors `get-threat-level` in threat.clj.
  */
 export function getThreatLevel(state: GameState): number {
-  const runnerAp = (state as any).runner?.agendaPoint ?? 0;
-  const corpAp = (state as any).corp?.agendaPoint ?? 0;
+  const runnerAp = state.runner?.agendaPoint ?? 0;
+  const corpAp = state.corp?.agendaPoint ?? 0;
   return Math.max(runnerAp, corpAp);
 }
 

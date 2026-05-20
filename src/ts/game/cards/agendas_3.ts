@@ -6,7 +6,7 @@
  * Each card has properties like on-score, on-access, events, static-abilities, etc.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAgendas from '../core/agendas';
 import * as coreBoard from '../core/board';
 import * as coreCard from '../core/card';
@@ -48,8 +48,6 @@ import * as coreUpdate from '../core/update';
 import * as coreWinning from '../core/winning';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
-import type { CardDef } from '../../types';
-
 import { addAgendaPointCounters, agendaCounters } from './agendas_1';
 import * as coreBadPublicity from '../core/bad_publicity';
 
@@ -666,7 +664,7 @@ export const mandatoryUpgrades: CardDef = {
   'move-zone': req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
     if (coreCard.inScored(card) && (card as any)['scored-side'] === ':corp') {
       coreSay.systemMsg(state, side, `uses ${card.title} to gain 1 addition [Click] per turn`);
-      if ((state as any).activePlayer === ':corp') coreGaining.gainClicks(state, ':corp', 1);
+      if (state.activePlayer === ':corp') coreGaining.gainClicks(state, ':corp', 1);
       coreGaining.gain(state, ':corp', ':click-per-turn', 1);
       coreEid.effectCompleted(state, side, eid);
     } else {

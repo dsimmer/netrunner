@@ -11,6 +11,8 @@ export { gainTagsAbility } from "./tags";
 
 import { quantify } from "../utils";
 import { req } from "../macros";
+import type { Ability, Card, EID, Side, State } from './types';
+
 
 /**
  * Shorthand ability that draws x cards. Mirrors `draw-abi` in clj.
@@ -20,7 +22,7 @@ export function drawAbility(x: number, drawArgs?: any, abBase?: any): any {
     msg: `draw ${quantify(x, "card")}`,
     label: `Draw ${quantify(x, "card")}`,
     async: true,
-    effect: req(function* (state: any, side: any, eid: any) {
+    effect: req(function* (state: State, side: Side, eid: EID) {
       const { draw } = require("./drawing");
       yield draw(state, side, eid, x, drawArgs);
     }),
@@ -42,7 +44,7 @@ export function corpInstallUpToN(n: number, args?: any): any {
       },
     },
     async: true,
-    effect: req(function* (state: any, side: any, eid: any, card: any, targets: any[]) {
+    effect: req(function* (state: State, side: Side, eid: EID, card: Card, targets: any[]) {
       const { corpInstall } = require("./installing");
       const { continueAbility } = require("./def_helpers_1");
       const { effectCompleted } = require("./eid");

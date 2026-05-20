@@ -8,6 +8,8 @@ import { trSpan, tr } from "../translations";
 import { toastrOptions } from "../utils";
 import { initReplay, type JsonPatchOp } from "./replay";
 import ReactDOMServer from "react-dom/server";
+import type { Server } from '../../types';
+
 
 // ---------------------------------------------------------------------------
 // Toast

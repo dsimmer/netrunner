@@ -1,5 +1,7 @@
 import { matchup, precon, systemGatewayBeginner, systemGatewayIntermediate, worlds2012BenCorps, worlds2012BenRuns, worlds2013JensCorps, worlds2013JensRuns, worlds2014DanDCorps, worlds2014DanDRuns, worlds2015DanDCorps, worlds2015DanDRuns, worlds2016ChrisDyerCorps, worlds2016ChrisDyerRuns, worlds2017JessCorps, worlds2017JessRuns, worlds2018JoeCorps } from './preconstructed_1';
 import type { Matchup, MatchupKey } from './preconstructed_1';
+import type { Card } from '../types';
+
 
 const worlds2018JoeRuns: Matchup = matchup(
   ["preconstructed.worlds-2018-b", "Worlds 2018: Chris Dyer (C) vs. Joe Schupp (R)"],

@@ -5,7 +5,7 @@ import { randomUUID } from "crypto";
 import type { GameState, Effect } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { StaticAbility, ValueFn, ReqFn } from "./types.ts";
+import type { CardDef, ReqFn, StaticAbility, ValueFn } from "./types.ts";
 import { CORP_SIDE, RUNNER_SIDE } from "./state";
 import { isCorp, isRunner, isFacedown } from "./card";
 import { makeEID } from "./eid";
@@ -56,6 +56,7 @@ function effectPred(
   e: Effect,
 ): boolean {
   if (!e.req) return true;
+  if (typeof e.req !== "function") return !!e.req;
   return e.req(state, side, eid, e.card, targets);
 }
 
@@ -113,7 +114,7 @@ export function getEffects(
     ? [target, ...extraTargets]
     : [...extraTargets];
   const maps = getEffectMaps(state, side, effectType, eid, targets);
-  return maps.map((e) => getEffectValue(state, side, eid, targets, e));
+  return maps.map((e: any) => getEffectValue(state, side, eid, targets, e));
 }
 
 /**
@@ -133,7 +134,7 @@ export function getTaggedEffects(
     ? [target, ...extraTargets]
     : [...extraTargets];
   const maps = getEffectMaps(state, side, effectType, eid, targets);
-  return maps.map((e) => {
+  return maps.map((e: any) => {
     const raw =
       typeof e.value === "function" ? e.value(state, side, eid, e.card, targets) : e.value;
     const tagged: any =
@@ -365,7 +366,7 @@ export function registerLingeringEffect(...args: any[]): Effect {
  * Mirrors: unregister-effect-by-uuid in effects.clj
  */
 export function unregisterEffectByUUID(state: GameState, uuid: string): void {
-  state.effects = state.effects.filter((e) => e.uuid !== uuid);
+  state.effects = state.effects.filter((e: any) => e.uuid !== uuid);
 }
 
 /**
@@ -391,7 +392,7 @@ export function unregisterLingeringEffects(
   state: GameState,
   duration: string,
 ): void {
-  state.effects = state.effects.filter((e) => e.duration !== duration);
+  state.effects = state.effects.filter((e: any) => e.duration !== duration);
 }
 
 /**

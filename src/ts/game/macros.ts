@@ -4,7 +4,7 @@
  */
 
 // Import type definitions
-import type { State, Card, Side, EID, Effect, Ability, Targets } from './core/types.ts';
+import type { Ability, Card, EID, Effect, Side, State, Targets } from './core/types.ts';
 import * as coreIce from './core/ice';
 import * as coreBoard from './core/board';
 import * as coreCard from './core/card';
@@ -16,11 +16,11 @@ import * as utils from './utils';
 
 // Shorthand references commonly used in effect functions
 const _forms: Record<string, (state: State, card?: Card, targets?: any[], side?: Side) => any> = {
-  runner: (state) => state.corp === undefined ? state : (state as any).runner,
-  corp: (state) => state.corp,
-  run: (state) => state.run,
+  runner: (state) => (state as any).corp === undefined ? state : (state as any).runner,
+  corp: (state) => (state as any).corp,
+  run: (state) => (state as any).run,
   runServer: (state) => {
-    const run = state.run;
+    const run = (state as any).run;
     const server = run?.server;
     if (server) {
       return (state as any).corp?.servers?.[server as any];
@@ -28,14 +28,14 @@ const _forms: Record<string, (state: State, card?: Card, targets?: any[], side?:
     return undefined;
   },
   runIces: (state) => {
-    const run = state.run;
+    const run = (state as any).run;
     const server = run?.server;
     if (server) {
       return (state as any).corp?.servers?.[server as any]?.ices;
     }
     return [];
   },
-  runPosition: (state) => state.run?.position,
+  runPosition: (state) => (state as any).run?.position,
   currentIce: (state, card) => {
     // current-ice: (game.core.ice/get-current-ice state)
     return coreIce.getCurrentIce(state);
@@ -102,14 +102,14 @@ const _forms: Record<string, (state: State, card?: Card, targets?: any[], side?:
     return false;
   },
   thisCardIsRunSource: (state, card) => {
-    if (state.run) {
-      return (state.run as any)?.sourceCard?.cid === card?.cid;
+    if ((state as any).run) {
+      return ((state as any).run as any)?.sourceCard?.cid === card?.cid;
     }
     return false;
   },
   thisServer: (state, card) => {
     const cardZone = coreCard.getZone(card);
-    const server = state.run?.server;
+    const server = (state as any).run?.server;
     if (cardZone && server) {
       return (cardZone as string[])[1] === (server as string[])[0];
     }
@@ -355,8 +355,9 @@ export function wait_for(
 /**
  * continue-ability macro - Continues an ability with current eid
  */
-export function continue_ability(state: State, side: Side, ability: Ability, card: Card | null, targets?: any[] | null): void;
-export function continue_ability(ability: Ability, card: Card | null, targets?: any[] | null): void;
+export function continue_ability(state: State, side: Side, ability: Ability | null, card: Card | null, targets?: any[] | null): void;
+export function continue_ability(side: Side, ability: Ability | null, card: Card | null, targets?: any[] | null): void;
+export function continue_ability(ability: Ability | null, card: Card | null, targets?: any[] | null): void;
 export function continue_ability(...rawArgs: any[]): void {
   let state: State, side: Side, ability: Ability, card: Card;
   let targets: any[] | null = null;

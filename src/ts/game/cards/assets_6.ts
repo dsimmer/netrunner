@@ -1,4 +1,4 @@
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreActions from '../core/actions';
 import * as coreAgendas from '../core/agendas';
@@ -48,8 +48,6 @@ import * as coreUpdate from '../core/update';
 import * as coreWinning from '../core/winning';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
-import type { CardDef } from '../../types';
-
 import { expose } from './assets_3';
 
 // Stub helpers (to be ported from clj cards/*.clj)
@@ -60,7 +58,7 @@ export const openForum: CardDef = {
   title: 'Open Forum',
   events: [{
     event: ':corp-mandatory-draw',
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     msg: msg((state: State, side: Side, eid: EID, card: Card) => {
       const top = (state as any).corp.deck[0];
       return top
@@ -185,7 +183,7 @@ export const palanaAgroplex: CardDef = (() => {
   return {
     title: 'Pālanā Agroplex',
     'derezzed-events': [coreDefHelpers.corpRezToast],
-    flags: { 'corp-phase-12': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+    flags: { 'corp-phase-12': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
     events: [{ ...ability, event: ':corp-turn-begins' }],
     abilities: [ability],
   };
@@ -197,7 +195,7 @@ export const personalizedPortal: CardDef = {
   abilities: [coreDefHelpers.setAutoresolve(':auto-fire', 'Personalized Portal (gain credits)')],
   events: [{
     event: ':corp-turn-begins',
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     async: true,
     msg: 'force the runner to draw 1 card',
     effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
@@ -209,7 +207,7 @@ export const personalizedPortal: CardDef = {
           optional: {
             prompt: `Gain ${credsToGain} [Credits]?`,
             autoresolve: coreDefHelpers.getAutoresolve(':auto-fire'),
-            req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return credsToGain > 0; }),
+            req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return credsToGain > 0; }),
             'waiting-prompt': true,
             'yes-ability': {
               msg: `gain ${credsToGain} [Credits]`,
@@ -257,7 +255,7 @@ export const phatGioanBaotixita: CardDef = (() => {
     }),
     player: ':corp',
     side: ':corp',
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
   }, [1, 2, 3].map(opt));
   return {
     title: 'Phật Gioan Baotixita',
@@ -523,7 +521,7 @@ export const publicHealthPortal: CardDef = (() => {
   const ability: any = {
     once: ':per-turn',
     label: 'Reveal the top card of R&D and gain 2 [Credits] (start of turn)',
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     automatic: ':gain-credits',
     msg: msg((state: State, side: Side, eid: EID, card: Card) => {
       const top = (state as any).corp.deck[0];
@@ -696,9 +694,9 @@ export const rashidaJaheem: CardDef = (() => {
               effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
                 yield wait_for(state, [{ asyncResult: 'result' },
                   coreMoving.trash(state, side, card, { causeCard: card })], []);
-                (state as any).stats = (state as any).stats || {};
-                (state as any).stats[side] = (state as any).stats[side] || {};
-                (state as any).stats[side].rashidaCount = ((state as any).stats[side].rashidaCount || 0) + 1;
+                state.stats = state.stats || {};
+                state.stats[side] = state.stats[side] || {};
+                state.stats[side].rashidaCount = (state.stats[side].rashidaCount || 0) + 1;
                 yield wait_for(state, [{ asyncResult: 'result' },
                   coreGaining.gainCredits(state, side, 3)], []);
                 yield wait_for(state, [{ asyncResult: 'result' },
@@ -712,7 +710,7 @@ export const rashidaJaheem: CardDef = (() => {
   return {
     title: 'Rashida Jaheem',
     'derezzed-events': [coreDefHelpers.corpRezToast],
-    flags: { 'corp-phase-12': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+    flags: { 'corp-phase-12': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
     events: [{ ...ability, event: ':corp-turn-begins' }],
     abilities: [ability],
   };
@@ -751,7 +749,7 @@ export const reaperFunction: CardDef = (() => {
     once: ':per-turn',
     label: 'Trash this asset to do 2 net damage (start of turn)',
     automatic: ':corp-damage',
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     req: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       return !!(state as any).corpPhase12;
     }),
@@ -777,7 +775,7 @@ export const reaperFunction: CardDef = (() => {
   return {
     title: 'Reaper Function',
     'derezzed-events': [coreDefHelpers.corpRezToast],
-    flags: { 'corp-phase-12': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+    flags: { 'corp-phase-12': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
     events: [{ ...ability, event: ':corp-turn-begins' }],
     abilities: [ability],
   };

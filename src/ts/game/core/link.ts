@@ -4,7 +4,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { ReqFn, ValueFn, StaticAbility } from "./types.ts";
+import type { ReqFn, StaticAbility, ValueFn } from "./types.ts";
 import { RUNNER_SIDE } from "./state";
 import { sumEffects } from "./effects";
 
@@ -43,7 +43,16 @@ export function updateLink(state: GameState): boolean {
  * Creates a StaticAbility that grants +value link.
  * Mirrors: link+ in link.clj
  */
-export function linkPlus(req: ReqFn | null, value: ValueFn): StaticAbility {
+export function linkPlus(value: ValueFn): StaticAbility;
+export function linkPlus(req: ReqFn | null, value: ValueFn): StaticAbility;
+export function linkPlus(reqOrValue: ReqFn | null | ValueFn, value?: ValueFn): StaticAbility {
+  // 1-arg form: just the value
+  if (value === undefined) {
+    return _linkPlusImpl(null, reqOrValue as ValueFn);
+  }
+  return _linkPlusImpl(reqOrValue as ReqFn | null, value);
+}
+function _linkPlusImpl(req: ReqFn | null, value: ValueFn): StaticAbility {
   return {
     type: "link",
     req: req ?? undefined,

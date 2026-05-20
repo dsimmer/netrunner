@@ -5,7 +5,6 @@ import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
 import type { Ability } from "./types.ts";
-
 import { totalAvailableCredits } from "./costs";
 import { anyEffects, sumEffects, getEffects } from "./effects";
 import { makeEID, effectCompleted, completeWithResult } from "./eid";
@@ -346,7 +345,7 @@ function traceStart(
 // ---------------------------------------------------------------------------
 
 function resetTraceModifications(state: GameState): void {
-  (state as any).trace = null;
+  state.trace = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -358,8 +357,8 @@ function resetTraceModifications(state: GameState): void {
  * Mirrors: force-base in trace.clj
  */
 export function forceBase(state: GameState, value: number): void {
-  if (!(state as any).trace) (state as any).trace = {};
-  (state as any).trace.forceBase = value;
+  if (!state.trace) state.trace = {};
+  state.trace.forceBase = value;
 }
 
 // ---------------------------------------------------------------------------
@@ -416,7 +415,7 @@ export function initTrace(
 
   triggerEventSync(state, "corp", eid, "initialize-trace", card);
 
-  const forceBaseVal = (state as any).trace?.forceBase;
+  const forceBaseVal = state.trace?.forceBase;
   const forceLink = getEffects(state, "corp", "trace-force-link", card, [
     eid as unknown as Card,
   ])[0];

@@ -3,7 +3,7 @@
  * Ported from Clojure cards/basic.clj to TypeScript
  */
 
-import type { State, Side, Card, EID } from "../../types";
+import type { Card, EID, Side, State } from "../../types";
 import * as coreAgendas from "../core/agendas";
 import * as coreBoard from "../core/board";
 import * as coreCard from "../core/card";
@@ -106,7 +106,7 @@ export const corpBasicActionCard = {
           ],
           [coreSay.playSfx, state, side, "click-credit"],
         );
-        const stats = (state as any).stats ?? ((state as any).stats = {});
+        const stats = state.stats ?? (state.stats = {});
         const sideStats = (stats[side] ??= {});
         const clickStats = (sideStats.click ??= {});
         clickStats.credit = (clickStats.credit ?? 0) + 1;
@@ -143,7 +143,7 @@ export const corpBasicActionCard = {
         coreEngine.triggerEvent(state, side, ":corp-click-draw", {
           card: firstCard,
         });
-        const stats1 = (state as any).stats ?? ((state as any).stats = {});
+        const stats1 = state.stats ?? (state.stats = {});
         const sideStats1 = (stats1[side] ??= {});
         const clickStats1 = (sideStats1.click ??= {});
         clickStats1.draw = (clickStats1.draw ?? 0) + 1;
@@ -554,7 +554,7 @@ export const runnerBasicActionCard = {
           ],
           [coreSay.playSfx, state, side, "click-credit"],
         );
-        const stats = (state as any).stats ?? ((state as any).stats = {});
+        const stats = state.stats ?? (state.stats = {});
         const sideStats = (stats[side] ??= {});
         const clickStats = (sideStats.click ??= {});
         clickStats.credit = (clickStats.credit ?? 0) + 1;
@@ -591,7 +591,7 @@ export const runnerBasicActionCard = {
         coreEngine.triggerEvent(state, side, ":runner-click-draw", {
           card: firstCard,
         });
-        const stats2 = (state as any).stats ?? ((state as any).stats = {});
+        const stats2 = state.stats ?? (state.stats = {});
         const sideStats2 = (stats2[side] ??= {});
         const clickStats2 = (sideStats2.click ??= {});
         clickStats2.draw = (clickStats2.draw ?? 0) + 1;

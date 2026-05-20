@@ -48,7 +48,7 @@ export function setAside(
   runnerVis: boolean | null = true,
 ): Card[] {
   const tracking = getSetAsideTracking(state, side);
-  tracking[String(eid.id)] = cards.map((c) => c.cid);
+  tracking[String(eid.id)] = cards.map((c: any) => c.cid);
   setSetAsideTracking(state, side, tracking);
 
   const results: Card[] = [];

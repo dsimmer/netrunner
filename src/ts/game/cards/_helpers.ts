@@ -4,7 +4,6 @@
 // while individual helper bodies are being filled in.
 
 import type { CardDef } from "../core/types";
-
 type AnyArgs = unknown[];
 
 export function installAbility(..._args: AnyArgs): CardDef {
@@ -27,8 +26,8 @@ export function coreThreat(..._args: AnyArgs): unknown {
   return undefined;
 }
 
-export function breakSubFn(..._args: AnyArgs): unknown {
-  return undefined;
+export function breakSubFn(..._args: AnyArgs): Record<string, unknown> {
+  return {};
 }
 
 export function targetFn(..._args: AnyArgs): unknown {

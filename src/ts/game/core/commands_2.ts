@@ -819,7 +819,7 @@ export function parseCommand(
     case "/show-hand":
       return (s: GameState, sid: string) => {
         const player = sid === CORP_SIDE ? s.corp : s.runner;
-        const handTitles = [...player.hand].map((c) => c.title ?? "").sort();
+        const handTitles = [...player.hand].map((c: any) => c.title ?? "").sort();
         const deckName = sid === CORP_SIDE ? "HQ" : "the grip";
         systemMsg(
           s,

@@ -5,6 +5,8 @@ import { Db } from "mongodb";
 import { response, mongoTimeToUtcString, type HttpResponse } from "./utils";
 import { getContent } from "../jinteki/i18n";
 import { cardImplemented } from "../game/core/initializing";
+import type { Card } from '../types';
+
 
 // ---------------------------------------------------------------------------
 // Types

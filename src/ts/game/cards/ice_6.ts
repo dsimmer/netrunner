@@ -5,7 +5,7 @@
  * Contains ~317 card definitions with their abilities and events.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State, Subroutine } from '../../types';
 import * as coreBadPublicity from '../core/bad_publicity';
 import * as coreBoard from '../core/board';
 import * as coreCard from '../core/card';
@@ -40,8 +40,6 @@ import * as coreUpdate from '../core/update';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 import { morphIce, heroToHero } from './_helpers';
-import type { CardDef } from '../../types';
-
 import { addRunnerCardToGrip, bioraidBreak, doPsi, endTheRun, endTheRunUnlessRunnerPays, gainCreditsSub, gainPowerCounter, powerCounterAbility, runnerLosesClick, runnerLosesCredits, runnerTrashInstalledSub, tagTrace, traceAbility, trashHardwareSub, trashProgramSub, trashResourceSub, wonderSub } from './ice_1';
 
 // Stub helpers (to be ported from clj cards/*.clj)
@@ -268,7 +266,7 @@ export const lootBox: CardDef = (() => {
             const pickAbility = {
               'waiting-prompt': true,
               prompt: 'Choose a card to add to the Grip',
-              choices: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return top3(state); }),
+              choices: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return top3(state); }),
               msg: msg(function(s: State, sd: Side, e: EID, c: Card, tgts: any[]) {
                 return `add ${(tgts[0] as any)?.title} to the Grip, gain ${(tgts[0] as any)?.cost} [Credits], shuffle the Stack and trash itself`;
               }),

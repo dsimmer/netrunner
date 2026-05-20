@@ -5,7 +5,7 @@
  * Contains all Runner hardware card definitions with their abilities and events.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreActions from '../core/actions';
 import * as coreBoard from '../core/board';
@@ -55,8 +55,6 @@ import * as utils from '../utils';
 import * as jintekiUtils from '../../jinteki/utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 import { targetFn, autoIcebreakerFn } from './_helpers';
-import type { CardDef } from '../../types';
-
 import { accessBonusFn, accessCardFn, addCounterFn, allActiveInstalledFn, allInstalledFn, anySubsBrokenFn, breachAccessBonus, breakSubFn, caissaMuPlusFn, canTrashFn, cardStr, corpFn, decapitalize, derezFn, drawAbility, drawFn, effectCompletedFn, enumerateCards, eventFn, firstEventFn, gainCreditsFn, getCardFn, getCounters, hasSubtypeFn, hostFn, iceFn, inDiscardFn, inHandFn, installedFn, linkPlusFn, loseTagsFn, makeRunFn, muPlusFn, noEventFn, notUsedOnceFn, playAbilityFn, playInstantFn, preventTagFn, programFn, pumpFn, quantify, registerEventsFn, registerLingeringEffectFn, registerOnceFn, registerRunFlagFn, reorderChoice, revealFn, rezzedFn, runAnyServerAbilityFn, runnableServersFn, runnerCanPayAndInstallFn, runnerFn, runnerInstallFn, sameCard, successfulRunReplaceBreach, systemMsg, toC, trashCardsFn, trashFn, trashOnEmptyFn, unregisterFloatingEventsFn, unregisterLingeringEffectsFn, updateAllIceFn, updateAllIcebreakersFn, updateFn } from './hardware_1';
 
 // __cardScopeShim: ambient 'state' and 'target' references at literal scope.
@@ -107,7 +105,7 @@ export const capybara: CardDef = {
     event: 'bypassed-ice',
     async: true,
     optional: {
-      req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+      req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
       prompt: (state: State, side: Side, eid: EID, card: Card, targets: any[]) => { const target: any = (targets as any[])?.[0]; return `Remove this hardware from the game to derez ${target?.title || 'the encountered ice'}?`; },
       'waiting-prompt': true,
       'yes-ability': {
@@ -201,7 +199,7 @@ export const chopBot: CardDef = {
   events: [{
     event: 'runner-turn-begins',
     skippable: true,
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       return (allInstalledFn(state, ':runner').length ?? 0) >= 2;
     }),
@@ -537,7 +535,7 @@ export const detente: CardDef = {
   events: [{
     event: 'successful-run',
     skippable: true,
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     optional: {
       req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         const ctx = forms.context(state, card, targets) || {};
@@ -600,7 +598,7 @@ export const devilCharm: CardDef = {
   events: [{
     event: 'encounter-ice',
     skippable: true,
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     optional: {
       prompt: 'Remove Devil Charm from the game to give encountered ice -6 strength?',
       'yes-ability': {
@@ -665,7 +663,7 @@ export const doppelganger: CardDef = {
   'static-abilities': [muPlusFn(1)],
   events: [{
     event: 'run-ends',
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     'change-in-game-state': {
       silent: true,
       req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {

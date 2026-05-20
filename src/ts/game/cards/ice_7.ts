@@ -5,7 +5,7 @@
  * Contains ~317 card definitions with their abilities and events.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreBadPublicity from '../core/bad_publicity';
 import * as coreBoard from '../core/board';
 import * as coreCard from '../core/card';
@@ -40,8 +40,6 @@ import * as coreUpdate from '../core/update';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 import { nextIceVariableSubs, constellationIce, zeroToHero } from './_helpers';
-import type { CardDef } from '../../types';
-
 import { addProgramToTopOfStack, bioraidBreak, currentlyEncounteringCard, endTheRun, endTheRunIfTagged, endTheRunUnlessRunner, endTheRunUnlessRunnerPays, gainCreditsSub, gainPowerCounter, harmonicIceCount, installFromHqSub, maybeDrawSub, nextIceCount, resolveAnotherSubroutine, rezAnIce, runnerLosesCredits, tagTrace, takeBadPub, traceAbility, trashProgramSub, trashResourceSub, trashTypeOrEndTheRun, wonderSub } from './ice_1';
 
 // Stub helpers (to be ported from clj cards/*.clj)
@@ -215,7 +213,7 @@ export const newsHound: CardDef = {
     type: ':additional-subroutines',
     req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       return coreCard.sameCard(card, targets[0]) &&
-        ([...(state as any).corp?.current ?? [], ...(state as any).runner?.current ?? []]).length > 0;
+        ([...state.corp?.current ?? [], ...state.runner?.current ?? []]).length > 0;
     }),
     value: { subroutines: [endTheRun] },
   }],

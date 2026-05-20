@@ -46,6 +46,8 @@ import * as main from "../game/main";
 import { matchupByKey } from "../jinteki/preconstructed";
 import { makeCorpDeck, makeRunnerDeck } from "../jinteki/chimera";
 import { sideFromStr } from "../jinteki/utils";
+import type { State } from '../types';
+
 
 // ---------------------------------------------------------------------------
 // Diff serialization / broadcasting
@@ -131,7 +133,7 @@ export function updateAndSendDiffs<T extends any[]>(
   const diffs = publicDiffs(oldState, state as any, spectators, corpSpectators, runnerSpectators);
 
   // Append hist-diff to history
-  if (!state.history) (state as any).history = [];
+  if (!(state as any).history) (state as any).history = [];
   (state as any).history.push(diffs["hist-diff"]);
 
   sendStateDiffs(lobby, diffs);
@@ -176,7 +178,7 @@ export function handleMessageAndSendDiffs(
     f(state as any, side ?? null, user ?? null, normalizedMessage);
     const diffs = messageDiffs(oldState, state as any);
 
-    if (!state.history) (state as any).history = [];
+    if (!(state as any).history) (state as any).history = [];
     (state as any).history.push(diffs["hist-diff"]);
     sendStateDiffs(lobby, diffs);
   }
@@ -298,12 +300,12 @@ function checkForStarterDecks(game: Lobby): Lobby {
   if (format === "system-gateway" && players.every(isStarterDeck)) {
     const state = (game as any).state as Record<string, unknown> | undefined;
     if (state) {
-      const runner = (state.runner as Record<string, unknown>) || {};
-      const corp = (state.corp as Record<string, unknown>) || {};
+      const runner = ((state as any).runner as Record<string, unknown>) || {};
+      const corp = ((state as any).corp as Record<string, unknown>) || {};
       runner["agenda-point-req"] = 6;
       corp["agenda-point-req"] = 6;
-      state.runner = runner;
-      state.corp = corp;
+      (state as any).runner = runner;
+      (state as any).corp = corp;
     }
   }
   return game;

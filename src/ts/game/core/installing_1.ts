@@ -5,7 +5,6 @@ import type { GameState, ServerZone } from "./state";
 import type { Card, Zone } from "./card";
 import type { EID } from "./eid";
 import type { Ability } from "./types.ts";
-
 import {
   isAgenda,
   isAsset,
@@ -338,8 +337,8 @@ function corpInstallAssetAgenda(
   destZone: Card[],
   server: string,
 ): void {
-  const prevCard = destZone.find((c) => isAsset(c) || isAgenda(c)) ?? null;
-  const prevRegion = destZone.find((c) => hasSubtype(c, "Region")) ?? null;
+  const prevCard = destZone.find((c: any) => isAsset(c) || isAgenda(c)) ?? null;
+  const prevRegion = destZone.find((c: any) => hasSubtype(c, "Region")) ?? null;
 
   // overinstall an old asset or agenda
   if ((isAsset(card) || isAgenda(card)) && prevCard && !card.host) {
@@ -923,7 +922,7 @@ function cardHasAValidHost(
     ...allInstalled(state, CORP_SIDE),
     ...allInstalled(state, RUNNER_SIDE),
   ];
-  return allHosts.some((h) => hostingReq(state, RUNNER_SIDE, eid, card, [h]));
+  return allHosts.some((h: any) => hostingReq(state, RUNNER_SIDE, eid, card, [h]));
 }
 
 /**

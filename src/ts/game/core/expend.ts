@@ -1,7 +1,7 @@
 // Expend: reveal a card from hand and trash it as a cost to gain its ability.
 // Mirrors: src/clj/game/core/expend.clj
 
-import type { GameState, Card, Ability, EID } from "./types";
+import type { Ability, Card, EID, GameState } from "./types";
 import { cardDef } from "./card_defs";
 import { checkpoint } from "./checkpoint";
 import { queueEvent, resolveAbility } from "./engine";

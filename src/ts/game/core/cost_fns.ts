@@ -10,7 +10,7 @@ import { makeEID } from "./eid";
 import { mergeCosts } from "./payment";
 import type { CostData } from "./payment";
 import type { EID } from "./eid";
-import type { Ability } from "./types.ts";
+import type { Ability, State } from "./types.ts";
 export type { CostData } from "./payment";
 
 // ---------------------------------------------------------------------------
@@ -262,7 +262,7 @@ export function installCost(
   card: Card,
   args?: { costBonus?: number; "cost-bonus"?: number; [k: string]: any },
   targets?: Card[],
-): number | undefined {
+): number {
   const costBonus = args?.costBonus ?? 0;
   const t = targets ?? [];
 
@@ -554,7 +554,7 @@ export function stealCost(
 
   return [...effectCosts.flat(), annotatedStealCost]
     .flat()
-    .filter((c) => c)
+    .filter((c: any) => c)
     .map((c: CostData) => ({
       ...c,
       additional: true,

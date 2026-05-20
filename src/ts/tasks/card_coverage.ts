@@ -11,6 +11,8 @@
 import * as fs from "fs";
 import * as path from "path";
 import { slugify } from "../jinteki/utils";
+import type { Card } from '../types';
+
 
 // ──────────────────────────────────────────────────────────────────
 // ANSI helpers

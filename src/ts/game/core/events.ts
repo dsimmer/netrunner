@@ -237,7 +237,7 @@ export function firstInstalledTrashOwn(
 ): boolean {
   const trashed = getInstalledTrashed(state, side);
   const sideString = sideStr(side);
-  const owned = trashed.filter((c) => c.side === sideString);
+  const owned = trashed.filter((c: any) => c.side === sideString);
   return owned.length === 1;
 }
 

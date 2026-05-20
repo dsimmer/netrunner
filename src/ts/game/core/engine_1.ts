@@ -6,15 +6,7 @@ import { randomUUID } from "crypto";
 import type { GameState, Prompt } from "./state";
 import type { Card, Zone } from "./card";
 import type { EID } from "./eid";
-import type {
-  Ability,
-  ReqFn,
-  MsgFn,
-  AbilityFn,
-  NumberFn,
-  Cost,
-  ChoicesSpec,
-} from "./types.ts";
+import type { Ability, AbilityFn, ChoicesSpec, Cost, Counter, MsgFn, NumberFn, ReqFn } from "./types.ts";
 import type { Effect, RegisteredEvent } from "./state";
 import { CORP_SIDE, RUNNER_SIDE, getPlayer } from "./state";
 import {
@@ -286,6 +278,7 @@ function shouldTrigger(
     );
   }
   if (ability.req) {
+    if (typeof ability.req !== "function") return !!ability.req;
     return ability.req(state, side, eid, card, targets as Card[]);
   }
   return true;
@@ -651,6 +644,7 @@ function changeInGameState(
     | ReqFn
     | undefined;
   if (!cigReq) return true;
+  if (typeof cigReq !== "function") return !!cigReq;
   return cigReq(state, side, (ability as any).eid, card, targets as Card[]);
 }
 

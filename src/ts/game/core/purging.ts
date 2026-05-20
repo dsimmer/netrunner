@@ -13,6 +13,8 @@ import { checkpoint } from "./checkpoint";
 import { updateAllIce } from "./ice";
 import { addCounter } from "./props";
 import { wait_for } from "../macros";
+import type { Side, State } from './types';
+
 
 // ---------------------------------------------------------------------------
 // Types
@@ -72,8 +74,21 @@ function removeVirusCounters(
  * Purges virus counters from all installed cards.
  * Mirrors `purge` in purging.clj.
  */
-export function purge(state: any, side?: any, eid?: any): any;
-export function purge(state: GameState, side: string, eid: EID): void {
+export function purge(eid: EID): void;
+export function purge(state: State, side?: Side, eid?: EID): void;
+export function purge(...rawArgs: any[]): void {
+  // shorthand (eid) — no state, no-op
+  if (rawArgs.length === 1 && rawArgs[0] && typeof rawArgs[0] === "object" && "id" in rawArgs[0] && !("title" in rawArgs[0]) && !("activePlayer" in rawArgs[0])) {
+    return;
+  }
+  const state = rawArgs[0] as GameState;
+  const side = rawArgs[1] as string | undefined;
+  const eid = rawArgs[2] as EID | undefined;
+  return _purgeImpl(state, side, eid);
+}
+function _purgeImpl(state: GameState, sideOpt?: string, eidOpt?: EID): void {
+  const side = sideOpt ?? "corp";
+  const eid = eidOpt ?? ({ id: 0 } as EID);
   // Build a map of cid -> purge prevention effect
   const purgePreventions: Record<string, PurgePrevention> = {};
   const preventionEffects = getEffects(

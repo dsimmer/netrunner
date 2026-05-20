@@ -36,7 +36,7 @@ import {
   maxAccess,
 } from "./access_2";
 
-function toC(type: string, value: number): any {
+function toC(type: string, value: number): corePayment.CostData {
   return corePayment.toC(type, value);
 }
 
@@ -54,7 +54,7 @@ export function accessBonusCount(
   side: string,
   kw: string,
 ): number {
-  return coreEffects.sumEffects(state, side, ":access-bonus", null, [kw as any]);
+  return coreEffects.sumEffects(state, side, ":access-bonus", null, [kw as unknown as Card]);
 }
 
 /**
@@ -75,12 +75,12 @@ export function accessEnd(
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, _b: any) {
+      function (s: GameState, _e: EID, _b: unknown) {
         if (!trashed && !stolen && !coreCard.inDiscard(c)) {
           noTrashOrSteal(s);
         }
-        const accessedCard = (s as any).access as Card | undefined;
-        delete (s as any).access;
+        const accessedCard = (s as unknown as Record<string, unknown>).access as Card | undefined;
+        delete (s as unknown as Record<string, unknown>).access;
         coreEngine.triggerEventSync(s, side, eid, ":post-access-card", {
           "accessed-card": c,
           "accessed-card-snapshot": accessedCard,
@@ -92,25 +92,27 @@ export function accessEnd(
   );
 }
 
-export function interactions(card: Card, abilityKey: string): any {
+export function interactions(card: Card, abilityKey: string): Ability | undefined {
   const cdef = coreTypes.getCardDef(card);
-  return cdef?.interactions?.[abilityKey];
+  const interactionsMap = cdef?.interactions as Record<string, Ability> | undefined;
+  return interactionsMap?.[abilityKey];
 }
 
-export function accessAb(card: Card): any {
+export function accessAb(card: Card): Ability | undefined {
   return interactions(card, ":access-ability");
 }
 
 export function accessAbLabel(state: GameState, card: Card): string {
   const title = (card.title || "").split(":")[0];
   const accessAbility = accessAb(card);
+  if (!accessAbility) return `[${title}] `;
   const abilityCost = coreCostFns.cardAbilityCost(
     state,
     "runner",
     accessAbility,
     card,
   );
-  const ability = corePayment.addCostLabelToAbility(accessAbility, abilityCost);
+  corePayment.addCostLabelToAbility(accessAbility, abilityCost);
   const label = corePayment.buildCostLabel(abilityCost);
   return `[${title}] ${label}`;
 }
@@ -132,12 +134,14 @@ export function accessNonAgenda(
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, _b: any) {
-        const stats = s.stats;
-        (stats as any).runner = (stats as any).runner || {};
-        (stats as any).runner.access = (stats as any).runner.access || {};
-        (stats as any).runner.access.cards =
-          ((stats as any).runner.access.cards || 0) + 1;
+      function (s: GameState, _e: EID, _b: unknown) {
+        type AccessStats = { cards?: number; [k: string]: unknown };
+        type RunnerStats = { access?: AccessStats; [k: string]: unknown };
+        type Stats = { runner?: RunnerStats; [k: string]: unknown };
+        const stats = s.stats as Stats;
+        stats.runner = stats.runner || {};
+        stats.runner.access = stats.runner.access || {};
+        stats.runner.access.cards = (stats.runner.access.cards || 0) + 1;
 
         const seenInArchives = coreCard.inDiscard(c) && c.seen;
         const edwardKimTrash =
@@ -177,7 +181,7 @@ export function accessNonAgenda(
         let accessAbCards: Card[] = [];
         if (!mustTrashWithCredits) {
           const activeCards = coreBoard.allActive(s, "runner");
-          accessAbCards = activeCards.filter((ac) => {
+          accessAbCards = activeCards.filter((ac: Card) => {
             const ability = accessAb(ac);
             return (
               ability &&
@@ -215,7 +219,7 @@ export function accessNonAgenda(
           : !canTrash
             ? nonTrashAbCards
             : accessAbCards;
-        const abilityStrs = abilityCards.map((ac) => ({
+        const abilityStrs = abilityCards.map((ac: Card) => ({
           cid: ac.cid,
           title: accessAbLabel(s, ac),
         }));
@@ -228,7 +232,7 @@ export function accessNonAgenda(
           ...(noActionStr || []),
         ];
 
-        const promptFn = req((s2: GameState, sid: string, _e2: EID, cd: Card, tgt: any) => {
+        const promptFn = req((s2: GameState, sid: string, _e2: EID, cd: Card, tgt: unknown[]) => {
           const target = forms.context(s2, cd, tgt);
 
           // No action
@@ -249,12 +253,12 @@ export function accessNonAgenda(
               s2,
               [
                 { asyncResult: "result" },
-                function (s3: GameState, _e3: EID, binds: any) {
-                  const paymentStr = (binds.asyncResult as any)?.msg;
-                  if (s3.breach) (s3 as any).breach["did-trash"] = true;
+                function (s3: GameState, _e3: EID, binds: { asyncResult?: unknown }) {
+                  const paymentStr = (binds.asyncResult as { msg?: string })?.msg;
+                  if (s3.breach) (s3.breach as Record<string, unknown>)["did-trash"] = true;
                   if (s3.run) {
-                    (s3 as any).run["did-trash"] = true;
-                    if (mustTrash) (s3 as any).run["did-access"] = true;
+                    (s3.run as unknown as Record<string, unknown>)["did-trash"] = true;
+                    if (mustTrash) (s3.run as unknown as Record<string, unknown>)["did-access"] = true;
                   }
                   s3.runner.register = s3.runner.register || {};
                   s3.runner.register["trashed-card"] = true;
@@ -268,8 +272,8 @@ export function accessNonAgenda(
                     s3,
                     [
                       { asyncResult: "result" },
-                      function (s4: GameState, _e4: EID, binds2: any) {
-                        accessEnd(s4, sid, eid, (binds2.asyncResult as any)?.[0] || updatedCard, { trashed: true });
+                      function (s4: GameState, _e4: EID, binds2: { asyncResult?: unknown }) {
+                        accessEnd(s4, sid, eid, (binds2.asyncResult as Card[] | undefined)?.[0] || updatedCard, { trashed: true });
                       },
                     ],
                     [coreMoving.trash, s3, sid, coreEid.makeEID(s3), updatedCard],
@@ -296,14 +300,14 @@ export function accessNonAgenda(
               s2.runner.register = s2.runner.register || {};
               s2.runner.register["trashed-accessed-card"] = true;
             }
-            if (s2.breach && ability?.["trash?"] === true) (s2 as any).breach["did-trash"] = true;
-            if (s2.run && ability?.["trash?"] === true) (s2 as any).run["did-trash"] = true;
+            if (s2.breach && ability?.["trash?"] === true) (s2.breach as Record<string, unknown>)["did-trash"] = true;
+            if (s2.run && ability?.["trash?"] === true) (s2.run as unknown as Record<string, unknown>)["did-trash"] = true;
             wait_for(
               s2,
               [
                 { asyncResult: "result" },
-                function (s4: GameState, _e4: EID, binds: any) {
-                  const resultCard = (binds.asyncResult as any)?.[0] || cd;
+                function (s4: GameState, _e4: EID, binds: { asyncResult?: unknown }) {
+                  const resultCard = (binds.asyncResult as { msg?: string } & Card[])?.[0] || cd;
                   accessEnd(s4, sid, eid, resultCard, { trashed: coreCard.inDiscard(resultCard) });
                 },
               ],
@@ -340,12 +344,12 @@ export function accessNonAgenda(
 export function stealCostBonus(
   state: GameState,
   _side: string,
-  costs: any[],
+  costs: corePayment.CostData[],
   source: Card | null,
 ): void {
   const bonus = (state.bonus as Record<string, unknown>) || {};
-  const stealCosts = (bonus["steal-cost"] as any[]) || [];
-  (state.bonus as any) = {
+  const stealCosts = (bonus["steal-cost"] as unknown[]) || [];
+  (state.bonus as unknown as Record<string, unknown>) = {
     ...bonus,
     "steal-cost": [...stealCosts, [costs, source]],
   };
@@ -397,8 +401,8 @@ export function steal(
 
   coreSay.playSfx(state, side, "agenda-steal");
 
-  if (state.breach) (state as any).breach["did-steal"] = true;
-  if (state.run) (state as any).run["did-steal"] = true;
+  if (state.breach) (state.breach as Record<string, unknown>)["did-steal"] = true;
+  if (state.run) (state.run as unknown as Record<string, unknown>)["did-steal"] = true;
 
   const cdef = coreTypes.getCardDef(updatedC);
   const onStolen = cdef?.stolen;
@@ -416,7 +420,7 @@ export function steal(
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, _b: any) {
+      function (s: GameState, _e: EID, _b: unknown) {
         accessEnd(s, side, eid, c, { stolen: true });
       },
     ],
@@ -455,11 +459,13 @@ export function accessAgenda(
   eid: EID,
   card: Card,
 ): void {
-  const stats = state.stats;
-  (stats as any).runner = (stats as any).runner || {};
-  (stats as any).runner.access = (stats as any).runner.access || {};
-  (stats as any).runner.access.cards =
-    ((stats as any).runner.access.cards || 0) + 1;
+  type AccessStats = { cards?: number; "unique-cards"?: string[]; [k: string]: unknown };
+  type RunnerStats = { access?: AccessStats; [k: string]: unknown };
+  type Stats = { runner?: RunnerStats; [k: string]: unknown };
+  const stats = state.stats as Stats;
+  stats.runner = stats.runner || {};
+  stats.runner.access = stats.runner.access || {};
+  stats.runner.access.cards = (stats.runner.access.cards || 0) + 1;
 
   const cost = corePayment.mergeCosts(
     coreCostFns.stealCost(state, side, eid, card),
@@ -479,7 +485,7 @@ export function accessAgenda(
   let accessAbCards: Card[] = [];
   if (!coreCard.inDiscard(card)) {
     const activeCards = coreBoard.allActive(state, "runner");
-    accessAbCards = activeCards.filter((ac) => {
+    accessAbCards = activeCards.filter((ac: Card) => {
       const ability = accessAb(ac);
       return (
         ability &&
@@ -496,7 +502,7 @@ export function accessAgenda(
     });
   }
 
-  const abilityStrs = accessAbCards.map((ac) => ({
+  const abilityStrs = accessAbCards.map((ac: Card) => ({
     cid: ac.cid,
     title: accessAbLabel(state, ac),
   }));
@@ -515,7 +521,7 @@ export function accessAgenda(
       : `You accessed ${card.title}.`;
   const choices = [...abilityStrs, ...(stealStr || []), ...(noActionStr || [])];
 
-  const promptFn = req((s: GameState, sid: string, e: EID, cd: Card, tgt: any) => {
+  const promptFn = req((s: GameState, sid: string, e: EID, cd: Card, tgt: unknown[]) => {
     const target = forms.context(s, cd, tgt);
 
     // Can't steal or pay, or won't pay
@@ -547,8 +553,8 @@ export function accessAgenda(
         s,
         [
           { asyncResult: "result" },
-          function (s2: GameState, _e2: EID, binds: any) {
-            const paymentStr = (binds.asyncResult as any)?.msg;
+          function (s2: GameState, _e2: EID, binds: { asyncResult?: unknown }) {
+            const paymentStr = (binds.asyncResult as { msg?: string })?.msg;
             coreSay.systemMsg(
               s2,
               sid,
@@ -573,14 +579,14 @@ export function accessAgenda(
         sourceType: ":ability",
       } as EID;
       const ability = accessAb(abilityCard);
-      if (s.breach && ability?.["trash?"] === true) (s as any).breach["did-trash"] = true;
-      if (s.run && ability?.["trash?"] === true) (s as any).run["did-trash"] = true;
+      if (s.breach && ability?.["trash?"] === true) (s.breach as Record<string, unknown>)["did-trash"] = true;
+      if (s.run && ability?.["trash?"] === true) (s.run as unknown as Record<string, unknown>)["did-trash"] = true;
       wait_for(
         s,
         [
           { asyncResult: "result" },
-          function (s2: GameState, _e3: EID, binds: any) {
-            const resultCard = (binds.asyncResult as any)?.[0] || cd;
+          function (s2: GameState, _e3: EID, binds: { asyncResult?: unknown }) {
+            const resultCard = (binds.asyncResult as { msg?: string } & Card[])?.[0] || cd;
             accessEnd(s2, sid, e, resultCard, { stolen: coreCard.inScored(resultCard) });
           },
         ],
@@ -627,11 +633,14 @@ export function revealAccess(
   if (!revealFn) return false;
 
   const eid = coreEid.makeEID(state);
-  return revealFn(state, side, eid, card, []);
+  if (typeof revealFn !== "function") return !!revealFn;
+  return !!(revealFn as (...a: unknown[]) => unknown)(state, side, eid, card, []);
 }
 
-export function joinCostStrs(...costs: any[][]): string {
-  const flat = costs.flat(Infinity).filter((c: any) => c != null);
+export function joinCostStrs(
+  ...costs: Array<string | string[] | null | undefined>
+): string {
+  const flat = costs.flat(Infinity).filter((c) => c != null);
   return flat.join(" and ");
 }
 
@@ -644,7 +653,7 @@ export function msgHandleAccess(
   eid: EID,
   card: Card | null,
   title: string,
-  args?: { costMsg?: string[]; noMsg?: boolean },
+  args?: { costMsg?: string | string[]; noMsg?: boolean },
 ): void {
   const costMsg = args?.costMsg || [];
   const noMsg = args?.noMsg ?? false;
@@ -674,7 +683,7 @@ export function msgHandleAccess(
   }
 }
 
-export function accessAbility(card: Card, cdef: any): Ability | null {
+export function accessAbility(card: Card, cdef: Record<string, unknown> | undefined): Ability | null {
   const onAccess = cdef?.["on-access"];
   if (!onAccess) return null;
   return {
@@ -688,10 +697,10 @@ export function accessAbility(card: Card, cdef: any): Ability | null {
  * Clojure has two arities: ([cost ability] ...) and ([cost ability prompt] ...)
  */
 export function installedAccessTrigger(
-  cost: number | any[],
-  ability: any,
-  prompt?: any,
-): any {
+  cost: number | corePayment.CostData[],
+  ability: Ability,
+  prompt?: Ability["prompt"],
+): Record<string, unknown> {
   if (prompt === undefined) {
     const ab =
       typeof cost === "number" && cost > 0
@@ -710,7 +719,7 @@ export function installedAccessTrigger(
   return {
     "on-access": {
       optional: {
-        req: req((state: GameState, _side: string, eid: EID, card: Card, _targets: any) => {
+        req: req((state: GameState, _side: string, eid: EID, card: Card, _targets: unknown[]) => {
           const installed =
             card.zone && (card.zone[0] === ":rig" || card.zone[0] === ":servers");
           return (
@@ -722,7 +731,7 @@ export function installedAccessTrigger(
         prompt: prompt,
         "yes-ability": (() => {
           const keys = Object.keys(ability);
-          const result: any = {};
+          const result: Record<string, unknown> = {};
           for (const k of keys) {
             if (k !== "waiting-prompt") result[k] = ability[k];
           }
@@ -742,7 +751,7 @@ export function accessTriggerEvents(
   eid: EID,
   c: Card,
   title: string,
-  args: { noMsg?: boolean; costMsg?: string[] },
+  args: { noMsg?: boolean; costMsg?: string | string[] },
 ): void {
   const cdef = coreTypes.getCardDef(c);
   const cUpdated: Card = {
@@ -761,17 +770,17 @@ export function accessTriggerEvents(
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e1: EID, _b1: any) {
+      function (s: GameState, _e1: EID, _b1: unknown) {
         const cancelFn = () =>
-          !coreFinding.getCard(s, c) || !(s as any).access;
+          !coreFinding.getCard(s, c) || !(s as unknown as Record<string, unknown>).access;
 
         wait_for(
           s,
           [
             { asyncResult: "result" },
-            function (s2: GameState, _e2: EID, _b2: any) {
+            function (s2: GameState, _e2: EID, _b2: unknown) {
               const currentCard = coreFinding.getCard(s2, c);
-              const accessedCard = (s2 as any).access as Card | undefined;
+              const accessedCard = (s2 as unknown as Record<string, unknown>).access as Card | undefined;
 
               if (currentCard && utils.sameCard(c, accessedCard ?? null)) {
                 const card = currentCard;
@@ -800,23 +809,36 @@ export function accessTriggerEvents(
 /**
  * Applies a cost to the next access.
  */
-export function accessCostBonus(costs: any[]): void;
-export function accessCostBonus(state: GameState, side: string, costs: any[]): void;
-export function accessCostBonus(...args: any[]): void {
+export function accessCostBonus(costs: corePayment.CostData[]): void;
+export function accessCostBonus(
+  state: GameState,
+  side: string,
+  costs: corePayment.CostData[],
+): void;
+export function accessCostBonus(
+  ...args:
+    | [corePayment.CostData[]]
+    | [GameState, string, corePayment.CostData[]]
+): void {
   if (args.length === 1) return; // no state — no-op
-  const state = args[0] as GameState;
-  const costs = args[2] as any[];
+  const state = args[0];
+  const costs = args[2];
   const bonus = (state.bonus as Record<string, unknown>) || {};
-  const accessCostArr = (bonus["access-cost"] as any[]) || [];
-  (state.bonus as any) = {
+  const accessCostArr = (bonus["access-cost"] as corePayment.CostData[]) || [];
+  (state.bonus as unknown as Record<string, unknown>) = {
     ...bonus,
     "access-cost": corePayment.mergeCosts([...accessCostArr, ...costs]),
   };
 }
 
-export function accessCost(state: GameState, _side: string): any[] {
+export function accessCost(
+  state: GameState,
+  _side: string,
+): corePayment.CostData[] {
   const arr =
-    ((state.bonus as Record<string, unknown>)?.["access-cost"] as any[]) || [];
+    ((state.bonus as Record<string, unknown>)?.["access-cost"] as
+      | corePayment.CostData[]
+      | undefined) || [];
   return corePayment.mergeCosts(arr);
 }
 
@@ -825,7 +847,7 @@ export function refusedAccessCost(
   side: string,
   eid: EID,
 ): void {
-  delete (state as any).access;
+  delete (state as unknown as Record<string, unknown>).access;
   coreEid.effectCompleted(state, side, eid);
 }
 
@@ -838,7 +860,7 @@ export function accessPay(
   eid: EID,
   card: Card,
   title: string,
-  args: { noMsg?: boolean; costMsg?: string[] },
+  args: { noMsg?: boolean; costMsg?: string | string[] },
 ): void {
   const cost = accessCost(state, side);
   const costStr = corePayment.buildCostString(cost);
@@ -867,7 +889,7 @@ export function accessPay(
 
   if (hasCost) {
     const accessedCard = card;
-    const promptFn = req((s: GameState, sid: string, e: EID, _cd: Card, tgt: any) => {
+    const promptFn = req((s: GameState, sid: string, e: EID, _cd: Card, tgt: unknown[]) => {
       const target = forms.context(s, _cd, tgt);
 
       if (target === "OK" || target === "No action") {
@@ -880,8 +902,8 @@ export function accessPay(
         s,
         [
           { asyncResult: "result" },
-          function (s2: GameState, _e2: EID, binds: any) {
-            const paymentStr = (binds.asyncResult as any)?.msg;
+          function (s2: GameState, _e2: EID, binds: { asyncResult?: unknown }) {
+            const paymentStr = (binds.asyncResult as { msg?: string })?.msg;
             if (paymentStr) {
               accessTriggerEvents(s2, sid, e, accessedCard, title, {
                 ...args,
@@ -918,10 +940,12 @@ export function getOnlyCardToAccess(state: GameState): Card | null {
 
 export function setOnlyCardToAccess(card: Card | null): void;
 export function setOnlyCardToAccess(state: GameState, side: string, card: Card | null): void;
-export function setOnlyCardToAccess(...args: any[]): void {
+export function setOnlyCardToAccess(
+  ...args: [Card | null] | [GameState, string, Card | null]
+): void {
   if (args.length === 1) return; // no state — no-op
-  const state = args[0] as GameState;
-  const card = args[2] as Card | null;
+  const state = args[0];
+  const card = args[2];
   const run = state.run as unknown as Record<string, unknown> | null | undefined;
   if (!run) return;
 
@@ -945,25 +969,25 @@ export function accessContinue(
   eid: EID,
   card: Card,
   title: string,
-  args: { noMsg?: boolean; costMsg?: string[] },
+  args: { noMsg?: boolean; costMsg?: string | string[] },
 ): void {
   if (!coreCard.inDiscard(card)) {
     const stats = state.stats;
-    (stats as any).runner = (stats as any).runner || {};
-    (stats as any).runner.access = (stats as any).runner.access || {};
-    const uniqueCards = ((stats as any).runner.access["unique-cards"] || []) as string[];
-    (stats as any).runner.access["unique-cards"] = [
+    (stats as Record<string, Record<string, Record<string, unknown>>>).runner = (stats as Record<string, Record<string, Record<string, unknown>>>).runner || {};
+    (stats as Record<string, Record<string, Record<string, unknown>>>).runner.access = (stats as Record<string, Record<string, Record<string, unknown>>>).runner.access || {};
+    const uniqueCards = ((stats as Record<string, Record<string, Record<string, unknown>>>).runner.access["unique-cards"] || []) as string[];
+    (stats as Record<string, Record<string, Record<string, unknown>>>).runner.access["unique-cards"] = [
       ...new Set([...uniqueCards, card.cid]),
     ];
   }
 
-  (state as any).access = card;
+  (state as unknown as Record<string, unknown>).access = card;
 
   const bonus = (state.bonus as Record<string, unknown>) || {};
-  delete (bonus as any).trash;
-  delete (bonus as any)["steal-cost"];
-  delete (bonus as any)["access-cost"];
-  (state.bonus as any) = bonus;
+  delete (bonus as Record<string, unknown>).trash;
+  delete (bonus as Record<string, unknown>)["steal-cost"];
+  delete (bonus as Record<string, unknown>)["access-cost"];
+  (state.bonus as unknown as Record<string, unknown>) = bonus;
 
   if (state.breach) {
     const zone =
@@ -997,7 +1021,7 @@ export function accessContinue(
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, _b: any) {
+      function (s: GameState, _e: EID, _b: unknown) {
         accessPay(s, side, eid, card, title, args);
       },
     ],
@@ -1011,19 +1035,19 @@ export function accessContinue(
  * 3 arities: ([state side eid card] ...) ([state side eid card title] ...) ([state side eid card title args] ...)
  */
 export function accessCard(state: GameState, side: string, card: Card | null): void;
-export function accessCard(state: GameState, side: string, eid: EID, card: Card | null, title?: string, args?: { noMsg?: boolean; costMsg?: string[] }): void;
+export function accessCard(state: GameState, side: string, eid: EID, card: Card | null, title?: string, args?: { noMsg?: boolean; costMsg?: string | string[] }): void;
 export function accessCard(
   state: GameState,
   side: string,
   eidOrCard: EID | Card | null,
   cardArg?: Card | null,
   title?: string,
-  args?: { noMsg?: boolean; costMsg?: string[] },
+  args?: { noMsg?: boolean; costMsg?: string | string[] },
 ): void {
   // Detect 3-arg shorthand vs 4+ form by checking if 3rd arg looks like an EID
   let eid: EID;
   let card: Card | null;
-  if (eidOrCard && typeof eidOrCard === "object" && "id" in (eidOrCard as any) && !("title" in (eidOrCard as any))) {
+  if (eidOrCard && typeof eidOrCard === "object" && "id" in (eidOrCard as object) && !("title" in (eidOrCard as object))) {
     eid = eidOrCard as EID;
     card = cardArg ?? null;
   } else {
@@ -1043,7 +1067,7 @@ export function accessCard(
     return;
   }
 
-  const breachInstalled = (state.breach as any)?.installed as Set<string> | undefined;
+  const breachInstalled = (state.breach as Record<string, unknown>)?.installed as Set<string> | undefined;
   if (breachInstalled?.has(card.cid)) {
     continue_ability(
       state,
@@ -1054,13 +1078,13 @@ export function accessCard(
           "waiting-prompt": true,
           "yes-ability": {
             async: true,
-            effect: req((s: GameState, _sid: string, e: EID, cd: Card, _tgt: any) => {
+            effect: req((s: GameState, _sid: string, e: EID, cd: Card, _tgt: unknown[]) => {
               accessContinue(s, _sid, e, cd, cardTitle, accessArgs);
               return null;
             }),
           },
           "no-ability": {
-            effect: req((s: GameState, _sid: string, _e: EID, cd: Card, _tgt: any) => {
+            effect: req((s: GameState, _sid: string, _e: EID, cd: Card, _tgt: unknown[]) => {
               coreSay.systemMsg(
                 s,
                 _sid,
@@ -1081,7 +1105,7 @@ export function accessCard(
 }
 
 export function getAllHosted(hosts: Card[]): Card[] {
-  const hostedCards = hosts.flatMap((h) => h.hosted || []);
+  const hostedCards = hosts.flatMap((h: Card) => h.hosted || []);
   if (hostedCards.length === 0) return hostedCards;
   return [...hostedCards, ...getAllHosted(hostedCards)];
 }
@@ -1089,8 +1113,8 @@ export function getAllHosted(hosts: Card[]): Card[] {
 export function getAllContent(content: Card[]): Card[] {
   const allHosted = getAllHosted(content);
   return content
-    .filter((c) => !c.counter?.condition)
-    .concat(allHosted.filter((c) => !c.counter?.condition));
+    .filter((c: Card) => !c.counter?.condition)
+    .concat(allHosted.filter((c: Card) => !c.counter?.condition));
 }
 
 /**
@@ -1101,8 +1125,8 @@ export function rootContent(
   server: string,
   alreadyAccessedFn?: (card: Card) => boolean,
 ): Card[] {
-  const content = (state.corp.servers as any)?.[server]?.content || [];
-  let filtered = getAllContent(content).filter((c) =>
+  const content = (state.corp.servers as unknown as Record<string, { content?: Card[]; ices?: Card[] }>)?.[server]?.content || [];
+  let filtered = getAllContent(content).filter((c: Card) =>
     coreFlags.canAccess(state, "runner", c),
   );
   filtered = filtered.filter(
@@ -1117,7 +1141,7 @@ export function rootContent(
       ),
   );
   if (alreadyAccessedFn)
-    filtered = filtered.filter((c) => !alreadyAccessedFn(c));
+    filtered = filtered.filter((c: Card) => !alreadyAccessedFn(c));
   return filtered;
 }
 
@@ -1157,14 +1181,14 @@ export function mustContinue(
 
 // Remote
 registerMustContinue("remote", (state, alreadyAccessedFn, accessAmount, args) => {
-  const maxAccessVal = (state.run as any)?.["max-access"];
+  const maxAccessVal = (state.run as unknown as Record<string, unknown>)?.["max-access"] as number | undefined;
   const totalMod = accessAmount.totalMod || 0;
   const limitReached =
     maxAccessVal !== undefined && maxAccessVal + totalMod <= accessAmount.chosen;
-  if ((state.run as any)?.["prevent-access"]) return false;
+  if ((state.run as unknown as Record<string, unknown>)?.["prevent-access"]) return false;
   if (limitReached) return false;
   const server = (args.server as string[]) || [];
-  const content = (state.corp.servers as any)?.[server[0]]?.content || [];
+  const content = (state.corp.servers as unknown as Record<string, { content?: Card[]; ices?: Card[] }>)?.[server[0]]?.content || [];
   const remaining = getAllContent(content).filter(
     (c) => coreFlags.canAccess(state, "runner", c) && !alreadyAccessedFn(c),
   );
@@ -1173,16 +1197,16 @@ registerMustContinue("remote", (state, alreadyAccessedFn, accessAmount, args) =>
 
 // R&D
 registerMustContinue("rd", (state, alreadyAccessedFn, accessAmount, args) => {
-  const preventAccess = (state.run as any)?.["prevent-access"];
+  const preventAccess = (state.run as unknown as Record<string, unknown>)?.["prevent-access"];
   if (preventAccess) return false;
 
-  const accessFn = (state.runner as any)["rd-access-fn"] as
+  const accessFn = (state.runner as unknown as Record<string, unknown>)["rd-access-fn"] as
     | ((deck: Card[]) => Card[])
     | undefined;
   const deckCards = state.corp.deck;
   const available: Card[] = accessFn ? accessFn(deckCards) : deckCards;
 
-  const maxAccessVal = (state.run as any)?.["max-access"];
+  const maxAccessVal = (state.run as unknown as Record<string, unknown>)?.["max-access"] as number | undefined;
   const totalMod = accessAmount.totalMod || 0;
   const randomLimit = accessAmount["random-access-limit"];
 
@@ -1202,16 +1226,16 @@ registerMustContinue("rd", (state, alreadyAccessedFn, accessAmount, args) => {
 
 // HQ
 registerMustContinue("hq", (state, alreadyAccessedFn, accessAmount, args) => {
-  const preventAccess = (state.run as any)?.["prevent-access"];
+  const preventAccess = (state.run as unknown as Record<string, unknown>)?.["prevent-access"];
   if (preventAccess) return false;
 
-  const accessFn = (state.runner as any)["hq-access-fn"] as
+  const accessFn = (state.runner as unknown as Record<string, unknown>)["hq-access-fn"] as
     | ((hand: Card[]) => Card[])
     | undefined;
   const hand = state.corp.hand;
   const available: Card[] = accessFn ? accessFn(hand) : hand;
 
-  const maxAccessVal = (state.run as any)?.["max-access"];
+  const maxAccessVal = (state.run as unknown as Record<string, unknown>)?.["max-access"] as number | undefined;
   const totalMod = accessAmount.totalMod || 0;
   const randomLimit = accessAmount["random-access-limit"];
 
@@ -1231,7 +1255,7 @@ registerMustContinue("hq", (state, alreadyAccessedFn, accessAmount, args) => {
 
 // Archives
 registerMustContinue("archives", (state, alreadyAccessedFn, accessAmount, args) => {
-  const preventAccess = (state.run as any)?.["prevent-access"];
+  const preventAccess = (state.run as unknown as Record<string, unknown>)?.["prevent-access"];
   if (preventAccess) return false;
 
   const archiveCards = state.corp.discard;

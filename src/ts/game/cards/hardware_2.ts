@@ -5,7 +5,7 @@
  * Contains all Runner hardware card definitions with their abilities and events.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreActions from '../core/actions';
 import * as coreBoard from '../core/board';
@@ -55,8 +55,6 @@ import * as utils from '../utils';
 import * as jintekiUtils from '../../jinteki/utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 import { breakSubFn } from './_helpers';
-import type { CardDef } from '../../types';
-
 import { addCounterFn, allActiveInstalledFn, buildCostString, bypassIceFn, canPayToRezFn, cancelable, cardStr, decapitalize, drawAbility, drawFn, effectCompletedFn, enumerateCards, eventCountFn, eventFn, findCardFn, findLatestFn, firstEventFn, gainClicksFn, gainCreditsFn, gainTagsFn, getCardFn, getCounters, getxFn, hasSubtypeFn, hostFn, iceFn, inDeckFn, inDiscardFn, inHandFn, installedFn, isTaggedFn, makeIcon, makeRunFn, moveFn, muPlusFn, playSfx, preventDamageFn, preventEncounterFn, preventableFn, programFn, quantify, registerEventsFn, resolveAbilityFn, rezAdditionalCostBonusFn, rezCostFn, rezFn, runnerCanPayAndInstallFn, runnerFn, runnerHandSizePlusFn, runnerInstallFn, sameCard, shuffleDeck, systemMsg, toC, trashCardsFn, trashOnEmptyFn, triggerEventFn, turnArchivesFaceupFn, zoneLockedFn } from './hardware_1';
 
 // Stub helpers (to be ported from clj cards/*.clj)
@@ -115,7 +113,7 @@ export const adjustedMatrix: CardDef = {
     value: 'AI',
   }],
   abilities: [{
-    ...breakSubFn(toC(':lose-click', 1), 1, 'All', { req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) }),
+    ...breakSubFn(toC(':lose-click', 1), 1, 'All', { req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) }),
   } as any],
 };
 
@@ -207,11 +205,11 @@ export const alarmClock: CardDef = {
       }),
     },
   },
-  flags: { 'runner-phase-12': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'runner-phase-12': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   events: [{
     event: 'runner-turn-begins',
     skippable: true,
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     optional: {
       once: ':per-turn',
       prompt: 'Make a run on HQ?',
@@ -320,7 +318,7 @@ export const archivesInterface: CardDef = {
     event: 'breach-server',
     automatic: ':pre-breach',
     async: true,
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       const ctx = forms.context(state, card, targets) || {};
       const run = forms.run(state);
@@ -367,7 +365,7 @@ export const autoscripter: CardDef = {
         const ctx = forms.context(state, card, targets) || {};
         const program = ctx.card;
         if (!program || !programFn(program)) return false;
-        if ((state as any).activePlayer !== ':runner') return false;
+        if (state.activePlayer !== ':runner') return false;
         const prevZone = ctx['previous-zone'] || [];
         if (!prevZone.includes('hand') && !prevZone.includes(':hand')) return false;
         return firstEventFn(state, ':runner', 'runner-install',
@@ -452,8 +450,8 @@ export const blackguard: CardDef = {
           }
           resolveAbilityFn(state, side, {
             prompt: 'Force the Corp to rez which card?',
-            req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return !!(cardsList?.length); }),
-            choices: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return cardsList; }),
+            req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return !!(cardsList?.length); }),
+            choices: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return cardsList; }),
             async: true,
             effect: req(function*(s: State, sd: Side, eid2: EID, c: Card, t: any[]): Generator<any, any, any> {
               const chosen = t[0];
@@ -797,9 +795,9 @@ export const boomerang: CardDef = {
 export const borrowedGoods: CardDef = {
   title: 'Borrowed Goods',
   'on-install': {
-    'change-in-game-state': { silent: true, req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return !isTaggedFn(state); }) },
+    'change-in-game-state': { silent: true, req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return !isTaggedFn(state); }) },
     msg: 'take 1 tag',
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     async: true,
     effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { gainTagsFn(state, side, eid, 1); }),
   },
@@ -857,7 +855,7 @@ export const bufferDrive: CardDef = {
         return firstEventFn(state, null, 'trash',
           (t: any[]) => t.some((x: any) => runnerFn(x.card) && (inHandFn(x.card) || inDeckFn(x.card))));
       }),
-      interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+      interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
       prompt: 'Choose 1 trashed card to add to the bottom of the stack',
       choices: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         const trashCards = targets || [];
@@ -892,7 +890,7 @@ export const bufferDrive: CardDef = {
         return firstEventFn(state, null, 'trash',
           (t: any[]) => t.some((x: any) => runnerFn(x.card) && (inHandFn(x.card) || inDeckFn(x.card))));
       }),
-      interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+      interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
       prompt: 'Choose 1 trashed card to add to the bottom of the stack',
       choices: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         const trashCards = targets || [];

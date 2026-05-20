@@ -84,7 +84,7 @@ function createGame(
         }
       }
       lobbyState.current.editing = false;
-      wsSend(":lobby/create", newGame);
+      wsSend("lobby/create", newGame);
     }
   });
 }

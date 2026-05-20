@@ -74,7 +74,7 @@ function checkpointPlusCleanup(state: GameState): void {
   fakeCheckpoint(state);
 
   // End the run if running an empty remote
-  if (checkForEmptyServer(state) || (state as any).endRun?.ended) {
+  if (checkForEmptyServer(state) || state.endRun?.ended) {
     handleEndRun(state, "corp", null);
     fakeCheckpoint(state);
   }

@@ -5,7 +5,7 @@
  * Contains all Runner program card definitions with their abilities and events.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreActions from '../core/actions';
 import * as coreBoard from '../core/board';
@@ -51,8 +51,6 @@ import * as coreWinning from '../core/winning';
 import * as jintekiUtils from '../../jinteki/utils';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
-import type { CardDef } from '../../types';
-
 // ---- Helper functions ----
 
 export function toC(...args: any[]): any {
@@ -284,7 +282,7 @@ function cloudIcebreaker(cdef: any): any {
       ...(cdef['static-abilities'] || []),
       {
         type: ':used-mu',
-        req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return getLink(forms.state) <= -2; }), // <= 2 link means -2 + link <= 0
+        req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return getLink(forms.state) <= -2; }), // <= 2 link means -2 + link <= 0
         value: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
           return -(expectedMu(state, card));
         }),
@@ -340,7 +338,7 @@ function corpFn(state: State): any {
 }
 
 function runFn(state: State): any {
-  return state.run;
+  return (state as any).run;
 }
 
 export function currentIce(...args: any[]): Card | null {
@@ -370,11 +368,11 @@ function resolveSubroutine(ice: Card, sub: any, opts: any = {}): void {
 }
 
 function getRunServer(state: State): string {
-  return state.run?.server as string;
+  return (state as any).run?.server as string;
 }
 
 function getRunPosition(state: State): number {
-  return state.run?.position ?? 0;
+  return (state as any).run?.position ?? 0;
 }
 
 function endRun(...args: any[]): void {

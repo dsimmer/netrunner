@@ -4,15 +4,7 @@
 import type { GameState, ServerZone, Encounter } from "./state";
 import type { Card, Zone } from "./card";
 import type { EID } from "./eid";
-import type {
-  Ability,
-  Subroutine,
-  ValueFn,
-  ReqFn,
-  CardDef,
-  AbilityFn,
-  NumberFn,
-} from "./types.ts";
+import type { Ability, AbilityFn, CardDef, NumberFn, ReqFn, Subroutine, ValueFn } from "./types.ts";
 import { CORP_SIDE, RUNNER_SIDE } from "./state";
 import { isICE, isInstalled, isRezzed, hasSubtype, getTitle } from "./card";
 import { getCardDef } from "./types.ts";
@@ -101,7 +93,7 @@ export function getCurrentIce(state: GameState): Card | null {
   if (currentIceCid) {
     // Try to find card by cid
     const all = allActiveInstalled(state, CORP_SIDE);
-    return all.find((c) => c.cid === currentIceCid) ?? null;
+    return all.find((c: any) => c.cid === currentIceCid) ?? null;
   }
   return null;
 }
@@ -224,7 +216,7 @@ export function addSub(
   const updated = [...currentSubs, newSub].sort(
     (a, b) => (a.position ?? 0) - (b.position ?? 0),
   );
-  const indexed = updated.map((sub, idx) => ({ ...sub, index: idx }));
+  const indexed = updated.map((sub: any, idx: any) => ({ ...sub, index: idx }));
   return { ...ice, subroutines: indexed };
 }
 
@@ -306,7 +298,7 @@ export function breakAllSubroutinesEx(
 export function anySubsBroken(ice: Card | null): boolean {
   if (!ice) return false;
   const subs = (ice.subroutines as RuntimeSubroutine[]) ?? [];
-  return subs.some((s) => s.broken);
+  return subs.some((s: any) => s.broken);
 }
 
 /**
@@ -316,7 +308,7 @@ export function anySubsBroken(ice: Card | null): boolean {
 export function allSubsBroken(ice: Card | null): boolean {
   if (!ice) return false;
   const subs = (ice.subroutines as RuntimeSubroutine[]) ?? [];
-  return subs.length > 0 && subs.every((s) => s.broken);
+  return subs.length > 0 && subs.every((s: any) => s.broken);
 }
 
 /**
@@ -325,7 +317,7 @@ export function allSubsBroken(ice: Card | null): boolean {
  */
 export function anySubsBrokenByCard(ice: Card, card: Card): boolean {
   const subs = (ice.subroutines as RuntimeSubroutine[]) ?? [];
-  return subs.some((s) => s.broken && s.breakerCid === card.cid);
+  return subs.some((s: any) => s.broken && s.breakerCid === card.cid);
 }
 
 /**
@@ -335,7 +327,7 @@ export function anySubsBrokenByCard(ice: Card, card: Card): boolean {
 export function allSubsBrokenByCard(ice: Card, card: Card): boolean {
   const subs = (ice.subroutines as RuntimeSubroutine[]) ?? [];
   return (
-    subs.length > 0 && subs.every((s) => s.broken && s.breakerCid === card.cid)
+    subs.length > 0 && subs.every((s: any) => s.broken && s.breakerCid === card.cid)
   );
 }
 
@@ -398,7 +390,7 @@ export function dontResolveAllSubroutinesEx(state: GameState, ice: Card): void {
  * Mirrors: reset-all-subs
  */
 export function resetAllSubs(ice: Card): Card {
-  const subs = ((ice.subroutines as RuntimeSubroutine[]) ?? []).map((sub) => {
+  const subs = ((ice.subroutines as RuntimeSubroutine[]) ?? []).map((sub: any) => {
     const { broken, fired, resolve, ...rest } = sub;
     return rest as RuntimeSubroutine;
   });
@@ -437,8 +429,8 @@ export function resetAllIce(state: GameState, _side: string): void {
 export function unbrokenSubroutinesChoice(ice: Card): string[] {
   const subs = (ice.subroutines as RuntimeSubroutine[]) ?? [];
   return subs
-    .filter((s) => !s.broken && (s.resolve ?? true))
-    .map((s) => makeLabel((s.subEffect as Ability) ?? ({} as Ability)));
+    .filter((s: any) => !s.broken && (s.resolve ?? true))
+    .map((s: any) => makeLabel((s.subEffect as Ability) ?? ({} as Ability)));
 }
 
 /**
@@ -466,7 +458,7 @@ export function breakableSubroutinesChoice(
   }
   const subs = (ice.subroutines as RuntimeSubroutine[]) ?? [];
   return subs
-    .filter((s) => {
+    .filter((s: any) => {
       if (s.broken) return false;
       const breakable = s.breakable;
       if (typeof breakable === "function") {
@@ -476,7 +468,7 @@ export function breakableSubroutinesChoice(
       }
       return breakable ?? true;
     })
-    .map((s) => makeLabel((s.subEffect as Ability) ?? ({} as Ability)));
+    .map((s: any) => makeLabel((s.subEffect as Ability) ?? ({} as Ability)));
 }
 
 // ---------------------------------------------------------------------------
@@ -579,7 +571,7 @@ function resolveNextUnbrokenSub(
     !state.run ||
     !state.encounters[state.encounters.length - 1] ||
     !isActiveIce(state, ice) ||
-    (state as any).endRun?.ended
+    state.endRun?.ended
   ) {
     completeWithResult(state, side, eid, msgs.reverse());
     return;
@@ -621,8 +613,8 @@ export function resolveUnbrokenSubsEx(
   resolveNextUnbrokenSub(state, side, eid, ice, subs, []);
 
   const subLabels = subs
-    .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
-    .map((s) => s.label ?? "")
+    .sort((a: any, b: any) => (a.index ?? 0) - (b.index ?? 0))
+    .map((s: any) => s.label ?? "")
     .join('" and "[subroutine] ');
   systemMsg(
     state,
@@ -696,7 +688,9 @@ export function iceStrengthBonus(
     req: req(
       (state, side, eid, card, targets) =>
         sameCard(card, (targets as Card[])[0]) &&
-        effectiveReq(state, side, eid, card, targets),
+        (typeof effectiveReq === "function"
+          ? (effectiveReq as any)(state, side, eid, card, targets)
+          : !!effectiveReq),
     ),
     value: typeof effectiveBonus === "function" ? effectiveBonus : () => effectiveBonus,
   } as unknown as Ability;

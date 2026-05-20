@@ -4,7 +4,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { Ability, PsiAbility } from "./types.ts";
+import type { Ability, PsiAbility, Side } from "./types.ts";
 import { corp } from "./card";
 import { totalAvailableCredits } from "./costs";
 import { makeEIDFrom, effectCompleted, registerEIDCallback } from "./eid";
@@ -35,7 +35,7 @@ function betToKeyword(bet: number): string {
  * Update stats for psi games. Mirrors the swap! update-in calls in Clojure.
  */
 function updatePsiStats(state: GameState, side: string, bet: number): void {
-  const stats = (state as any).stats ?? {};
+  const stats = state.stats ?? {};
   const sideStats = (stats as any)[side] ?? {};
   const psiGame = (sideStats as any)["psi-game"] ?? {};
 
@@ -44,14 +44,14 @@ function updatePsiStats(state: GameState, side: string, bet: number): void {
 
   (sideStats as any)["psi-game"] = psiGame;
   (stats as any)[side] = sideStats;
-  (state as any).stats = stats;
+  state.stats = stats;
 }
 
 /**
  * Update psi win stats for a given side.
  */
 function updatePsiWinStats(state: GameState, winningSide: string): void {
-  const stats = (state as any).stats ?? {};
+  const stats = state.stats ?? {};
   const sideStats = (stats as any)[winningSide] ?? {};
   const psiGame = (sideStats as any)["psi-game"] ?? {};
 
@@ -59,7 +59,7 @@ function updatePsiWinStats(state: GameState, winningSide: string): void {
 
   (sideStats as any)["psi-game"] = psiGame;
   (stats as any)[winningSide] = sideStats;
-  (state as any).stats = stats;
+  state.stats = stats;
 }
 
 /**
@@ -221,7 +221,7 @@ export function psiGame(
     // Mirrors: (remove #(or (any-flag-fn? state :corp :prevent-secretly-spend %)
     //                      (any-flag-fn? state :runner :prevent-secretly-spend %))
     //                     all-amounts)
-    const validAmounts = allAmounts.filter((amount) => {
+    const validAmounts = allAmounts.filter((amount: any) => {
       return !(
         anyFlagFn(state, "corp", "prevent-secretly-spend", amount) ||
         anyFlagFn(state, "runner", "prevent-secretly-spend", amount)
@@ -229,7 +229,7 @@ export function psiGame(
     });
 
     // Mirrors: (map #(str % " [Credits]") valid-amounts)
-    const choices = validAmounts.map((n) => `${n} [Credits]`);
+    const choices = validAmounts.map((n: any) => `${n} [Credits]`);
 
     showPromptWithDice(
       state,

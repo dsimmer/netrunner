@@ -81,27 +81,27 @@ export function pushPrevention(
   key: string,
   map: PreventionContext,
 ): void {
-  const existing = (state as any).prevent;
+  const existing = state.prevent;
   if (existing) {
     (state as any).preventStack = [
       existing,
       ...((state as any).preventStack ?? []),
     ];
   }
-  (state as any).prevent = { ...((state as any).prevent ?? {}), [key]: map };
+  state.prevent = { ...(state.prevent ?? {}), [key]: map };
 }
 
 export function fetchAndClear(
   state: GameState,
   key: string,
 ): PreventionContext | undefined {
-  const res = (state as any).prevent?.[key];
+  const res = state.prevent?.[key];
   const stack = (state as any).preventStack;
   if (stack && stack.length > 0) {
-    (state as any).prevent = stack[0];
+    state.prevent = stack[0];
     (state as any).preventStack = stack.slice(1);
   } else {
-    delete (state as any).prevent;
+    delete state.prevent;
   }
   return res;
 }
@@ -144,13 +144,13 @@ function relevantPreventionAbilities(
 
     // not-used-too-many-times?
     const maxUses = (p as any).maxUses;
-    const uses = (state as any).prevent?.[key]?.uses?.[(card as any).cid];
+    const uses = state.prevent?.[key]?.uses?.[(card as any).cid];
     const notUsedTooManyTimes =
       maxUses == null || uses == null || uses < maxUses;
 
     // ability-req?
     const abilityReqFn = (p.ability as any).req;
-    const context = (state as any).prevent?.[key];
+    const context = state.prevent?.[key];
     const abilityReq =
       !abilityReqFn || abilityReqFn(state, side, eid, card, [context]);
 
@@ -178,15 +178,15 @@ function floatingPreventionAbilities(
   key: string,
 ): PreventionEntry[] {
   const effects = getEffectMaps(state, side, "prevention", eid, []);
-  const cardVals: FloatingPreventionEntry[] = effects.map((ev) => ({
+  const cardVals: FloatingPreventionEntry[] = effects.map((ev: any) => ({
     card: ev.card,
     value: getEffectValueInternal(state, side, eid, [], ev) as PreventionEntry,
   }));
 
-  const filtered = cardVals.filter((cv) => cv.value?.prevents === key);
+  const filtered = cardVals.filter((cv: any) => cv.value?.prevents === key);
 
   const playable = filtered
-    .filter((cv) => {
+    .filter((cv: any) => {
       const card = cv.card ?? cv.value?.card ?? null;
       const prev = cv.value;
       const ability = prev?.ability;
@@ -196,18 +196,18 @@ function floatingPreventionAbilities(
 
       const maxUses = (prev as any)?.maxUses;
       const cid = (card as any)?.cid;
-      const uses = cid ? (state as any).prevent?.[key]?.uses?.[cid] : undefined;
+      const uses = cid ? state.prevent?.[key]?.uses?.[cid] : undefined;
       const notUsedTooManyTimes =
         maxUses == null || uses == null || uses < maxUses;
 
       const abilityReqFn = (prev?.ability as any)?.req;
-      const context = (state as any).prevent?.[key];
+      const context = state.prevent?.[key];
       const abilityReq =
         !abilityReqFn || abilityReqFn(state, side, eid, card as any, [context]);
 
       return payable && notUsedTooManyTimes && abilityReq;
     })
-    .map((cv) => ({ ...cv.value, card: cv.card } as PreventionEntry));
+    .map((cv: any) => ({ ...cv.value, card: cv.card } as PreventionEntry));
 
   return playable;
 }
@@ -219,7 +219,7 @@ function gatherPreventionAbilities(
   key: string,
 ): PreventionEntry[] {
   const activeCards = allActive(state, side);
-  const fromCards = activeCards.flatMap((c) =>
+  const fromCards = activeCards.flatMap((c: any) =>
     relevantPreventionAbilities(state, side, eid, key, c),
   );
   const fromFloating = floatingPreventionAbilities(state, side, eid, key);
@@ -241,7 +241,7 @@ export function preventNumeric(
   key: string,
   n: number | "all",
 ): void {
-  const ctx = (state as any).prevent?.[key];
+  const ctx = state.prevent?.[key];
   if (!ctx) {
     console.error(
       `tried to prevent ${key} outside of a ${key} prevention window (eid: ${JSON.stringify(eid)})\n${nLastLogs(state, 5)}`,
@@ -350,8 +350,8 @@ export function resolveKeyedPreventionForSide(
   key: string,
   args: KeyedPreventionArgs,
 ): void {
-  const remainder = (state as any).prevent?.[key]?.remaining;
-  const passed = (state as any).prevent?.[key]?.passed;
+  const remainder = state.prevent?.[key]?.remaining;
+  const passed = state.prevent?.[key]?.passed;
 
   const promptStr =
     typeof args.prompt === "function"
@@ -381,7 +381,7 @@ export function resolveKeyedPreventionForSide(
         !(typeof remainder === "number" && remainder > 0)) ||
     passed
   ) {
-    delete (state as any).prevent?.[key]?.passed;
+    delete state.prevent?.[key]?.passed;
     effectCompleted(state, side, eid);
     return;
   }
@@ -408,7 +408,7 @@ export function resolveKeyedPreventionForSide(
 
   // Build choose-one options
   const options: ChoiceOption[] = [
-    ...preventions.map((p) => buildPreventionOption(p, key)),
+    ...preventions.map((p: any) => buildPreventionOption(p, key)),
     ...(someMandatory(preventions)
       ? []
       : [
@@ -449,7 +449,7 @@ export function resolveKeyedPreventionForSide(
 }
 
 function someMandatory(preventions: PreventionEntry[]): boolean {
-  return preventions.some((p) => (p as any).mandatory === true);
+  return preventions.some((p: any) => (p as any).mandatory === true);
 }
 
 // ---------------------------------------------------------------------------
@@ -463,7 +463,7 @@ export function resolvePreventEffectsWithPriority(
   key: string,
   prevFn: (state: GameState, side: string, eid: EID) => void,
 ): void {
-  const priorityPasses = (state as any).prevent?.[key]?.priorityPasses ?? 0;
+  const priorityPasses = state.prevent?.[key]?.priorityPasses ?? 0;
 
   if (priorityPasses >= 2) {
     const result = fetchAndClear(state, key);
@@ -476,7 +476,7 @@ export function resolvePreventEffectsWithPriority(
     [
       { asyncResult: true },
       () => {
-        const ctx = (state as any).prevent?.[key];
+        const ctx = state.prevent?.[key];
         if (ctx) {
           ctx.priorityPasses = (ctx.priorityPasses ?? 0) + 1;
         }
@@ -613,14 +613,14 @@ function preventTrashInstalledByType(
 
 function resolveTrashForSide(state: GameState, side: string, eid: EID): void {
   const remaining =
-    ((state as any).prevent?.trash?.remaining as Array<{ card: Card }>) ?? [];
+    (state.prevent?.trash?.remaining as Array<{ card: Card }>) ?? [];
 
   const promptStr = (() => {
     if (side === "runner") {
       if (remaining.length === 1) {
         return `Prevent ${remaining[0].card.title} from being trashed?`;
       } else if (remaining.length <= 5) {
-        const titles = remaining.map((r) => r.card.title ?? "").sort();
+        const titles = remaining.map((r: any) => r.card.title ?? "").sort();
         return `Prevent any of ${enumerateStr(titles, "or")} from being trashed?`;
       } else {
         return `Prevent any of ${remaining.length} cards from being trashed?`;
@@ -681,16 +681,16 @@ export function resolveTrashPrevention(
   }
 
   const untrashableCids = new Set(
-    untrashableList.map((u) => (u.card as any).cid),
+    untrashableList.map((u: any) => (u.card as any).cid),
   );
-  const trashable = targets.filter((c) => !untrashableCids.has((c as any).cid));
+  const trashable = targets.filter((c: any) => !untrashableCids.has((c as any).cid));
 
-  const untrashableEntries = untrashableList.map((u) => ({
+  const untrashableEntries = untrashableList.map((u: any) => ({
     card: u.card,
     destination: "discard",
     reason: u.reason,
   }));
-  const trashableEntries = trashable.map((c) => ({
+  const trashableEntries = trashable.map((c: any) => ({
     card: c,
     destination: "discard",
   }));
@@ -734,8 +734,8 @@ export function resolveTrashPrevention(
 // ---------------------------------------------------------------------------
 
 function damageKey(state: GameState): string | null {
-  if ((state as any).prevent?.["pre-damage"]) return "pre-damage";
-  if ((state as any).prevent?.damage) return "damage";
+  if (state.prevent?.["pre-damage"]) return "pre-damage";
+  if (state.prevent?.damage) return "damage";
   console.error(
     `attempt to pick damage key when no damage prevention is active: \n ${nLastLogs(state, 5)}`,
   );
@@ -745,14 +745,14 @@ function damageKey(state: GameState): string | null {
 export function damageType(state: GameState): string | undefined {
   const dk = damageKey(state);
   return dk
-    ? ((state as any).prevent[dk] as PreventionContext)?.type
+    ? (state.prevent[dk] as PreventionContext)?.type
     : undefined;
 }
 
 export function damagePending(state: GameState): number | undefined {
   const dk = damageKey(state);
   return dk
-    ? (((state as any).prevent[dk] as PreventionContext)?.remaining as number)
+    ? ((state.prevent[dk] as PreventionContext)?.remaining as number)
     : undefined;
 }
 
@@ -769,9 +769,9 @@ export function damageBoost(
   const pending = damagePending(state);
   if (pending && pending > 0) {
     const dk = damageKey(state)!;
-    const current = ((state as any).prevent[dk] as PreventionContext)
+    const current = (state.prevent[dk] as PreventionContext)
       .remaining as number;
-    ((state as any).prevent[dk] as PreventionContext).remaining = current + n;
+    (state.prevent[dk] as PreventionContext).remaining = current + n;
   }
   effectCompleted(state, side, eid);
 }
@@ -808,7 +808,7 @@ export function preventDamage(...rawArgs: any[]): void {
   const pending = damagePending(state);
   if (pending && pending > 0) {
     const dk = damageKey(state)!;
-    const ctx = (state as any).prevent[dk] as PreventionContext;
+    const ctx = state.prevent[dk] as PreventionContext;
     if (n === "all") {
       ctx.remaining = 0;
       ctx.prevented = "all";

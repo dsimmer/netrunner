@@ -34,7 +34,7 @@ function bumpStat(
   path: string[],
   delta: number,
 ): void {
-  const root = (state as any).stats ?? ((state as any).stats = {});
+  const root = state.stats ?? (state.stats = {});
   let cur: any = (root[side] ??= {});
   for (let i = 0; i < path.length - 1; i++) {
     cur = cur[path[i]] ??= {};
@@ -177,6 +177,7 @@ function gainSubAttr(
  * 
  * When `amount` is the string "all", loses the entire current value of the resource.
  */
+export function lose(...args: any[]): any;
 export function lose(
   state: any,
   side?: any,

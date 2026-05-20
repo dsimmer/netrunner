@@ -12,7 +12,6 @@ import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
 import type { Ability, NumberFn } from "./types.ts";
-
 import {
   badPublicityAvailable,
   gainBadPublicity,
@@ -170,7 +169,7 @@ function bumpStat(
   path: string[],
   delta: number,
 ): void {
-  const root = (state as any).stats ?? ((state as any).stats = {});
+  const root = state.stats ?? (state.stats = {});
   let cur = (root[side] ??= {});
   for (let i = 0; i < path.length - 1; i++) {
     cur = cur[path[i]] ??= {};
@@ -229,7 +228,7 @@ function activePayCreditCards(
   const all = Array.from(
     new Set([...allActive(state, side), ...allInstalled(state, side)]),
   );
-  return all.filter((c) => {
+  return all.filter((c: any) => {
     const pc = payCreditsCfg(c);
     if (!pc) return false;
     if (isDisabledReg(state, c)) return false;
@@ -245,7 +244,7 @@ function eligiblePayCreditCards(
   eid: EID,
   card: Card | null,
 ): Card[] {
-  return activePayCreditCards(state, side, eid, card, false).filter((c) => {
+  return activePayCreditCards(state, side, eid, card, false).filter((c: any) => {
     const pc = payCreditsCfg(c);
     switch (pc?.type) {
       case "recurring":
@@ -266,7 +265,7 @@ function eligibleReduceCreditCards(
   eid: EID,
   card: Card | null,
 ): Card[] {
-  return activePayCreditCards(state, side, eid, card, true).filter((c) => {
+  return activePayCreditCards(state, side, eid, card, true).filter((c: any) => {
     const pc = payCreditsCfg(c);
     switch (pc?.type) {
       case "recurring":
@@ -325,7 +324,7 @@ function eligiblePayStealthCreditCards(
   eid: EID,
   card: Card | null,
 ): Card[] {
-  return eligiblePayCreditCards(state, side, eid, card).filter((c) =>
+  return eligiblePayCreditCards(state, side, eid, card).filter((c: any) =>
     hasSubtype(c, "Stealth"),
   );
 }
@@ -713,7 +712,7 @@ valueDispatch.set("forfeit", (c) => c.amount);
 labelDispatch.set("forfeit", (c) => `forfeit ${quantify(value(c), "Agenda")}`);
 payableDispatch.set("forfeit", (c, state, side) => {
   const scored: Card[] = (state as any)[side]?.scored ?? [];
-  return scored.filter((s) => canForfeit(s)).length - value(c) >= 0;
+  return scored.filter((s: any) => canForfeit(s)).length - value(c) >= 0;
 });
 handlerDispatch.set("forfeit", (c, state, side, eid, card) => {
   continue_ability(
@@ -807,7 +806,7 @@ payableDispatch.set("forfeit-or-trash-x-from-hand", (c, state, side) => {
   const scored = ((state as any)[side]?.scored ?? []) as Card[];
   return (
     hand.length - value(c) >= 0 ||
-    scored.filter((s) => canForfeit(s)).length > 0
+    scored.filter((s: any) => canForfeit(s)).length > 0
   );
 });
 handlerDispatch.set(
@@ -840,7 +839,7 @@ handlerDispatch.set(
                   s,
                   sd,
                   innerEid,
-                  targets.map((t) => ({ ...t, seen: true })),
+                  targets.map((t: any) => ({ ...t, seen: true })),
                   {
                     unpreventable: true,
                     cause: "ability-cost",

@@ -6,7 +6,7 @@
  * Each card has properties like on-score, on-access, events, static-abilities, etc.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAgendas from '../core/agendas';
 import * as coreBoard from '../core/board';
 import * as coreCard from '../core/card';
@@ -49,8 +49,6 @@ import * as coreWinning from '../core/winning';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 import { installAbility, iceBoostAgenda } from './_helpers';
-import type { CardDef } from '../../types';
-
 import { addAgendaPointCounters, agendaCounters } from './agendas_1';
 import * as coreBadPublicity from '../core/bad_publicity';
 
@@ -328,7 +326,7 @@ export const divestedTrust: CardDef = {
     async: true,
     interactive: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> { return true; }),
     effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
-      const winner = (state as any).winner;
+      const winner = state.winner;
       if (winner) {
         coreEid.effectCompleted(state, side, eid);
         return;
@@ -599,19 +597,19 @@ export const explodeAPalooza: CardDef = {
 // Evidence Collection
 export const evidenceCollection: CardDef = {
   title: 'Evidence Collection',
-  events: [{ event: 'win', req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> { return (state as any).winner === ':corp'; }), msg: 'reveal set 2' }],
+  events: [{ event: 'win', req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> { return state.winner === ':corp'; }), msg: 'reveal set 2' }],
 };
 
 // Evidence Collection 2
 export const evidenceCollection2: CardDef = {
   title: 'Evidence Collection 2',
-  events: [{ event: 'win', req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> { return (state as any).winner === ':corp'; }), msg: 'reveal set 5' }],
+  events: [{ event: 'win', req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> { return state.winner === ':corp'; }), msg: 'reveal set 5' }],
 };
 
 // Evidence Collection 3
 export const evidenceCollection3: CardDef = {
   title: 'Evidence Collection 3',
-  events: [{ event: 'win', req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> { return (state as any).winner === ':corp'; }), msg: 'reveal set 8' }],
+  events: [{ event: 'win', req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> { return state.winner === ':corp'; }), msg: 'reveal set 8' }],
 };
 
 // Evidence Collection 4

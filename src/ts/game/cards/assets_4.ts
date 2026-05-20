@@ -1,4 +1,4 @@
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreActions from '../core/actions';
 import * as coreAgendas from '../core/agendas';
@@ -49,7 +49,6 @@ import * as coreWinning from '../core/winning';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 import { campaign } from './_helpers';
-import type { CardDef } from '../../types';
 // Humanoid Resources
 export const humanoidResources: CardDef = (() => {
   const playAnInstant: any = {
@@ -174,7 +173,7 @@ export const idiosyncresis: CardDef = (() => {
   const gainAmt = (card: Card) => 3 * adv(card);
   const abi: any = {
     event: ':corp-turn-begins',
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     skippable: true,
     label: 'Trash Idiosyncresis',
     optional: {
@@ -274,7 +273,7 @@ export const investigatorInezDelgadoA: CardDef = {
   title: 'Investigator Inez Delgado A',
   events: [{
     event: ':agenda-scored',
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     req: req(function*(state: State): Generator<any, any, any> { return !!((state as any).runner?.scored?.length); }),
     async: true,
     effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
@@ -333,7 +332,7 @@ export const investigatorInezDelgadoA2: CardDef = (() => {
     title: 'Investigator Inez Delgado A 2',
     events: [{
       event: ':agenda-stolen',
-      interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+      interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
       skippable: true,
       async: true,
       effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
@@ -466,7 +465,7 @@ export const janainaJKDumontKindelan: CardDef = (() => {
   return {
     title: 'Janaína "JK" Dumont Kindelán',
     'derezzed-events': [coreDefHelpers.corpRezToast],
-    flags: { 'corp-phase-12': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+    flags: { 'corp-phase-12': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
     events: [{ ...ability, event: ':corp-turn-begins' }],
     abilities: [
       ability,
@@ -563,7 +562,7 @@ export const jeevesModelBioroids: CardDef = (() => {
 export const kalaGhodaRealTV: CardDef = {
   title: 'Kala Ghoda Real TV',
   'derezzed-events': [coreDefHelpers.corpRezToast],
-  flags: { 'corp-phase-12': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'corp-phase-12': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   abilities: [
     {
       msg: 'look at the top card of the stack',
@@ -602,7 +601,7 @@ export const kuwinda: CardDef = {
     return coreCard.getCounters(card, ':power');
   }),
   'derezzed-events': [coreDefHelpers.corpRezToast],
-  flags: { 'corp-phase-12': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'corp-phase-12': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   abilities: [{
     label: 'Trace X - do 1 core damage (start of turn)',
     trace: {
@@ -861,7 +860,7 @@ export const ltTodachine2: CardDef = {
     },
     {
       event: ':breach-server',
-      interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+      interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
       req: req(function*(state: State): Generator<any, any, any> { return coreFlags.tagged(state); }),
       async: true,
       effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {

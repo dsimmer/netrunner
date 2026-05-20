@@ -4,6 +4,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
+import type { Ability, Subroutine } from "./types";
 import {
   isCorp,
   isRunner,
@@ -35,29 +36,41 @@ import { getCard } from "./finding";
 import { dissocIn } from "../utils";
 import { selectNonNilKeys } from "../../jinteki/utils";
 
+// Generic JSON-like value used throughout state summaries and diffs.
+type JsonLike = Record<string, unknown>;
+// Player object as stored in state — kebab-case keys, so use record shape.
+type Player = Record<string, unknown>;
+// Ability summaries / cards summaries return shapes that are subsets of Card.
+type CardLike = Card | (Partial<Card> & Record<string, unknown>);
+
+
 // ---------------------------------------------------------------------------
 // is-public? local helper (card.ts does not yet export it)
 // ---------------------------------------------------------------------------
 
-function isPublic(card: any, side: string): boolean {
+function isPublic(card: Card | null, side: string): boolean {
   if (!card) return false;
   // Identities and revealed cards are public to all
-  if ((card as any).type === "Identity") return true;
-  if ((card as any).seen) return true;
+  if (card.type === "Identity") return true;
+  if (card.seen) return true;
   if (isInstalled(card) && !isFacedown(card) && isRezzed(card)) return true;
   // Card belonging to viewer is visible
-  return (card as any).side?.toLowerCase?.() === side?.toLowerCase?.();
+  return card.side?.toLowerCase?.() === side?.toLowerCase?.();
 }
 
 // ---------------------------------------------------------------------------
 // playable? family
 // ---------------------------------------------------------------------------
 
-function isOwnedBy(card: any, side: string): boolean {
+function isOwnedBy(card: Card | null, side: string): boolean {
   return side === "corp" ? isCorp(card) : isRunner(card);
 }
 
-export function playable(card: any, state: GameState, side: string): any {
+export function playable(
+  card: Card | null,
+  state: GameState,
+  side: string,
+): Card | null {
   if (!card) return card;
   const owned = isOwnedBy(card, side);
   const inHandLike =
@@ -70,9 +83,9 @@ export function playable(card: any, state: GameState, side: string): any {
       card,
       [],
     ) ||
-    !!(card as any)["as-flashback"];
-  const phase12 =
-    (state as any)["corp-phase-12"] || (state as any)["runner-phase-12"];
+    !!card["as-flashback"];
+  const stateRec = state as unknown as JsonLike;
+  const phase12 = stateRec["corp-phase-12"] || stateRec["runner-phase-12"];
 
   if (!(owned && inHandLike) || phase12) return card;
 
@@ -80,7 +93,7 @@ export function playable(card: any, state: GameState, side: string): any {
 
   if (isAgenda(card) || isAsset(card) || isICE(card) || isUpgrade(card)) {
     const servers = installableServers(state, card);
-    canPlay = servers.some((server: any) =>
+    canPlay = (servers as string[]).some((server) =>
       corpCanPayAndInstall(
         state,
         "corp",
@@ -91,7 +104,7 @@ export function playable(card: any, state: GameState, side: string): any {
           "base-cost": [createClickCost(1, false, null)],
           action: "corp-click-install",
           "no-toast": true,
-        } as any,
+        },
       ),
     );
   } else if (isHardware(card) || isProgram(card) || isResource(card)) {
@@ -105,12 +118,13 @@ export function playable(card: any, state: GameState, side: string): any {
         {
           "base-cost": [createClickCost(1, false, null)],
           "no-toast": true,
-        } as any,
+        } as unknown as Parameters<typeof runnerCanPayAndInstall>[4],
       );
   } else if (isEvent(card) || isOperation(card)) {
-    const baseCost = !(card as any)["as-flashback"]
+    const def = cardDef(card) as JsonLike | undefined;
+    const baseCost = !card["as-flashback"]
       ? [createClickCost(1, false, null)]
-      : (cardDef(card) as any)?.flashback;
+      : def?.flashback;
     canPlay =
       !state.run &&
       canPlayInstant(
@@ -118,7 +132,7 @@ export function playable(card: any, state: GameState, side: string): any {
         side,
         { source: card, "source-type": "play" } as unknown as EID,
         card,
-        { "base-cost": baseCost, silent: true } as any,
+        { "base-cost": baseCost, silent: true } as unknown as Parameters<typeof canPlayInstant>[4],
       );
   }
 
@@ -126,23 +140,24 @@ export function playable(card: any, state: GameState, side: string): any {
 }
 
 export function flashbackPlayable(
-  card: any,
+  card: Card | null,
   state: GameState,
   side: string,
-): any {
+): Card | null {
   if (!card || !inDiscard(card)) return card;
-  const flashbackCost = (cardDef(card) as any)?.flashback;
+  const def = cardDef(card) as JsonLike | undefined;
+  const flashbackCost = def?.flashback;
   if (!flashbackCost) return card;
-  const adjusted = { ...card, "as-flashback": true };
+  const adjusted: Card = { ...card, "as-flashback": true };
   const result = playable(adjusted, state, side);
   return { ...card, "flashback-playable": result?.playable };
 }
 
 export function playableAsIfInHand(
-  card: any,
+  card: Card | null,
   state: GameState,
   side: string,
-): any {
+): Card | null {
   if (!card) return card;
   if (
     anyEffects(
@@ -175,34 +190,34 @@ const abilityKeys = [
 ] as const;
 
 export function abilityPlayable(
-  ability: any,
+  ability: Ability,
   abilityIdx: number,
   state: GameState,
   side: string,
   card: Card,
-): any {
+): Ability {
   const cost = cardAbilityCost(state, side, ability, card);
   const eid = {
     source: card,
     "source-type": "ability",
     "source-info": { "ability-idx": abilityIdx },
-  } as any;
+  } as unknown as EID;
 
   const active =
-    !!(card as any).active ||
-    !!(card as any).autoresolve ||
+    !!card.active ||
+    !!card.autoresolve ||
     !!ability?.autoresolve;
   // Note: clj uses (active? card) — TS card.ts has no `active?`; we approximate.
   const notDisabled = !isDisabledReg(state, card);
   const notActionDuringRun = !(ability?.action && state.run);
-  const payable = (canPay as any)(state, side, eid, card, null, cost);
-  const triggerable = (canTrigger as any)(
+  const payable = canPay(state, side, eid, card, null, cost);
+  const triggerable = canTrigger(
     state,
     side,
     eid,
     ability,
     card,
-    null,
+    [],
   );
 
   if (
@@ -222,24 +237,25 @@ export function abilitySummary(
   side: string,
   card: Card,
   abIdx: number,
-  ability: any,
-): any {
+  ability: Ability,
+): Partial<Ability> {
   const a = abilityPlayable(ability, abIdx, state, side, card);
   return selectNonNilKeys(a, abilityKeys as unknown as (keyof typeof a)[]);
 }
 
 export function abilitiesSummary(
-  abilities: any[] | undefined,
+  abilities: Ability[] | undefined,
   card: Card,
   state: GameState,
   side: string,
-): any[] | undefined {
+): Partial<Ability>[] | undefined {
   if (!abilities || !abilities.length) return undefined;
   return abilities.map((ab, i) => abilitySummary(state, side, card, i, ab));
 }
 
-export function iconSummary(card: any, state: GameState): any {
-  const icons = getEffects(state, null as any, "icon", card, []);
+export function iconSummary(card: Card | null, state: GameState): Card | null {
+  if (!card) return card;
+  const icons = getEffects(state, null as unknown as string, "icon", card, []);
   if (icons && icons.length > 0) return { ...card, icon: [...icons] };
   return card;
 }
@@ -247,8 +263,8 @@ export function iconSummary(card: any, state: GameState): any {
 const subroutineKeys = ["broken", "fired", "label", "msg", "resolve"] as const;
 
 export function subroutinesSummary(
-  subroutines: any[] | undefined,
-): any[] | undefined {
+  subroutines: Subroutine[] | undefined,
+): Partial<Subroutine>[] | undefined {
   if (!subroutines || !subroutines.length) return undefined;
   return subroutines.map((s) =>
     selectNonNilKeys(s, subroutineKeys as unknown as (keyof typeof s)[]),
@@ -256,23 +272,20 @@ export function subroutinesSummary(
 }
 
 export function cardAbilitiesSummary(
-  card: any,
+  card: Card,
   state: GameState,
   side: string,
-): any {
-  const out = { ...card };
-  if (card.abilities)
-    out.abilities = abilitiesSummary(card.abilities, card, state, side);
-  if (card["corp-abilities"])
-    out["corp-abilities"] = abilitiesSummary(
-      card["corp-abilities"],
-      card,
-      state,
-      side,
-    );
-  if (card["runner-abilities"])
+): Card {
+  const out: Card = { ...card };
+  const abilities = card.abilities as Ability[] | undefined;
+  if (abilities) out.abilities = abilitiesSummary(abilities, card, state, side);
+  const corpAbilities = card["corp-abilities"] as Ability[] | undefined;
+  if (corpAbilities)
+    out["corp-abilities"] = abilitiesSummary(corpAbilities, card, state, side);
+  const runnerAbilities = card["runner-abilities"] as Ability[] | undefined;
+  if (runnerAbilities)
     out["runner-abilities"] = abilitiesSummary(
-      card["runner-abilities"],
+      runnerAbilities,
       card,
       state,
       side,
@@ -347,45 +360,57 @@ const privateCardKeys = [
 ] as const;
 
 /** Returns only public information when card is in a private state. */
-export function privateCard(card: any): any {
+export function privateCard(card: Card): Partial<Card> {
   return selectNonNilKeys(
     card,
     privateCardKeys as unknown as (keyof typeof card)[],
   );
 }
 
-export function cardSummary(card: any, state: GameState, side: string): any {
+export function cardSummary(
+  card: Card | null,
+  state: GameState,
+  side: string,
+): Card | Partial<Card> | null {
   if (!card) return card;
   if (isPublic(card, side)) {
-    let c: any = card;
+    let c: Card = card;
     if (c.host) {
-      const h = dissocIn(c.host as any, ["hosted"] as any);
-      c = { ...c, host: cardSummary(h, state, side) };
+      const h = dissocIn(c.host as unknown as JsonLike, ["hosted"]) as Card;
+      c = { ...c, host: cardSummary(h, state, side) as Card };
     }
-    if (c.hosted) c = { ...c, hosted: cardsSummary(c.hosted, state, side) };
-    c = playable(c, state, side);
-    c = flashbackPlayable(c, state, side);
-    c = playableAsIfInHand(c, state, side);
+    if (c.hosted)
+      c = {
+        ...c,
+        hosted: cardsSummary(c.hosted, state, side) as Card[] | undefined,
+      };
+    c = playable(c, state, side) as Card;
+    c = flashbackPlayable(c, state, side) as Card;
+    c = playableAsIfInHand(c, state, side) as Card;
     c = cardAbilitiesSummary(c, state, side);
-    c = iconSummary(c, state);
+    c = iconSummary(c, state) as Card;
     return selectNonNilKeys(c, cardKeys as unknown as (keyof typeof c)[]);
   }
   // private path
-  let c: any = card;
+  let c: Card = card;
   if (c.host) {
-    const h = dissocIn(c.host as any, ["hosted"] as any);
-    c = { ...c, host: cardSummary(h, state, side) };
+    const h = dissocIn(c.host as unknown as JsonLike, ["hosted"]) as Card;
+    c = { ...c, host: cardSummary(h, state, side) as Card };
   }
-  if (c.hosted) c = { ...c, hosted: cardsSummary(c.hosted, state, side) };
-  c = iconSummary(c, state);
+  if (c.hosted)
+    c = {
+      ...c,
+      hosted: cardsSummary(c.hosted, state, side) as Card[] | undefined,
+    };
+  c = iconSummary(c, state) as Card;
   return privateCard(c);
 }
 
 export function cardsSummary(
-  cards: any[] | undefined,
+  cards: (Card | null)[] | undefined,
   state: GameState,
   side: string,
-): any[] | undefined {
+): (Card | Partial<Card> | null)[] | undefined {
   if (!cards || !cards.length) return undefined;
   return cards.map((c) => cardSummary(c, state, side));
 }
@@ -423,14 +448,21 @@ function notEmpty<T>(v: T): T | undefined {
   return v;
 }
 
+type PromptChoice = { value?: { cid?: string } & JsonLike } & JsonLike;
+type PromptLike = JsonLike & {
+  eid?: { eid?: number } & JsonLike;
+  card?: Card;
+  choices?: PromptChoice[];
+};
+
 export function promptSummary(
-  prompt: any,
+  prompt: PromptLike | null | undefined,
   _state: GameState,
   _side: string,
   sameSide: boolean,
-): any {
+): JsonLike | undefined {
   if (!sameSide || !prompt) return undefined;
-  const p: any = { ...prompt };
+  const p: PromptLike = { ...prompt };
   if (p.eid) {
     p.eid = p.eid.eid ? { eid: p.eid.eid } : undefined;
   }
@@ -441,11 +473,11 @@ export function promptSummary(
       "printed-title",
       "code",
       "side",
-    ] as any);
-    p.card = notEmpty(cc);
+    ] as unknown as (keyof Card)[]);
+    p.card = notEmpty(cc) as Card | undefined;
   }
   if (Array.isArray(p.choices)) {
-    const mapped = p.choices.map((choice: any) => {
+    const mapped = p.choices.map((choice) => {
       if (choice?.value?.cid) {
         return {
           ...choice,
@@ -454,20 +486,23 @@ export function promptSummary(
               "cid",
               "title",
               "printed-title",
-            ] as any),
+            ] as unknown as (keyof typeof choice.value)[]),
           ),
         };
       }
       return choice;
     });
-    p.choices = notEmpty(mapped);
+    p.choices = notEmpty(mapped) as PromptChoice[] | undefined;
   }
   return notEmpty(
     selectNonNilKeys(p, promptKeys as unknown as (keyof typeof p)[]),
-  );
+  ) as JsonLike | undefined;
 }
 
-export function toastSummary(toast: any, sameSide: boolean): any {
+export function toastSummary(
+  toast: unknown,
+  sameSide: boolean,
+): unknown | undefined {
   return sameSide ? toast : undefined;
 }
 
@@ -503,21 +538,38 @@ const playerKeys = [
 ] as const;
 
 export function playerSummary(
-  player: any,
+  player: Player,
   state: GameState,
   side: string,
   sameSide: boolean,
   additionalKeys: readonly string[],
-): any {
-  const p: any = { ...player };
-  p.identity = cardSummary(p.identity, state, side);
-  p["basic-action-card"] = cardSummary(p["basic-action-card"], state, side);
-  p.current = cardsSummary(p.current, state, side);
-  p["play-area"] = cardsSummary(p["play-area"], state, side);
-  p.rfg = cardsSummary(p.rfg, state, side);
-  p.scored = cardsSummary(p.scored, state, side);
-  p["set-aside"] = cardsSummary(p["set-aside"], state, side);
-  p["prompt-state"] = promptSummary(p["prompt-state"], state, side, sameSide);
+): Player {
+  const p: Player = { ...player };
+  p.identity = cardSummary(p.identity as Card | null, state, side);
+  p["basic-action-card"] = cardSummary(
+    p["basic-action-card"] as Card | null,
+    state,
+    side,
+  );
+  p.current = cardsSummary(p.current as Card[] | undefined, state, side);
+  p["play-area"] = cardsSummary(
+    p["play-area"] as Card[] | undefined,
+    state,
+    side,
+  );
+  p.rfg = cardsSummary(p.rfg as Card[] | undefined, state, side);
+  p.scored = cardsSummary(p.scored as Card[] | undefined, state, side);
+  p["set-aside"] = cardsSummary(
+    p["set-aside"] as Card[] | undefined,
+    state,
+    side,
+  );
+  p["prompt-state"] = promptSummary(
+    p["prompt-state"] as PromptLike | undefined,
+    state,
+    side,
+    sameSide,
+  );
   p.toast = toastSummary(p.toast, sameSide);
   const allKeys = [...playerKeys, ...additionalKeys];
   return selectNonNilKeys(p, allKeys as unknown as (keyof typeof p)[]);
@@ -529,23 +581,30 @@ export function playerSummary(
 
 const corpKeys = ["servers", "bad-publicity"] as const;
 
+type ServerSummary = {
+  content?: (Card | Partial<Card> | null)[];
+  ices?: (Card | Partial<Card> | null)[];
+};
+
 export function serversSummary(
   state: GameState,
   side: string,
-): Record<string, any> {
-  const servers = (state.corp as any)?.servers ?? {};
-  const out: Record<string, any> = {};
+): Record<string, ServerSummary> {
+  const corpServers = (state.corp as unknown as JsonLike)?.servers as
+    | Record<string, { content?: Card[]; ices?: Card[] }>
+    | undefined;
+  const servers = corpServers ?? {};
+  const out: Record<string, ServerSummary> = {};
   for (const [serverKw, server] of Object.entries(servers)) {
-    const s = server as any;
     out[serverKw] = {
-      content: cardsSummary(s.content, state, side),
-      ices: cardsSummary(s.ices, state, side),
+      content: cardsSummary(server.content, state, side),
+      ices: cardsSummary(server.ices, state, side),
     };
   }
   return out;
 }
 
-export function pruneCards(cards: any[]): any[] {
+export function pruneCards(cards: Card[]): Partial<Card>[] {
   return cards.map((c) =>
     selectNonNilKeys(c, cardKeys as unknown as (keyof typeof c)[]),
   );
@@ -553,67 +612,63 @@ export function pruneCards(cards: any[]): any[] {
 
 /** Is the player's deck publicly visible? */
 export function deckSummary(
-  deck: any[],
+  deck: Card[],
   sameSide: boolean,
-  player: any,
-): any[] {
+  player: Player,
+): Partial<Card>[] {
   if (sameSide && player?.["view-deck"]) return pruneCards(deck);
   return [];
 }
 
 /** Is the player's hand publicly visible? */
 export function handSummary(
-  hand: any[],
+  hand: Card[],
   state: GameState,
   sameSide: boolean,
   side: string,
-  player: any,
-): any[] {
+  player: Player,
+): (Card | Partial<Card> | null)[] {
   if (sameSide || player?.openhand)
     return cardsSummary(hand, state, side) ?? [];
   return [];
 }
 
 export function discardSummary(
-  discard: any[],
+  discard: Card[],
   state: GameState,
   sameSide: boolean,
   side: string,
-  player: any,
-): any[] {
+  player: Player,
+): (Card | Partial<Card> | null)[] {
   if (sameSide || player?.openhand)
     return cardsSummary(discard, state, "corp") ?? [];
   return cardsSummary(discard, state, side) ?? [];
 }
 
-export function corpSummary(corp: any, state: GameState, side: string): any {
+export function corpSummary(
+  corp: Player,
+  state: GameState,
+  side: string,
+): Player {
   const corpPlayer = side === "corp";
   const installList = corp?.["install-list"];
-  const meliesTarget = corp?.identity?.["melies-target"];
-  let p = playerSummary(corp, state, side, corpPlayer, corpKeys);
-  (p as any)["agenda-point-req"] = agendaPointsRequiredToWin(state, "corp");
-  (p as any).deck = deckSummary(corp.deck ?? [], corpPlayer, corp);
-  (p as any).hand = handSummary(
-    corp.hand ?? [],
-    state,
-    corpPlayer,
-    "corp",
-    corp,
-  );
-  (p as any).discard = discardSummary(
-    corp.discard ?? [],
-    state,
-    corpPlayer,
-    side,
-    corp,
-  );
-  (p as any)["deck-count"] = (corp.deck ?? []).length;
-  (p as any)["hand-count"] = (corp.hand ?? []).length;
-  (p as any).servers = serversSummary(state, side);
-  if (corpPlayer && installList) (p as any)["install-list"] = installList;
+  const identity = corp?.identity as JsonLike | undefined;
+  const meliesTarget = identity?.["melies-target"];
+  const deck = (corp.deck as Card[]) ?? [];
+  const hand = (corp.hand as Card[]) ?? [];
+  const discard = (corp.discard as Card[]) ?? [];
+  const p = playerSummary(corp, state, side, corpPlayer, corpKeys);
+  p["agenda-point-req"] = agendaPointsRequiredToWin(state, "corp");
+  p.deck = deckSummary(deck, corpPlayer, corp);
+  p.hand = handSummary(hand, state, corpPlayer, "corp", corp);
+  p.discard = discardSummary(discard, state, corpPlayer, side, corp);
+  p["deck-count"] = deck.length;
+  p["hand-count"] = hand.length;
+  p.servers = serversSummary(state, side);
+  if (corpPlayer && installList) p["install-list"] = installList;
   if (corpPlayer && meliesTarget) {
-    (p as any).identity = {
-      ...((p as any).identity ?? {}),
+    p.identity = {
+      ...((p.identity as JsonLike) ?? {}),
       "melies-target": meliesTarget,
     };
   }
@@ -630,41 +685,45 @@ const runnerKeys = [
   "brain-damage",
 ] as const;
 
-export function rigSummary(state: GameState, side: string): any {
-  const rig = (state.runner as any)?.rig ?? {};
+type Rig = {
+  hardware?: Card[];
+  facedown?: Card[];
+  program?: Card[];
+  resource?: Card[];
+} & JsonLike;
+
+export function rigSummary(state: GameState, side: string): Rig {
+  const rig = ((state.runner as unknown as JsonLike)?.rig as Rig | undefined) ?? {};
   return {
     ...rig,
-    hardware: cardsSummary(rig.hardware, state, side),
-    facedown: cardsSummary(rig.facedown, state, side),
-    program: cardsSummary(rig.program, state, side),
-    resource: cardsSummary(rig.resource, state, side),
+    hardware: cardsSummary(rig.hardware, state, side) as Card[] | undefined,
+    facedown: cardsSummary(rig.facedown, state, side) as Card[] | undefined,
+    program: cardsSummary(rig.program, state, side) as Card[] | undefined,
+    resource: cardsSummary(rig.resource, state, side) as Card[] | undefined,
   };
 }
 
 export function runnerSummary(
-  runner: any,
+  runner: Player,
   state: GameState,
   side: string,
-): any {
+): Player {
   const runnerPlayer = side === "runner";
   const runnableList = runner?.["runnable-list"];
-  let p = playerSummary(runner, state, side, runnerPlayer, runnerKeys);
-  (p as any)["agenda-point-req"] = agendaPointsRequiredToWin(state, "runner");
-  (p as any).deck = deckSummary(runner.deck ?? [], runnerPlayer, runner);
-  (p as any).hand = handSummary(
-    runner.hand ?? [],
-    state,
-    runnerPlayer,
-    "runner",
-    runner,
-  );
-  (p as any).discard = pruneCards(runner.discard ?? []);
-  (p as any)["bad-pub-credit"] =
-    (state.run as any)?.["bad-publicity-available"] ?? 0;
-  (p as any)["deck-count"] = (runner.deck ?? []).length;
-  (p as any)["hand-count"] = (runner.hand ?? []).length;
-  (p as any).rig = rigSummary(state, side);
-  if (runnerPlayer && runnableList) (p as any)["runnable-list"] = runnableList;
+  const deck = (runner.deck as Card[]) ?? [];
+  const hand = (runner.hand as Card[]) ?? [];
+  const discard = (runner.discard as Card[]) ?? [];
+  const p = playerSummary(runner, state, side, runnerPlayer, runnerKeys);
+  p["agenda-point-req"] = agendaPointsRequiredToWin(state, "runner");
+  p.deck = deckSummary(deck, runnerPlayer, runner);
+  p.hand = handSummary(hand, state, runnerPlayer, "runner", runner);
+  p.discard = pruneCards(discard);
+  p["bad-pub-credit"] =
+    (state.run as unknown as JsonLike)?.["bad-publicity-available"] ?? 0;
+  p["deck-count"] = deck.length;
+  p["hand-count"] = hand.length;
+  p.rig = rigSummary(state, side);
+  if (runnerPlayer && runnableList) p["runnable-list"] = runnableList;
   return p;
 }
 
@@ -684,7 +743,9 @@ const optionsKeys = [
   "show-alt-art",
 ] as const;
 
-export function optionsSummary(options: any): any {
+export function optionsSummary(
+  options: JsonLike | null | undefined,
+): JsonLike | undefined {
   if (
     !options ||
     (typeof options === "object" && Object.keys(options).length === 0)
@@ -693,7 +754,7 @@ export function optionsSummary(options: any): any {
   return selectNonNilKeys(
     options,
     optionsKeys as unknown as (keyof typeof options)[],
-  );
+  ) as JsonLike;
 }
 
 const userKeys = [
@@ -704,11 +765,13 @@ const userKeys = [
   "special",
 ] as const;
 
-export function userSummary(user: any): any {
+export function userSummary(
+  user: JsonLike | null | undefined,
+): JsonLike | null | undefined {
   if (!user) return user;
-  const u: any = { ...user };
-  if ("options" in u) u.options = optionsSummary(u.options);
-  return selectNonNilKeys(u, userKeys as unknown as (keyof typeof u)[]);
+  const u: JsonLike = { ...user };
+  if ("options" in u) u.options = optionsSummary(u.options as JsonLike);
+  return selectNonNilKeys(u, userKeys as unknown as (keyof typeof u)[]) as JsonLike;
 }
 
 // ---------------------------------------------------------------------------
@@ -727,12 +790,12 @@ const runKeys = [
   "approached-ice-in-position?",
 ] as const;
 
-export function runSummary(state: GameState): any {
-  const run = state.run as any;
+export function runSummary(state: GameState): JsonLike | undefined {
+  const run = state.run as unknown as JsonLike | null | undefined;
   if (!run) return undefined;
   const approached =
     run.phase === "approach-ice"
-      ? !!getCard(state, run["current-ice"])
+      ? !!getCard(state, run["current-ice"] as Card | null)
       : undefined;
   const r = {
     ...run,
@@ -744,10 +807,13 @@ export function runSummary(state: GameState): any {
       (v: unknown) => v === true,
     ),
   };
-  return selectNonNilKeys(r, runKeys as unknown as (keyof typeof r)[]);
+  return selectNonNilKeys(r, runKeys as unknown as (keyof typeof r)[]) as JsonLike;
 }
 
-export function encounterIceSummary(ice: any, state: GameState): any {
+export function encounterIceSummary(
+  ice: Card | null,
+  state: GameState,
+): Card | Partial<Card> | null | undefined {
   const c = getCard(state, ice);
   if (!c) return undefined;
   return cardSummary(c, state, "corp");
@@ -755,20 +821,20 @@ export function encounterIceSummary(ice: any, state: GameState): any {
 
 const encounterKeys = ["encounter-count", "ice", "no-action"] as const;
 
-export function encountersSummary(state: GameState): any {
-  const encounters = (state.encounters as any[]) ?? [];
+export function encountersSummary(state: GameState): JsonLike | undefined {
+  const encounters = (state.encounters as unknown as JsonLike[]) ?? [];
   if (!encounters.length) return undefined;
   const current = encounters[encounters.length - 1];
   if (!current) return undefined;
   const out = {
     ...current,
-    ice: encounterIceSummary(current.ice, state),
+    ice: encounterIceSummary(current.ice as Card | null, state),
     "encounter-count": encounters.length,
   };
   return selectNonNilKeys(
     out,
     encounterKeys as unknown as (keyof typeof out)[],
-  );
+  ) as JsonLike;
 }
 
 // ---------------------------------------------------------------------------
@@ -807,42 +873,55 @@ const stateKeys = [
   "winner",
 ] as const;
 
-export function stripState(state: GameState): any {
-  const s: any = { ...state };
-  if (s.corp?.user) s.corp = { ...s.corp, user: userSummary(s.corp.user) };
-  if (s.runner?.user)
-    s.runner = { ...s.runner, user: userSummary(s.runner.user) };
-  s.stats = (state as any).winner ? state.stats : undefined;
+type StrippedState = JsonLike & {
+  corp?: Player;
+  runner?: Player;
+  options?: JsonLike;
+  log?: unknown[];
+};
+
+export function stripState(state: GameState): StrippedState {
+  const s: StrippedState = { ...(state as unknown as JsonLike) } as StrippedState;
+  const corp = s.corp;
+  if (corp?.user)
+    s.corp = { ...corp, user: userSummary(corp.user as JsonLike) };
+  const runner = s.runner;
+  if (runner?.user)
+    s.runner = { ...runner, user: userSummary(runner.user as JsonLike) };
+  s.stats = state.winner ? state.stats : undefined;
   s.run = runSummary(state);
   s.encounters = encountersSummary(state);
-  return selectNonNilKeys(s, stateKeys as unknown as (keyof typeof s)[]);
+  return selectNonNilKeys(
+    s,
+    stateKeys as unknown as (keyof typeof s)[],
+  ) as StrippedState;
 }
 
 export function stateSummary(
-  stripped: any,
+  stripped: StrippedState,
   state: GameState,
   side: string,
-): any {
+): StrippedState {
   return {
     ...stripped,
-    corp: corpSummary(stripped.corp, state, side),
-    runner: runnerSummary(stripped.runner, state, side),
+    corp: corpSummary(stripped.corp ?? {}, state, side),
+    runner: runnerSummary(stripped.runner ?? {}, state, side),
   };
 }
 
 export function stripForReplay(
-  stripped: any,
-  corpPlayer: any,
-  runnerPlayer: any,
-): any {
+  stripped: StrippedState,
+  corpPlayer: StrippedState,
+  runnerPlayer: StrippedState,
+): StrippedState {
   return { ...stripped, corp: corpPlayer.corp, runner: runnerPlayer.runner };
 }
 
 export function stripForSpectators(
-  stripped: any,
-  corpState: any,
-  runnerState: any,
-): any {
+  stripped: StrippedState,
+  corpState: StrippedState,
+  runnerState: StrippedState,
+): StrippedState {
   const spectatorHands = stripped?.options?.spectatorhands;
   return {
     ...stripped,
@@ -852,34 +931,36 @@ export function stripForSpectators(
 }
 
 export function stripForCorpSpect(
-  stripped: any,
-  corpState: any,
-  runnerState: any,
-): any {
+  stripped: StrippedState,
+  corpState: StrippedState,
+  _runnerState: StrippedState,
+): StrippedState {
   return { ...stripped, corp: corpState.corp, runner: corpState.runner };
 }
 
 export function stripForRunnerSpect(
-  stripped: any,
-  corpState: any,
-  runnerState: any,
-): any {
+  stripped: StrippedState,
+  _corpState: StrippedState,
+  runnerState: StrippedState,
+): StrippedState {
   return { ...stripped, corp: runnerState.corp, runner: runnerState.runner };
 }
 
-function pickSideLog(log: any[], side: string): any[] {
+type LogEntry = JsonLike & { public?: unknown };
+
+function pickSideLog(log: LogEntry[] | unknown, side: string): unknown[] {
   return (Array.isArray(log) ? log : [])
-    .map((entry) => entry?.[side] ?? entry?.public)
-    .filter((x) => x != null);
+    .map((entry: LogEntry) => entry?.[side] ?? entry?.public)
+    .filter((x: unknown) => x != null);
 }
 
 export interface PublicStates {
-  "corp-state": any;
-  "runner-state": any;
-  "spect-state": any;
-  "corp-spect-state": any;
-  "runner-spect-state": any;
-  "hist-state": any;
+  "corp-state": StrippedState;
+  "runner-state": StrippedState;
+  "spect-state"?: StrippedState;
+  "corp-spect-state"?: StrippedState;
+  "runner-spect-state"?: StrippedState;
+  "hist-state": StrippedState;
 }
 
 /**
@@ -894,15 +975,15 @@ export function publicStates(
   const stripped = stripState(state);
   const corpState = (() => {
     const s = stateSummary(stripped, state, "corp");
-    return { ...s, log: pickSideLog((s as any).log, "corp") };
+    return { ...s, log: pickSideLog(s.log, "corp") };
   })();
   const runnerState = (() => {
     const s = stateSummary(stripped, state, "runner");
-    return { ...s, log: pickSideLog((s as any).log, "runner") };
+    return { ...s, log: pickSideLog(s.log, "runner") };
   })();
   const replayState = (() => {
     const s = stripForReplay(stripped, corpState, runnerState);
-    return { ...s, log: pickSideLog((s as any).log, "public") };
+    return { ...s, log: pickSideLog(s.log, "public") };
   })();
 
   return {
@@ -925,18 +1006,21 @@ export function publicStates(
 // differ.diff: returns [updates, deletions] tuple
 // ---------------------------------------------------------------------------
 
-type DifferTuple = [Record<string, any>, Record<string, any>];
+type DifferTuple = [Record<string, unknown>, Record<string, unknown>];
 
-function isPlainObject(v: any): boolean {
-  return v && typeof v === "object" && !Array.isArray(v);
+function isPlainObject(v: unknown): v is JsonLike {
+  return !!v && typeof v === "object" && !Array.isArray(v);
 }
 
 /** Minimal port of differ.core/diff for plain JSON-like maps. */
-export function differDiff(a: any, b: any): DifferTuple {
-  const updates: Record<string, any> = {};
-  const deletions: Record<string, any> = {};
+export function differDiff(
+  a: unknown,
+  b: unknown,
+): DifferTuple {
+  const updates: Record<string, unknown> = {};
+  const deletions: Record<string, unknown> = {};
   if (!isPlainObject(a) || !isPlainObject(b)) {
-    return [b, {}];
+    return [b as Record<string, unknown>, {}];
   }
   for (const k of Object.keys(b)) {
     if (!(k in a)) {
@@ -962,14 +1046,14 @@ export function differDiff(a: any, b: any): DifferTuple {
 // ---------------------------------------------------------------------------
 
 function fakeLogDiff(
-  oldS: any,
-  newS: any,
-): [Record<string, any>, Record<string, any>] {
-  const oldLog = (oldS?.log ?? []) as any[];
-  const newLog = (newS?.log ?? []) as any[];
+  oldS: { log?: unknown[] } | null | undefined,
+  newS: { log?: unknown[] } | null | undefined,
+): DifferTuple {
+  const oldLog = oldS?.log ?? [];
+  const newLog = newS?.log ?? [];
   const changes = newLog.slice(oldLog.length);
   if (changes.length) {
-    const out: any[] = [];
+    const out: unknown[] = [];
     for (const c of changes) out.push("+", c);
     return [{ log: out }, {}];
   }
@@ -977,26 +1061,33 @@ function fakeLogDiff(
 }
 
 function getMessageDiff(
-  oldState: any,
-  newState: GameState | null,
+  oldState: JsonLike | null | undefined,
+  newState: JsonLike | GameState | null,
   side: string,
-): [Record<string, any>, Record<string, any>] {
-  const oldMessages = { log: pickSideLog(oldState?.log ?? [], side) };
-  const newMessages = { log: pickSideLog((newState as any)?.log ?? [], side) };
+): DifferTuple {
+  const oldMessages = {
+    log: pickSideLog((oldState?.log as LogEntry[] | undefined) ?? [], side),
+  };
+  const newMessages = {
+    log: pickSideLog(
+      ((newState as unknown as JsonLike)?.log as LogEntry[] | undefined) ?? [],
+      side,
+    ),
+  };
   return fakeLogDiff(oldMessages, newMessages);
 }
 
 function diffAndPatchLog(
-  oldState: any,
-  newState: any,
-  messageDiff: [Record<string, any>, Record<string, any>],
+  oldState: JsonLike | null | undefined,
+  newState: JsonLike | null | undefined,
+  messageDiff: DifferTuple,
 ): DifferTuple {
-  const a = { ...(oldState ?? {}) };
-  const b = { ...(newState ?? {}) };
+  const a: JsonLike = { ...(oldState ?? {}) };
+  const b: JsonLike = { ...(newState ?? {}) };
   delete a.log;
   delete b.log;
   const baseDiff = differDiff(a, b);
-  const logDiff = messageDiff[0]?.log;
+  const logDiff = (messageDiff[0] as JsonLike)?.log;
   if (logDiff) {
     baseDiff[0] = { ...baseDiff[0], log: logDiff };
   }
@@ -1013,19 +1104,14 @@ export interface PublicDiffs {
 }
 
 export function publicDiffs(
-  oldState: any,
+  oldState: GameState | null | undefined,
   newState: GameState,
   spectators: boolean,
   corpSpectators: boolean,
   runnerSpectators: boolean,
 ): PublicDiffs {
   const oldStates = oldState
-    ? publicStates(
-        oldState as GameState,
-        spectators,
-        corpSpectators,
-        runnerSpectators,
-      )
+    ? publicStates(oldState, spectators, corpSpectators, runnerSpectators)
     : ({} as Partial<PublicStates>);
   const newStates = publicStates(
     newState,
@@ -1034,9 +1120,9 @@ export function publicDiffs(
     runnerSpectators,
   );
 
-  const runnerMsgDiff = getMessageDiff(oldState, newState, "runner");
-  const corpMsgDiff = getMessageDiff(oldState, newState, "corp");
-  const publicMsgDiff = getMessageDiff(oldState, newState, "public");
+  const runnerMsgDiff = getMessageDiff(oldState as unknown as JsonLike, newState as unknown as JsonLike, "runner");
+  const corpMsgDiff = getMessageDiff(oldState as unknown as JsonLike, newState as unknown as JsonLike, "corp");
+  const publicMsgDiff = getMessageDiff(oldState as unknown as JsonLike, newState as unknown as JsonLike, "public");
 
   return {
     "runner-diff": diffAndPatchLog(
@@ -1079,18 +1165,21 @@ export function publicDiffs(
 }
 
 export interface MessageDiffs {
-  "runner-diff": [Record<string, any>, Record<string, any>];
-  "corp-diff": [Record<string, any>, Record<string, any>];
-  "spect-diff": [Record<string, any>, Record<string, any>];
-  "runner-spect-diff": [Record<string, any>, Record<string, any>];
-  "corp-spect-diff": [Record<string, any>, Record<string, any>];
-  "hist-diff": [Record<string, any>, Record<string, any>];
+  "runner-diff": DifferTuple;
+  "corp-diff": DifferTuple;
+  "spect-diff": DifferTuple;
+  "runner-spect-diff": DifferTuple;
+  "corp-spect-diff": DifferTuple;
+  "hist-diff": DifferTuple;
 }
 
-export function messageDiffs(oldState: any, newState: GameState): MessageDiffs {
-  const runnerDiff = getMessageDiff(oldState, newState, "runner");
-  const corpDiff = getMessageDiff(oldState, newState, "corp");
-  const publicDiff = getMessageDiff(oldState, newState, "public");
+export function messageDiffs(
+  oldState: GameState | null | undefined,
+  newState: GameState,
+): MessageDiffs {
+  const runnerDiff = getMessageDiff(oldState as unknown as JsonLike, newState as unknown as JsonLike, "runner");
+  const corpDiff = getMessageDiff(oldState as unknown as JsonLike, newState as unknown as JsonLike, "corp");
+  const publicDiff = getMessageDiff(oldState as unknown as JsonLike, newState as unknown as JsonLike, "public");
   return {
     "runner-diff": runnerDiff,
     "corp-diff": corpDiff,

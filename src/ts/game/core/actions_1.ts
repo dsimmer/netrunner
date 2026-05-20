@@ -1,7 +1,7 @@
 // Player-initiated actions: ability play, card movement, advance, score, etc.
 // Mirrors: src/clj/game/core/actions.clj
 
-import type { GameState, Prompt } from "./state";
+import type { GameState, Prompt, ChoicesMap, Corp, Runner } from "./state";
 import { CORP_SIDE, RUNNER_SIDE, getPlayer, getSidePrompt } from "./state";
 import type { Card } from "./card";
 import {
@@ -49,7 +49,7 @@ import {
   resolveUnbrokenSubsEx as resolveUnbrokenSubs,
   substituteXCreditCosts,
 } from "./ice";
-const breakSubsEventContext: any = (..._a: any[]) => undefined;
+const breakSubsEventContext: (...args: unknown[]) => undefined = (..._a: unknown[]) => undefined;
 import { cardInit } from "./initializing";
 import { move, trash } from "./moving";
 import { buildSpendMsg, canPay, mergeCosts, buildCostString } from "./payment";
@@ -97,7 +97,7 @@ export function makeAbilityEID(state: GameState, card: Card | null): EID {
 }
 
 /** Returns the side player object (typed loose for ad-hoc fields). */
-export function side_(state: GameState, side: string): any {
+export function side_(state: GameState, side: string): Corp | Runner {
   return getPlayer(state, side);
 }
 
@@ -112,8 +112,8 @@ function sidePrompts(state: GameState, side: string): Prompt[] {
 }
 
 /** Returns the side's selected list (selection prompts). */
-function sideSelected(state: GameState, side: string): any[] {
-  const p = side_(state, side);
+function sideSelected(state: GameState, side: string): unknown[] {
+  const p = side_(state, side) as (Corp | Runner) & { selected?: unknown[] };
   if (!p.selected) p.selected = [];
   return p.selected;
 }
@@ -125,13 +125,13 @@ function sideSelected(state: GameState, side: string): any[] {
 /** Returns the state without history-related keys. Mirrors `without-history`. */
 function withoutHistory(state: GameState): Record<string, unknown> {
   const { log, history, clickStates, turnState, paidAbilityState, ...rest } =
-    state as any;
+    state as GameState & Record<string, unknown>;
   return rest;
 }
 
 /** Mirrors `update-click-state`. */
 function updateClickState(state: GameState, ability: Ability): void {
-  if (!(ability as any).action) return;
+  if (!(ability as Ability & Record<string, unknown>).action) return;
   const snapshot = withoutHistory(state);
   const prev = (state.clickStates ?? []) as unknown[];
   state.clickStates = [...prev, snapshot].slice(-4);
@@ -139,7 +139,7 @@ function updateClickState(state: GameState, ability: Ability): void {
 
 /** Mirrors `update-paid-ability-state`. */
 function updatePaidAbilityState(state: GameState, ability: Ability): void {
-  if ((ability as any).action) {
+  if ((ability as Ability & Record<string, unknown>).action) {
     state.paidAbilityState = undefined;
   } else {
     state.paidAbilityState = withoutHistory(state);
@@ -229,7 +229,7 @@ export function doPlayAbility(
     canPay(state, side, useEid, card, card.title ?? "", cost)
   ) {
     updateHistory(state, ability);
-    if ((ability as any).action) {
+    if ((ability as Ability & Record<string, unknown>).action) {
       const strippedCard = {
         cid: card.cid,
         type: card.type,
@@ -239,18 +239,18 @@ export function doPlayAbility(
         state,
         [
           { asyncResult: "result" },
-          function (s: GameState, _e: EID, _b: any) {
+          function (s: GameState, _e: EID, _b: unknown) {
             wait_for(
               s,
               [
                 { asyncResult: "result" },
-                function (s2: GameState, _e2: EID, _b2: any) {
+                function (s2: GameState, _e2: EID, _b2: unknown) {
                   triggerEventSimult(
                     s2,
                     side,
                     useEid,
                     "action-resolved",
-                    {} as any,
+                    {},
                     { "ability-idx": abilityIdx, card: strippedCard },
                   );
                 },
@@ -272,7 +272,7 @@ export function doPlayAbility(
       );
     } else {
       // resolve-ability uses eid embedded in ability
-      const abilityWithEid: Ability = { ...ability, eid: useEid } as any;
+      const abilityWithEid: Ability = { ...ability, eid: useEid };
       resolveAbility(state, side, abilityWithEid, card, targets ?? []);
     }
   }
@@ -320,12 +320,12 @@ export function playAbility(
   const cardSide = toKeyword(card.side ?? "");
   const cannotPlay =
     card.disabled === true ||
-    ((ability as any).action && state.run != null) ||
+    ((ability as Ability & Record<string, unknown>).action && state.run != null) ||
     blockingPrompt ||
     cardSide !== side ||
     anyEffects(state, side, "prevent-paid-ability", (v) => v === true, card, [
-      ability as any,
-      abilityIdx as any,
+      ability as unknown as Card,
+      abilityIdx as unknown as Card,
     ]) ||
     isDisabledReg(state, card) != null;
 
@@ -357,7 +357,7 @@ export function expendAbility(
     const card = getCard(state, args.card);
     if (!card) return;
     const eid = makeAbilityEID(state, card);
-    const expendAb = expend((cardDef(card) as any).expend);
+    const expendAb = expend((cardDef(card) as Record<string, unknown>).expend as Ability | undefined);
     doPlayAbility(state, side, eid, {
       card,
       ability: expendAb,
@@ -382,25 +382,31 @@ export function flashback(
 ): void {
   const card = getCard(state, ctx.card);
   if (!card) return;
-  const flashbackCost = (cardDef(card) as any).flashback;
+  const flashbackCost = (cardDef(card) as Record<string, unknown>).flashback;
   const eid = makeAbilityEID(state, card);
   const cardWithFlag: Card = {
     ...card,
     "rfg-instead-of-trashing": true,
-  } as any;
+  };
   const ability: Ability = {
     async: true,
-    effect: function (state2: any, side2: any, eid2: any, _card: any, _targets: any) {
+    effect: function (
+      state2: GameState,
+      side2: string,
+      eid2: EID,
+      _card: Card | null,
+      _targets: unknown[],
+    ) {
       playInstant(
         state2,
         side2,
         eid2,
-        { ...cardWithFlag, "rfg-instead-of-trashing": true } as any,
-        { "base-cost": flashbackCost, "as-flashback": true } as any,
+        { ...cardWithFlag, "rfg-instead-of-trashing": true },
+        { "base-cost": flashbackCost, "as-flashback": true } as unknown as Parameters<typeof playInstant>[4],
       );
     },
-  } as any;
-  (ability as any).action = true;
+  };
+  (ability as Ability & Record<string, unknown>).action = true;
   doPlayAbility(state, side, eid, {
     card: cardWithFlag,
     ability,
@@ -418,8 +424,8 @@ export function play(
   const card = getCard(state, ctx.card);
   if (!card) return;
   if (getPromptType(state, side) != null) return;
-  if (side === CORP_SIDE && (state as any).corpPhase12) return;
-  if (side === RUNNER_SIDE && (state as any).runnerPhase12) return;
+  if (side === CORP_SIDE && state.corpPhase12) return;
+  if (side === RUNNER_SIDE && state.runnerPhase12) return;
 
   const context = { ...ctx, card };
   const t = card.type;
@@ -491,8 +497,8 @@ export function moveCard(
     opts?: Record<string, unknown>,
   ): unknown => move(state, s, cur, zoneTo, opts);
 
-  const cardPrompts = sidePrompts(state, side).filter((p) =>
-    sameCard((x: any) => x?.title, p.card as any, cur as any),
+  const cardPrompts = sidePrompts(state, side).filter((p: Prompt) =>
+    sameCard((x: Card) => x?.title, p.card as Card, cur as Card),
   );
 
   const logMove = (verb: string, ...text: string[]): void => {
@@ -554,8 +560,16 @@ function finishPrompt(
   prompt: Prompt | null,
   card: Card | null,
 ): boolean {
-  const endEffect =
-    (prompt as any)?.endEffect ?? (prompt as any)?.["end-effect"];
+  const p = prompt as Prompt & Record<string, unknown>;
+  const endEffect = (p?.endEffect ?? p?.["end-effect"]) as
+    | ((
+        state: GameState,
+        side: string,
+        eid: EID,
+        card: Card | null,
+        targets: unknown,
+      ) => void)
+    | undefined;
   if (endEffect) {
     endEffect(state, side, makeEID(state), card, null);
   }
@@ -580,12 +594,12 @@ function maybePay(
   side: string,
   eid: EID,
   card: Card | null,
-  choices: any,
+  choices: Prompt["choices"],
   choice: number,
 ): void {
   if (choices === "credit") {
-    const credit = (getPlayer(state, side) as any).credit ?? 0;
-    pay(state, side, eid, card, [c("credit", Math.min(choice, credit))] as any);
+    const credit = getPlayer(state, side).credit ?? 0;
+    pay(state, side, eid, card, [c("credit", Math.min(choice, credit))]);
   } else {
     effectCompleted(state, side, eid);
   }
@@ -615,12 +629,12 @@ export function resolveBadPubChoice(
       );
       return;
     }
-    const card = (prompt as any).card as Card | null;
-    const effect = (prompt as any).effect as
+    const card = (prompt as Prompt & Record<string, unknown>).card as Card | null;
+    const effect = (prompt as Prompt & Record<string, unknown>).effect as
       | ((arg: unknown) => void)
       | undefined;
-    (side_(state, side) as any).shiftKeySelect = shiftKeyHeld;
-    if ((prompt as any)["offer-bad-pub?"] || (prompt as any).offerBadPub) {
+    (side_(state, side) as Corp & Runner & Record<string, unknown>).shiftKeySelect = shiftKeyHeld;
+    if ((prompt as Prompt & Record<string, unknown>)["offer-bad-pub?"] || (prompt as Prompt & Record<string, unknown>).offerBadPub) {
       removeFromPromptQueue(state, side, prompt);
       if (effect) effect("bad-publicity");
       finishPrompt(state, side, prompt, card);
@@ -650,41 +664,44 @@ export function resolveBadPubChoice(
 export function resolvePrompt(
   state: GameState,
   side: string,
-  args: { choice: any; eid: EID } & Record<string, unknown>,
+  args: { choice: unknown; eid: EID } & Record<string, unknown>,
 ): void {
   const { choice, eid } = args;
   const prompt =
     firstPromptByEid(state, side, eid) ?? sidePrompts(state, side)[0] ?? null;
   if (!prompt) return;
-  const effect = (prompt as any).effect as ((arg: unknown) => void) | undefined;
-  const card = getCard(state, (prompt as any).card as Card | null);
-  const choices = (prompt as any).choices;
+  const effect = (prompt as Prompt & Record<string, unknown>).effect as ((arg: unknown) => void) | undefined;
+  const card = getCard(state, (prompt as Prompt & Record<string, unknown>).card as Card | null);
+  const choices = (prompt as Prompt & Record<string, unknown>).choices;
   const promptType =
-    (prompt as any).promptType ?? (prompt as any)["prompt-type"];
+    (prompt as Prompt & Record<string, unknown>).promptType ?? (prompt as Prompt & Record<string, unknown>)["prompt-type"];
+
+  const choicesMap =
+    choices && typeof choices === "object" && !Array.isArray(choices)
+      ? (choices as ChoicesMap)
+      : null;
 
   // Integer prompt
   if (
     choices === "credit" ||
     promptType === "trace" ||
-    (choices &&
-      typeof choices === "object" &&
-      (choices.counter || choices.number))
+    (choicesMap && (choicesMap.counter || choicesMap.number))
   ) {
     if (typeof choice === "number") {
       removeFromPromptQueue(state, side, prompt);
-      const newEid = makeEIDFrom(state, (prompt as any).eid as EID);
+      const newEid = makeEIDFrom(state, (prompt as Prompt & Record<string, unknown>).eid as EID);
       wait_for(
         state,
         [
           { asyncResult: "result" },
-          function (s: GameState, _e: EID, _b: any) {
-            if (choices && typeof choices === "object" && choices.counter) {
+          function (s: GameState, _e: EID, _b: unknown) {
+            if (choicesMap && choicesMap.counter) {
               addCounter(
                 s,
                 side,
                 makeEIDFrom(s, newEid),
                 card,
-                choices.counter,
+                choicesMap.counter,
                 -choice,
               );
             }
@@ -702,15 +719,21 @@ export function resolvePrompt(
   }
 
   // Card-title autocomplete prompt
-  if (choices && typeof choices === "object" && choices["card-title"]) {
+  if (choicesMap && choicesMap["card-title"]) {
     if (typeof choice === "string") {
-      const titleFn = choices["card-title"];
+      const titleFn = choicesMap["card-title"] as (
+        state: GameState,
+        side: string,
+        eid: EID,
+        card: Card | null,
+        targets: Card[],
+      ) => unknown;
       const found = serverCards().find(
-        (sc: any) =>
+        (sc) =>
           choice.toLowerCase() === ((sc.title as string) ?? "").toLowerCase(),
       );
       if (found) {
-        if (titleFn(state, side, makeEID(state), card, [found])) {
+        if (titleFn(state, side, makeEID(state), card, [found as unknown as Card])) {
           removeFromPromptQueue(state, side, prompt);
           if (effect) effect(choice ?? card);
           finishPrompt(state, side, prompt, card);
@@ -732,20 +755,20 @@ export function resolvePrompt(
   }
 
   // Generic uuid choice
-  if (choice && typeof choice === "object" && (choice as any).uuid) {
-    const uuid = (choice as any).uuid;
-    const list: any[] = Array.isArray(choices) ? choices : [];
+  if (choice && typeof choice === "object" && (choice as Record<string, unknown>).uuid) {
+    const uuid = (choice as Record<string, unknown>).uuid;
+    const list: Record<string, unknown>[] = Array.isArray(choices) ? (choices as unknown as Record<string, unknown>[]) : [];
     const match = list.find((o) => o.uuid === uuid);
     if (match) {
       removeFromPromptQueue(state, side, prompt);
       if (match.value === "Cancel") {
-        const cancel = (prompt as any).cancel as
+        const cancel = (prompt as Prompt & Record<string, unknown>).cancel as
           | ((arg: unknown) => void)
           | undefined;
         if (cancel) {
           cancel(choice);
-        } else if ((prompt as any).eid) {
-          effectCompleted(state, side, (prompt as any).eid as EID);
+        } else if ((prompt as Prompt & Record<string, unknown>).eid) {
+          effectCompleted(state, side, (prompt as Prompt & Record<string, unknown>).eid as EID);
         }
         finishPrompt(state, side, prompt, card);
       } else {
@@ -764,17 +787,22 @@ export function resolvePrompt(
 // ---------------------------------------------------------------------------
 
 /** Mirrors `update-first` (unique helper for update-in selected list). */
+type Selection = {
+  ability?: { eid?: { id?: unknown; eid?: unknown } };
+  cards?: Card[];
+} & Record<string, unknown>;
+
 function updateFirst(
-  selection: any[],
+  selection: Selection[],
   target: Card,
   eid: EID | null,
   c2: Card,
-): any[] {
+): Selection[] {
   return selection.map((sObj) => {
     const abEid = sObj?.ability?.eid?.id ?? sObj?.ability?.eid?.eid;
     if (eid && abEid === eid.id) {
       const cards: Card[] = sObj.cards ?? [];
-      const newCards = (c2 as any).selected
+      const newCards = (c2 as Card).selected
         ? [...cards, c2]
         : removeOnce((x: Card) => sameCard(x, target), cards);
       return { ...sObj, cards: newCards };
@@ -806,35 +834,35 @@ export function select(
     sideSelected(state, side)[0] ??
     null;
   if (!prompt) return;
-  const ability = (prompt as any).ability as Ability | undefined;
+  const ability = (prompt as Prompt & Record<string, unknown>).ability as Ability | undefined;
   const promptCard =
-    ability && (ability as any).card
-      ? getCard(state, (ability as any).card)
+    ability && (ability as Ability & Record<string, unknown>).card
+      ? getCard(state, (ability as Ability & Record<string, unknown>).card)
       : null;
-  const cardReq = (prompt as any).req as Function | undefined;
-  const cardCondition = (prompt as any).card as
+  const cardReq = (prompt as Prompt & Record<string, unknown>).req as Function | undefined;
+  const cardCondition = (prompt as Prompt & Record<string, unknown>).card as
     | ((c: Card) => boolean)
     | undefined;
-  const cid = (prompt as any)["not-self"] ?? (prompt as any).notSelf;
+  const cid = (prompt as Prompt & Record<string, unknown>)["not-self"] ?? (prompt as Prompt & Record<string, unknown>).notSelf;
 
-  (side_(state, side) as any).shiftKeySelect = shiftKeyHeld;
+  (side_(state, side) as Corp & Runner & Record<string, unknown>).shiftKeySelect = shiftKeyHeld;
 
   const meets =
     target.cid !== cid &&
     (cardCondition
       ? cardCondition(target)
       : cardReq
-        ? cardReq(state, side, (ability as any).eid, promptCard, [target])
+        ? cardReq(state, side, (ability as Ability & Record<string, unknown>).eid, promptCard, [target])
         : true);
   if (!meets) return;
 
   const updated: Card = {
     ...target,
-    selected: !(target as any).selected,
-  } as any;
-  (update as any)(state, side, (x: Card) => x, updated);
-  (side_(state, side) as any).selected = updateFirst(
-    sideSelected(state, side),
+    selected: !((target as Card & { selected?: boolean })).selected,
+  };
+  update(state, side, updated);
+  (side_(state, side) as Corp & Runner & Record<string, unknown>).selected = updateFirst(
+    sideSelected(state, side) as Selection[],
     target,
     eid,
     updated,
@@ -847,19 +875,19 @@ export function select(
   const selectPrompt =
     firstPromptByEid(state, side, eid, "select") ??
     sidePrompts(state, side).find(
-      (p) => ((p as any).promptType ?? (p as any)["prompt-type"]) === "select",
+      (p) => (((p as Prompt & Record<string, unknown>)).promptType ?? ((p as Prompt & Record<string, unknown>))["prompt-type"]) === "select",
     ) ??
     null;
 
-  const selectedCount = (selected as any)?.cards?.length ?? 0;
-  const selMax = (selected as any)?.max ?? 1;
+  const selectedCount = ((selected as { cards?: unknown[]; max?: number } | undefined))?.cards?.length ?? 0;
+  const selMax = ((selected as { cards?: unknown[]; max?: number } | undefined))?.max ?? 1;
   if (selectedCount === selMax) {
     resolveSelect(
       state,
       side,
       eid,
       promptCard,
-      selectPrompt ? { cancel: (selectPrompt as any).cancel } : {},
+      selectPrompt ? { cancel: ((selectPrompt as Prompt & Record<string, unknown>)).cancel } : {},
       update,
       resolveAbility,
     );
@@ -889,26 +917,27 @@ export function playAutoPump(
   const currentIce = getCurrentIce(state);
 
   const canPump = (ability: Ability): boolean => {
-    if (!(ability as any).pump) return false;
-    return ((ability as any).req as Function)(state, side, eid, card, null);
+    if (!(ability as Ability & Record<string, unknown>).pump) return false;
+    return ((ability as Ability & Record<string, unknown>).req as Function)(state, side, eid, card, null);
   };
 
-  const candidates = ((cardDef(card) as any).abilities ?? [])
-    .filter((a: Ability) => !(a as any)["auto-pump-ignore"])
-    .flatMap((a: Ability) => {
+  const abilities = ((cardDef(card) as Record<string, unknown>).abilities ?? []) as Ability[];
+  const candidates: [Ability, CostData[]][] = abilities
+    .filter((a) => !(a as Ability & Record<string, unknown>)["auto-pump-ignore"])
+    .flatMap((a) => {
       if (!canPump(a)) return [];
-      const cost = cardAbilityCost(state, side, a, card, currentIce as any);
+      const cost = cardAbilityCost(state, side, a, card, [currentIce as Card]);
       return [[a, cost] as [Ability, CostData[]]];
     })
-    .filter(([a]: [Ability, CostData[]]) => !(a as any)["auto-pump-ignore"]);
+    .filter(([a]) => !(a as Ability & Record<string, unknown>)["auto-pump-ignore"]);
 
   if (candidates.length === 0) return;
   candidates.sort(
-    (a: any, b: any) =>
-      ((a[0] as any)["auto-pump-sort"] ?? 0) -
-      ((b[0] as any)["auto-pump-sort"] ?? 0),
+    (a, b) =>
+      (((a[0] as Ability & Record<string, unknown>)["auto-pump-sort"] as number) ?? 0) -
+      (((b[0] as Ability & Record<string, unknown>)["auto-pump-sort"] as number) ?? 0),
   );
-  const best = candidates.reduce((acc: any, cur: any) =>
+  const best = candidates.reduce((acc, cur) =>
     sumCostAmount(cur[1]) < sumCostAmount(acc[1]) ? cur : acc,
   );
   const [pumpAbility, pumpCost] = best;
@@ -934,17 +963,17 @@ export function playAutoPump(
       state,
       [
         { asyncResult: "result" },
-        function (s: GameState, _e: EID, binds: any) {
+        function (s: GameState, _e: EID, binds: { asyncResult?: unknown }) {
           for (let i = 0; i < timesPump; i++) {
             const ab = { ...pumpAbility };
-            delete (ab as any).cost;
-            delete (ab as any).msg;
-            resolveAbility(s, side, ab, getCard(s, card), null as any);
+            delete (ab as Ability & Record<string, unknown>).cost;
+            delete (ab as Ability & Record<string, unknown>).msg;
+            resolveAbility(s, side, ab, getCard(s, card), null);
           }
           systemMsg(
             s,
             side,
-            `${buildSpendMsg((binds.asyncResult as any)?.msg, "increase")}the strength of ${card.title} to ${getStrength(getCard(s, card))}`,
+            `${buildSpendMsg((binds.asyncResult as { msg?: string })?.msg, "increase")}the strength of ${card.title} to ${getStrength(getCard(s, card))}`,
           );
           effectCompleted(s, side, eid);
         },
@@ -959,12 +988,18 @@ export function playAutoPump(
 export function playHeapBreakerAutoPumpAndBreakImpl(
   state: GameState,
   side: string,
-  subGroupsToBreak: any[][],
+  subGroupsToBreak: unknown[][],
   currentIce: Card,
 ): Ability {
   return {
     async: true,
-    effect: function (s: any, _side: any, eid: any, card: any, _targets: any) {
+    effect: function (
+      s: GameState,
+      _side: string,
+      eid: EID,
+      card: Card | null,
+      _targets: unknown[],
+    ) {
       const subsToBreak = subGroupsToBreak[0];
       const rest = subGroupsToBreak.slice(1);
       for (const sub of subsToBreak) {
@@ -972,7 +1007,7 @@ export function playHeapBreakerAutoPumpAndBreakImpl(
       }
       const ice = getCard(s, currentIce);
       const onBreakSubs = ice
-        ? (cardDef(currentIce) as any)["on-break-subs"]
+        ? ((cardDef(currentIce) as Record<string, unknown>))["on-break-subs"]
         : null;
       const eventArgs = onBreakSubs
         ? { "card-abilities": abilityAsHandler(ice as Card, onBreakSubs) }
@@ -981,7 +1016,7 @@ export function playHeapBreakerAutoPumpAndBreakImpl(
         s,
         [
           { asyncResult: "result" },
-          function (s2: GameState, _e2: EID, _b: any) {
+          function (s2: GameState, _e2: EID, _b: unknown) {
             if (rest.length === 0) {
               effectCompleted(s2, side, eid);
             } else {
@@ -990,7 +1025,7 @@ export function playHeapBreakerAutoPumpAndBreakImpl(
                 side,
                 playHeapBreakerAutoPumpAndBreakImpl(s2, side, rest, currentIce),
                 card,
-                null as any,
+                null,
               );
             }
           },

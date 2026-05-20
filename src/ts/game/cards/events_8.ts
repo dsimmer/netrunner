@@ -6,7 +6,7 @@
  * Each card has properties like makes-run, on-play, events, static-abilities, etc.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreAgendas from '../core/agendas';
 import * as coreBadPublicity from '../core/bad_publicity';
@@ -60,8 +60,6 @@ import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 
 // Import defcard helper - each card is a card definition object
 import { defcard } from '../core/def_helpers';
-import type { CardDef } from '../../types';
-
 import { drainCredits, makeIcon, runAnyServerAbility, runRemoteServerAbility, runServerAbility, runServerFromChoicesAbility } from './events_1';
 
 // __cardScopeShim: 'state', 'target', etc. are referenced at CardDef literal
@@ -601,7 +599,7 @@ export const trickShot: CardDef = {
       silent: true,
       req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> { const ctx: any = ((targets as any[])?.[0] as any)?.context ?? (targets as any[])?.[0];
         const c = coreCard.getCard(state, card);
-        return ctx.server === 'rd' && forms.thisCardRun && c?.special?.runEid?.eid === state.run?.eid?.eid;
+        return ctx.server === 'rd' && forms.thisCardRun && c?.special?.runEid?.eid === (state as any).run?.eid?.eid;
       }),
       msg: 'place 2 [Credits] on itself and access 1 additional card from R&D',
       async: true,

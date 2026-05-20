@@ -127,8 +127,8 @@ function resolveDamage(
 
         const hand = s.runner.hand;
         const chosenCards = getChosenDamage(s);
-        const chosenCids = new Set(chosenCards.map((c) => c.cid));
-        const leftovers = hand.filter((c) => !chosenCids.has(c.cid));
+        const chosenCids = new Set(chosenCards.map((c: any) => c.cid));
+        const leftovers = hand.filter((c: any) => !chosenCids.has(c.cid));
         const shuffled = [...leftovers].sort(() => Math.random() - 0.5);
         const cardsTrashed = [
           ...chosenCards,

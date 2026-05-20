@@ -11,8 +11,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { Ability, NumberFn } from "./types.ts";
-
+import type { Ability, Cost, NumberFn } from "./types.ts";
 import {
   badPublicityAvailable,
   gainBadPublicity,
@@ -105,7 +104,7 @@ handlerDispatch.set(
     const shuffled = [...hand].sort(() => Math.random() - 0.5);
     const toTrash = shuffled
       .slice(0, value(c))
-      .map((cd) => ({ ...cd, seen: true }));
+      .map((cd: any) => ({ ...cd, seen: true }));
     const handName = side === "corp" ? "HQ" : "the grip";
     waitFor(
       state,
@@ -186,7 +185,7 @@ function registerTrashTypeFromHand(
   );
   payableDispatch.set(type, (c, state) => {
     return (
-      (((state as any).runner?.hand ?? []) as Card[]).filter(pred).length -
+      ((state.runner?.hand ?? []) as Card[]).filter(pred).length -
         value(c) >=
       0
     );
@@ -273,7 +272,7 @@ function registerDamage(
   valueDispatch.set(type, (c) => c.amount);
   labelDispatch.set(type, (c) => `suffer ${value(c)} ${displayName}`);
   payableDispatch.set(type, (c, state) => {
-    return value(c) <= (((state as any).runner?.hand ?? []) as Card[]).length;
+    return value(c) <= ((state.runner?.hand ?? []) as Card[]).length;
   });
   handlerDispatch.set(type, (c, state, side, eid, card) => {
     waitFor(
@@ -335,7 +334,7 @@ handlerDispatch.set("shuffle-installed-to-stack", (c, state, side, eid) => {
         targets: Card[],
       ) => {
         const moved = targets
-          .map((t) => move(s, sd, t, "deck", { shuffled: true }))
+          .map((t: any) => move(s, sd, t, "deck", { shuffled: true }))
           .filter((x): x is Card => !!x);
         shuffleDeck(s, sd);
         completeWithResult(s, sd, ei, {
@@ -388,10 +387,10 @@ handlerDispatch.set(
           targets: Card[],
         ) => {
           const moved = targets
-            .map((t) => move(s, sd, t, "deck"))
+            .map((t: any) => move(s, sd, t, "deck"))
             .filter((x): x is Card => !!x);
           completeWithResult(s, sd, ei, {
-            "paid/msg": `adds ${quantify(moved.length, "installed card")} to the bottom of ${deckName} (${enumerateStr(targets.map((t) => cardStr(s, t)))})`,
+            "paid/msg": `adds ${quantify(moved.length, "installed card")} to the bottom of ${deckName} (${enumerateStr(targets.map((t: any) => cardStr(s, t)))})`,
             "paid/type": "add-installed-to-bottom-of-deck",
             "paid/value": moved.length,
             "paid/targets": moved,
@@ -419,7 +418,7 @@ payableDispatch.set(
     const hosted = ((getCard(state, card) as any)?.hosted ?? []) as Card[];
     return (
       value(c) <=
-      hosted.filter((x) => !isFacedown(x) && x.title === "Matryoshka").length
+      hosted.filter((x: any) => !isFacedown(x) && x.title === "Matryoshka").length
     );
   },
 );
@@ -481,7 +480,7 @@ labelDispatch.set(
 );
 payableDispatch.set("hosted-to-hq", (c, state, _side, _eid, card) => {
   const hosted = ((getCard(state, card) as any)?.hosted ?? []) as Card[];
-  return hosted.filter((x) => isCorp(x)).length - value(c) >= 0;
+  return hosted.filter((x: any) => isCorp(x)).length - value(c) >= 0;
 });
 handlerDispatch.set("hosted-to-hq", (c, state, side, eid, card) => {
   continue_ability(
@@ -512,7 +511,7 @@ handlerDispatch.set("hosted-to-hq", (c, state, side, eid, card) => {
         targets: Card[],
       ) => {
         const moved = targets
-          .map((t) => move(s, "corp", t, "hand"))
+          .map((t: any) => move(s, "corp", t, "hand"))
           .filter((x): x is Card => !!x);
         completeWithResult(s, sd, ei, {
           "paid/msg": `adds ${quantify(moved.length, "hosted card")} to HQ (${enumerateCards(moved, "sorted")})`,
@@ -534,9 +533,9 @@ handlerDispatch.set("hosted-to-hq", (c, state, side, eid, card) => {
 valueDispatch.set("any-agenda-counter", (c) => c.amount);
 labelDispatch.set("any-agenda-counter", () => "any agenda counter");
 payableDispatch.set("any-agenda-counter", (c, state) => {
-  const total = (((state as any).corp?.scored ?? []) as Card[])
-    .map((x) => getCounter(x, "agenda"))
-    .reduce((a, b) => a + b, 0);
+  const total = ((state.corp?.scored ?? []) as Card[])
+    .map((x: any) => getCounter(x, "agenda"))
+    .reduce((a: any, b: any) => a + b, 0);
   return total - value(c) >= 0;
 });
 handlerDispatch.set("any-agenda-counter", (c, state, side, eid) => {
@@ -776,14 +775,14 @@ labelDispatch.set("virus", (c) =>
 );
 payableDispatch.set("virus", (c, state, _side, _eid, card) => {
   const hivemind = allActiveInstalled(state, "runner")
-    .filter((x) => x.title === "Hivemind")
-    .reduce((sum, x) => sum + getCounter(x, "virus"), 0);
+    .filter((x: any) => x.title === "Hivemind")
+    .reduce((sum: any, x: any) => sum + getCounter(x, "virus"), 0);
   return getCounter(card, "virus") + hivemind - value(c) >= 0;
 });
 handlerDispatch.set("virus", (c, state, side, eid, card) => {
   const hivemindTotal = allActiveInstalled(state, "runner")
-    .filter((x) => x.title === "Hivemind")
-    .reduce((sum, x) => sum + getCounter(x, "virus"), 0);
+    .filter((x: any) => x.title === "Hivemind")
+    .reduce((sum: any, x: any) => sum + getCounter(x, "virus"), 0);
   if (hivemindTotal > 0) {
     waitFor(
       state,
@@ -832,7 +831,7 @@ handlerDispatch.set("virus", (c, state, side, eid, card) => {
 valueDispatch.set("host-bad-pub", (c) => c.amount);
 labelDispatch.set("host-bad-pub", (c) => `host ${value(c)} bad publicity`);
 payableDispatch.set("host-bad-pub", (c, state) => {
-  return ((state as any).corp?.["bad-publicity"]?.base ?? 0) - value(c) >= 0;
+  return (state.corp?.["bad-publicity"]?.base ?? 0) - value(c) >= 0;
 });
 handlerDispatch.set("host-bad-pub", (c, state, side, eid, card) => {
   waitFor(

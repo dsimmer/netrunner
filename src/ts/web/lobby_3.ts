@@ -25,6 +25,8 @@ import { gameFinished, updateDeckStats, updateGameStats, pushStatsUpdate } from 
 
 import { broadcastLobbyList, filterLobbyList, getPlayersAndSpectators, lobbyThread, logDelay, sendLobbyState, sendLobbyTing } from './lobby_1';
 import { checkPassword, closeLobby, firstPlayerInLobby, handleSetLastUpdate, inLobby, playerInLobby, sendLobbyList, sendMessage } from './lobby_2';
+import type { Side } from '../types';
+
 
 /**
  * Check if user is allowed in a lobby (not blocked).

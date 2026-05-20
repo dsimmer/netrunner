@@ -134,7 +134,7 @@ export function playHeapBreakerAutoPumpAndBreak(
       ? Math.max(0, ciStrength - cardStrength)
       : null;
   const subroutines: any[] = (currentIce as any).subroutines ?? [];
-  const unbrokenSubs = subroutines.filter((s) => !s.broken).length;
+  const unbrokenSubs = subroutines.filter((s: any) => !s.broken).length;
   const xNumber =
     strengthDiff != null && unbrokenSubs != null
       ? Math.max(strengthDiff, unbrokenSubs)
@@ -193,9 +193,9 @@ export function playHeapBreakerAutoPumpAndBreak(
           typeof subsBrokenAtOnce === "number" && subsBrokenAtOnce > 0
             ? partition(
                 subsBrokenAtOnce,
-                subroutines.filter((x) => !x.broken),
+                subroutines.filter((x: any) => !x.broken),
               )
-            : [subroutines.filter((x) => !x.broken)];
+            : [subroutines.filter((x: any) => !x.broken)];
         wait_for(
           s,
           [
@@ -331,7 +331,7 @@ export function playAutoPumpAndBreak(
   if (!baseCard) return;
   const baseAbilities: Ability[] = ((cardDef(baseCard) as any).abilities ??
     []) as Ability[];
-  if (baseAbilities.some((a) => (a as any)["heap-breaker-break"])) {
+  if (baseAbilities.some((a: any) => (a as any)["heap-breaker-break"])) {
     playHeapBreakerAutoPumpAndBreak(state, side, args);
     return;
   }
@@ -347,8 +347,8 @@ export function playAutoPumpAndBreak(
     return ((ability as any).req as Function)(state, side, eid, card, null);
   };
   const pumpCandidates = baseAbilities
-    .filter((a) => !(a as any)["auto-pump-ignore"])
-    .flatMap((a) => {
+    .filter((a: any) => !(a as any)["auto-pump-ignore"])
+    .flatMap((a: any) => {
       if (!canPump(a)) return [];
       return [
         [a, cardAbilityCost(state, side, a, card, currentIce as any)] as [
@@ -407,7 +407,7 @@ export function playAutoPumpAndBreak(
       null,
     );
   };
-  const breakCandidates = baseAbilities.flatMap((a) => {
+  const breakCandidates = baseAbilities.flatMap((a: any) => {
     if (!canBreak(a)) return [];
     return [
       [a, breakSubAbilityCost(state, side, a, card, currentIce ? [currentIce] : [])] as [
@@ -436,7 +436,7 @@ export function playAutoPumpAndBreak(
     : null;
   const subroutines: any[] = (currentIce as any).subroutines ?? [];
   const unbrokenSubsCount =
-    subroutines.length > 0 ? subroutines.filter((s) => !s.broken).length : null;
+    subroutines.length > 0 ? subroutines.filter((s: any) => !s.broken).length : null;
   const someAlreadyBroken = unbrokenSubsCount !== subroutines.length;
   const timesBreak =
     unbrokenSubsCount != null && subsBrokenAtOnce != null
@@ -482,9 +482,9 @@ export function playAutoPumpAndBreak(
           (subsBrokenAtOnce as number) > 0
             ? partition(
                 subsBrokenAtOnce as number,
-                subroutines.filter((x) => !x.broken),
+                subroutines.filter((x: any) => !x.broken),
               )
-            : [subroutines.filter((x) => !x.broken)];
+            : [subroutines.filter((x: any) => !x.broken)];
         wait_for(
           s,
           [

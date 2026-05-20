@@ -91,7 +91,7 @@ function zoneCards(state: GameState, side: string, zone: Zone): Card[] {
 }
 
 function findCIDInSlice(cid: string, cards: Card[]): Card | null {
-  return cards.find((c) => c.cid === cid) ?? null;
+  return cards.find((c: any) => c.cid === cid) ?? null;
 }
 
 function searchHosted(root: Card | null, target: Card): Card | null {
@@ -158,7 +158,7 @@ export function findCID(cid: string, cards: Card[]): Card | null {
  * Mirrors: find-card in finding.clj
  */
 export function findCard(title: string, cards: Card[]): Card | null {
-  return cards.find((c) => c.title === title) ?? null;
+  return cards.find((c: any) => c.title === title) ?? null;
 }
 
 /**

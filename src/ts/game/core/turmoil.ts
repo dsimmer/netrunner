@@ -84,8 +84,8 @@ function setCards(): void {
 
   // identity-by-side
   const identityBySide: Record<string, Record<string, unknown>[]> = {
-    corp: allCards.filter((c) => identity(c as any) && corp(c as any)),
-    runner: allCards.filter((c) => identity(c as any) && runner(c as any)),
+    corp: allCards.filter((c: any) => identity(c as any) && corp(c as any)),
+    runner: allCards.filter((c: any) => identity(c as any) && runner(c as any)),
   };
 
   // program-by-icebreaker
@@ -115,11 +115,11 @@ function setCards(): void {
     const pred = typePredicates[key];
     if (filterByEconTypes.has(key)) {
       cardsByType[key] = {
-        economy: allCards.filter((c) => pred(c as any) && isEcon(c)),
-        regular: allCards.filter((c) => pred(c as any) && !isEcon(c)),
+        economy: allCards.filter((c: any) => pred(c as any) && isEcon(c)),
+        regular: allCards.filter((c: any) => pred(c as any) && !isEcon(c)),
       };
     } else {
-      cardsByType[key] = allCards.filter((c) => pred(c as any));
+      cardsByType[key] = allCards.filter((c: any) => pred(c as any));
     }
   }
 
@@ -257,7 +257,7 @@ function pickReplacementCard(
 function replaceHand(state: GameState, side: string): void {
   const player = getPlayer(state, side);
   const hand = player.hand ?? [];
-  const newHand = hand.map((card) => {
+  const newHand = hand.map((card: any) => {
     if (shouldReplace("hand", hand.length)) {
       disableCard(state, side, card);
       const replacement = pickReplacementCard(card);
@@ -272,7 +272,7 @@ function replaceHand(state: GameState, side: string): void {
 function replaceDiscard(state: GameState, side: string): void {
   const player = getPlayer(state, side);
   const discard = player.discard ?? [];
-  const newDiscard = discard.map((card) => {
+  const newDiscard = discard.map((card: any) => {
     if (shouldReplace("discard")) {
       disableCard(state, side, card);
       const replacement = pickReplacementCard(card);
@@ -287,7 +287,7 @@ function replaceDiscard(state: GameState, side: string): void {
 function replaceDeck(state: GameState, side: string): void {
   const player = getPlayer(state, side);
   const deck = player.deck ?? [];
-  const newDeck = deck.map((card) => {
+  const newDeck = deck.map((card: any) => {
     if (shouldReplace("deck")) {
       disableCard(state, side, card);
       const replacement = pickReplacementCard(card);

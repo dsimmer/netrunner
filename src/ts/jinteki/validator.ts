@@ -3,6 +3,8 @@
 
 import { INFINITY, factionLabel } from "./utils";
 import { MWL } from "./cards";
+import type { Card } from '../types';
+
 
 // ──────────────────────────────────────────────────────────────────
 // Types

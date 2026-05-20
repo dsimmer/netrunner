@@ -22,7 +22,7 @@ export function win(state: GameState, side: string, reason: string): boolean {
 
   systemMsg(state, side, "wins the game");
 
-  if (started) {
+  if (started && state.stats.time) {
     state.stats.time.ended = now;
     state.stats.time.elapsed = duration;
   }
@@ -59,7 +59,7 @@ export function tie(state: GameState, reason: string): boolean {
 
   systemSay(state, "", "The game is a tie!");
 
-  if (started) {
+  if (started && state.stats.time) {
     state.stats.time.ended = now;
     state.stats.time.elapsed = duration;
   }
@@ -155,7 +155,10 @@ export function sideWin(state: GameState, side: string): boolean {
  * Checks for a win by agenda points and records the result.
  * Mirrors: (check-win-by-agenda state)
  */
-export function checkWinByAgenda(state: GameState, _side?: unknown): void {
+export function checkWinByAgenda(): void;
+export function checkWinByAgenda(state: GameState, _side?: unknown): void;
+export function checkWinByAgenda(state?: GameState, _side?: unknown): void {
+  if (!state) return;
   const corpWin = sideWin(state, CORP_SIDE);
   const blockedCorp = anyEffects(
     state,

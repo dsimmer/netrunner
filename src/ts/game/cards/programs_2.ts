@@ -5,7 +5,7 @@
  * Contains all Runner program card definitions with their abilities and events.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreActions from '../core/actions';
 import * as coreBoard from '../core/board';
@@ -51,8 +51,6 @@ import * as coreWinning from '../core/winning';
 import * as jintekiUtils from '../../jinteki/utils';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
-import type { CardDef } from '../../types';
-
 import { addCounter, allActiveInstalled, breakSub, currentIce, damage, drawCards, gainCredits, getCounters, getIceType, getMu, isProgram, isRemote, isTagged, moveCard, muPlus, runnerFn, runnerStack, toC, trash } from './programs_1';
 
 // Stub helpers (to be ported from clj cards/*.clj)

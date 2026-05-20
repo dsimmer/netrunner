@@ -5,6 +5,8 @@ import { Db, MongoClient } from "mongodb";
 import sharp from "sharp";
 import { addImages } from "./images";
 import { createIndexes } from "./index";
+import type { Card } from '../types';
+
 
 // ---------------------------------------------------------------------------
 // EDN parser

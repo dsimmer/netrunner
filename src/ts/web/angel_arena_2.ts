@@ -385,8 +385,8 @@ registerMsgHandler("angel-arena/more-time", async (msg: WSMessageWithReq) => {
     | Record<string, unknown>
     | undefined;
 
-  const corpUsername = ((state.corp as Record<string, unknown>)?.user as Record<string, unknown> | undefined)?.username;
-  const runnerUsername = ((state.runner as Record<string, unknown>)?.user as Record<string, unknown> | undefined)?.username;
+  const corpUsername = (((state as any).corp as Record<string, unknown>)?.user as Record<string, unknown> | undefined)?.username;
+  const runnerUsername = (((state as any).runner as Record<string, unknown>)?.user as Record<string, unknown> | undefined)?.username;
 
   // Check user is in the game
   if (
@@ -454,8 +454,8 @@ registerMsgHandler(
     const stage = inactiveState.stage as string;
     const inactiveSide = inactiveState["inactive-side"] as string | undefined;
 
-    const corpUsername = ((state.corp as Record<string, unknown>)?.user as Record<string, unknown> | undefined)?.username;
-    const runnerUsername = ((state.runner as Record<string, unknown>)?.user as Record<string, unknown> | undefined)?.username;
+    const corpUsername = (((state as any).corp as Record<string, unknown>)?.user as Record<string, unknown> | undefined)?.username;
+    const runnerUsername = (((state as any).runner as Record<string, unknown>)?.user as Record<string, unknown> | undefined)?.username;
 
     // Check user is in the game
     if (username !== corpUsername && username !== runnerUsername) return;
@@ -515,8 +515,8 @@ registerMsgHandler("angel-arena/cancel-match", async (msg: WSMessageWithReq) => 
   const stage = inactiveState.stage as string;
   const inactiveSide = inactiveState["inactive-side"] as string | undefined;
 
-  const corpUsername = ((state.corp as Record<string, unknown>)?.user as Record<string, unknown> | undefined)?.username;
-  const runnerUsername = ((state.runner as Record<string, unknown>)?.user as Record<string, unknown> | undefined)?.username;
+  const corpUsername = (((state as any).corp as Record<string, unknown>)?.user as Record<string, unknown> | undefined)?.username;
+  const runnerUsername = (((state as any).runner as Record<string, unknown>)?.user as Record<string, unknown> | undefined)?.username;
 
   // Check user is in the game
   if (username !== corpUsername && username !== runnerUsername) return;

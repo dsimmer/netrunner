@@ -5,7 +5,7 @@
  * Contains all Runner hardware card definitions with their abilities and events.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreActions from '../core/actions';
 import * as coreBoard from '../core/board';
@@ -55,8 +55,6 @@ import * as utils from '../utils';
 import * as jintekiUtils from '../../jinteki/utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 import { sabotageAbility, mHelper, getHosted, countTagsFn } from './_helpers';
-import type { CardDef } from '../../types';
-
 import { accessBonusFn, addCounterFn, agendaFn, allActiveFn, allActiveInstalledFn, allCardsInHandStarFn, breachAccessBonus, cardStr, corpFn, damageNameFn, derezFn, drawAbility, drawFn, effectCompletedFn, enumerateCards, eventFn, expectedMuFn, exposeFn, firstEventFn, gainCreditsFn, gainTagsFn, getAutoresolveFn, getCardFn, getCounters, hardwareFn, hasSubtypeFn, hostFn, inDeckFn, inDiscardFn, inHandFn, inHandStarFn, inScoredFn, installedFn, linkPlusFn, loseCreditsFn, moveFn, muPlusFn, neverFn, preventDamageFn, preventEndRunFn, preventableFn, programFn, pumpFn, quantify, registerEventsFn, rezzedFn, runnerCanPayAndInstallFn, runnerFn, runnerHandSizePlusFn, runnerInstallFn, sameCard, shuffleDeck, systemMsg, targetServerFn, toC, totalCardsAccessedFn, trashCardsFn, trashCostFn, trashFn, triggerEventFn, virusMuPlusFn } from './hardware_1';
 import { cardDefFn } from './hardware_2';
 import { getPreventFn } from './hardware_4';
@@ -160,7 +158,7 @@ export const logos: CardDef = {
     event: 'agenda-scored',
     'change-in-game-state': {
       silent: true,
-      req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return !!(runnerFn(state)?.deck?.length); }),
+      req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return !!(runnerFn(state)?.deck?.length); }),
     },
     optional: {
       prompt: 'Search for a card?',
@@ -312,7 +310,7 @@ export const marrow: CardDef = {
   events: [{
     ...sabotageAbility(1),
     event: 'agenda-scored',
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
   }],
 };
 
@@ -323,10 +321,10 @@ export const masterwork: CardDef = {
   events: [
     {
       event: 'run',
-      interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+      interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
       'change-in-game-state': {
         silent: true,
-        req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return !!(runnerFn(state)?.hand?.length); }),
+        req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return !!(runnerFn(state)?.hand?.length); }),
       },
       optional: {
         prompt: 'Pay 1 [Credit] to install a piece of hardware?',
@@ -354,7 +352,7 @@ export const masterwork: CardDef = {
     },
     drawAbility(1, null, {
       event: 'runner-install',
-      interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+      interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
       req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         const ctx = forms.context(state, card, targets) || {};
         return hardwareFn(ctx.card) &&
@@ -470,9 +468,9 @@ export const methuselah: CardDef = {
   },
   events: [{
     event: 'run',
-    'change-in-game-state': { req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return !!(runnerFn(state)?.hand?.length); }), silent: true },
+    'change-in-game-state': { req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return !!(runnerFn(state)?.hand?.length); }), silent: true },
     skippable: true,
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     prompt: 'Trash a hardware from the Grip?',
     choices: { card: (c: Card) => hardwareFn(c) && inHandFn(c) },
     async: true,
@@ -726,7 +724,7 @@ export const obelus: CardDef = {
   ],
   events: [{
     event: 'run-ends',
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> { const target: any = (targets as any[])?.[0];
       const ctx = forms.context(state, card, targets) || {};
       return !!(ctx.successful &&
@@ -832,7 +830,7 @@ export const pantograph: CardDef = {
       async: true,
       prompt: 'Choose a card to install',
       'waiting-prompt': true,
-      'change-in-game-state': { req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return !!(allCardsInHandStarFn(state, ':runner')?.length); }), silent: true },
+      'change-in-game-state': { req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return !!(allCardsInHandStarFn(state, ':runner')?.length); }), silent: true },
       choices: {
         req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> { const target: any = (targets as any[])?.[0];
           return runnerFn(target) && inHandStarFn(state, target) && !eventFn(target) &&
@@ -843,7 +841,7 @@ export const pantograph: CardDef = {
         { 'msg-keys': { installSource: card, displayOrigin: true } }); }),
     },
     gainCreditAbility: {
-      interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+      interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
       async: true,
       msg: 'gain 1 [Credits]',
       effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {

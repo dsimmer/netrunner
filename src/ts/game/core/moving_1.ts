@@ -4,8 +4,7 @@
 import type { GameState } from "./state";
 import type { Card, Zone } from "./card";
 import type { EID } from "./eid";
-import type { Ability, ReqFn } from "./types.ts";
-
+import type { Ability, Counter, ReqFn } from "./types.ts";
 import {
   isAgenda,
   isAsset,
@@ -84,7 +83,7 @@ import { trash } from "./moving_2";
 function effectiveZone(card: Card): Zone {
   if (card.host) {
     const hz = card.host.zone ?? [];
-    return hz.map((s) => toKeyword(s));
+    return hz.map((s: any) => toKeyword(s));
   }
   return card.zone ?? [];
 }
@@ -95,7 +94,7 @@ export function cardIndex(state: GameState, card: Card): number | null {
   if (typeof card.index === "number") return card.index;
   const z = getZone(card);
   // Get-in (cons :corp z)
-  let cur: any = (state as any).corp;
+  let cur: any = state.corp;
   for (const k of z) cur = cur?.[k];
   if (!Array.isArray(cur)) return null;
   const idx = cur.findIndex((c: Card) => sameCard(c, card));
@@ -186,8 +185,10 @@ export function shouldTrigger(
   ability: Ability | undefined,
 ): boolean {
   if (!ability) return false;
-  if (ability.req)
-    return ability.req(state, side, eid, card, targets as Card[]);
+  if (ability.req) {
+    if (typeof ability.req !== "function") return !!ability.req;
+    return (ability.req as (...a: any[]) => any)(state, side, eid, card, targets as Card[]);
+  }
   return true;
 }
 
@@ -240,7 +241,7 @@ function removeOldCard(state: GameState, side: string, card: Card): void {
     if (card.host) {
       removeFromHost(state, side, card);
     } else {
-      const path = [s as string, ...zone.map((z) => String(z))];
+      const path = [s as string, ...zone.map((z: any) => String(z))];
       // Walk into state with a mutable reference and replace the leaf list.
       let cur: any = state;
       for (let i = 0; i < path.length - 1; i++) {
@@ -317,7 +318,7 @@ function getMovedCard(
   to: string | Zone,
 ): Card {
   const zone = card.host
-    ? (card.host.zone ?? []).map((z) => toKeyword(z))
+    ? (card.host.zone ?? []).map((z: any) => toKeyword(z))
     : (card.zone ?? []);
   const srcZone = zone[0];
   const targetZone = Array.isArray(to) ? to[0] : to;
@@ -334,7 +335,7 @@ function getMovedCard(
       "" as any,
       makeEID(state),
       "trash" as any,
-      { ...h, zone: (h.zone ?? []).map((z) => toKeyword(z)) },
+      { ...h, zone: (h.zone ?? []).map((z: any) => toKeyword(z)) },
       {
         unpreventable: true,
         suppressCheckpoint: true,
@@ -347,7 +348,7 @@ function getMovedCard(
 
   const updateHostedCard = (h: Card): Card[] => {
     const newz = ([] as string[]).concat(
-      ...dest.map((d) => (Array.isArray(d) ? d : [d])),
+      ...dest.map((d: any) => (Array.isArray(d) ? d : [d])),
     );
     const newh: Card = {
       ...h,
@@ -481,7 +482,7 @@ function getMovedCard(
  *  otherwise drop while-active effects bound to the old card. */
 function updateEffects(state: GameState, card: Card, movedCard: Card): void {
   if (card.cid === movedCard.cid) {
-    state.effects = state.effects.map((eff) => {
+    state.effects = state.effects.map((eff: any) => {
       if (eff.card?.cid === card.cid) {
         return { ...eff, card: movedCard };
       }
@@ -550,6 +551,7 @@ function updateRunPosition(
 // move
 // ---------------------------------------------------------------------------
 
+export function move(card: any, to: any, opts?: any): any;
 export function move(
   state: any,
   side: any,
@@ -558,13 +560,22 @@ export function move(
   opts?: any,
 ): any;
 export function move(
-  state: GameState,
-  side: string,
-  card: Card,
-  to: string | Zone,
-  opts: MoveCardOpts | null = {},
+  stateArg: GameState | Card,
+  sideArg: string | Card | string | Zone,
+  cardArg?: Card | string | Zone,
+  toArg?: string | Zone | MoveCardOpts | null,
+  optsArg: MoveCardOpts | null = {},
 ): Card | null {
-  opts = opts ?? {};
+  // 2/3-arg shorthand (card, to, opts?): no state, no-op
+  if (cardArg === undefined || (typeof (stateArg as any)?.cid === "string")) {
+    return null;
+  }
+  // 4-5 arg standard form
+  const state = stateArg as GameState;
+  const side = sideArg as string;
+  const card = cardArg as Card;
+  const to = toArg as string | Zone;
+  const opts: MoveCardOpts = (optsArg ?? {}) as MoveCardOpts;
   const {
     front,
     index,
@@ -575,7 +586,7 @@ export function move(
     swap,
   } = opts;
   const zone = card.host
-    ? (card.host.zone ?? []).map((z) => toKeyword(z))
+    ? (card.host.zone ?? []).map((z: any) => toKeyword(z))
     : (card.zone ?? []);
 
   if (isFakeIdentity(card)) {
@@ -650,7 +661,7 @@ export function move(
   if (
     !keepServerAlive &&
     isRemoteZone(zone) &&
-    Array.isArray((state as any).corp?.servers)
+    Array.isArray(state.corp?.servers)
   ) {
     /* fall-through; no-op for malformed */
   }
@@ -714,7 +725,7 @@ export function move(
 
   // Default a card when moved to inactive zones (except :persistent key)
   const inactiveZones = new Set(["discard", "hand", "deck", "rfg"]);
-  if (finalDest.some((d) => inactiveZones.has(String(d)))) {
+  if (finalDest.some((d: any) => inactiveZones.has(String(d)))) {
     resetCard(state, side, refreshed);
   }
 
@@ -792,7 +803,7 @@ export function updateCurrentIceToTrash(
 ): void {
   const currentIce = getCurrentIce(state);
   if (!currentIce) return;
-  const match = trashlist.find((c) => sameCard(c, currentIce));
+  const match = trashlist.find((c: any) => sameCard(c, currentIce));
   if (match) {
     setCurrentIce(state, getCard(state, match) ?? match);
   }

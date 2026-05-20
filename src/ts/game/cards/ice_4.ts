@@ -5,7 +5,7 @@
  * Contains ~317 card definitions with their abilities and events.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreBadPublicity from '../core/bad_publicity';
 import * as coreBoard from '../core/board';
 import * as coreCard from '../core/card';
@@ -40,8 +40,6 @@ import * as coreUpdate from '../core/update';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 import { constellationIce } from './_helpers';
-import type { CardDef } from '../../types';
-
 import { addRunnerCardToGrip, bioraidBreak, currentlyEncounteringCard, endTheRun, endTheRunUnlessRunnerPays, forcedToAvoidTags, gainPowerCounter, powerCounterAbility, preventRunsThisTurn, runnerLosesCredits, runnerTrashInstalledSub, tagOrPayCredits, tagTrace, takeBadPub, traceAbility, trashProgramSub } from './ice_1';
 
 // Stub helpers (to be ported from clj cards/*.clj)

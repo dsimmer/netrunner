@@ -5,7 +5,7 @@
  * Contains ~317 card definitions with their abilities and events.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreBadPublicity from '../core/bad_publicity';
 import * as coreBoard from '../core/board';
 import * as coreCard from '../core/card';
@@ -39,14 +39,12 @@ import * as coreToasts from '../core/toasts';
 import * as coreUpdate from '../core/update';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
-import type { CardDef } from '../../types';
-
 import { bioraidBreak, doPsi, endTheRun, endTheRunIfTagged, endTheRunUnlessRunnerPays, forcedToAvoidTags, gainPowerCounter, installFromArchivesSub, installFromHqOrArchivesSub, maybeDrawSub, powerCounterAbility, runnerLosesClick, runnerTrashProgramSub, traceAbility, trashInstalledSub, trashProgramSub, wallIce, wonderSub } from './ice_1';
 
 // Chrysalis
 export const chrysalis: CardDef = {
   title: 'Chrysalis',
-  flags: { 'rd-reveal': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'rd-reveal': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   subroutines: [coreDefHelpers.doNetDamage(2)],
   'on-access': {
     async: true,
@@ -666,7 +664,7 @@ export const empiricist: CardDef = {
         const hand: Card[] = (state as any).corp?.hand ?? [];
         if (hand.length > 0) {
           const returnAbility = {
-            req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return (state as any).corp?.hand?.length > 0; }),
+            req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return (state as any).corp?.hand?.length > 0; }),
             prompt: 'Place a card in HQ on the top of R&D?',
             msg: {
               public: 'add 1 card in HQ to the top of R&D',

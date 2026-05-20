@@ -35,9 +35,9 @@ export function removeFromPromptQueue(
   prompt: Prompt,
 ): void {
   if (side === "corp") {
-    state.corpPrompt = state.corpPrompt.filter((p) => p !== prompt);
+    state.corpPrompt = state.corpPrompt.filter((p: any) => p !== prompt);
   } else {
-    state.runnerPrompt = state.runnerPrompt.filter((p) => p !== prompt);
+    state.runnerPrompt = state.runnerPrompt.filter((p: any) => p !== prompt);
   }
   setPromptState(state, side);
 }

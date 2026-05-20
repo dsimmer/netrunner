@@ -5,7 +5,7 @@
  * Contains all Runner hardware card definitions with their abilities and events.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreActions from '../core/actions';
 import * as coreBoard from '../core/board';
@@ -56,8 +56,6 @@ import * as jintekiUtils from '../../jinteki/utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 import { installChoice, makeEidFn2, getDamageFn } from './_helpers';
 import { drawAbility } from '../core/def_helpers';
-import type { CardDef } from '../../types';
-
 import { accessBonusFn, accessCardFn, addCounterFn, allActiveInstalledFn, breachAccessBonus, cancelable, cardFlagFn, chosenDamageFn, corpFn, drawFn, effectCompletedFn, enableRunnerDamageChoiceFn, enumerateCards, eventCountFn, firstEventFn, gainClicksFn, gainCreditsFn, getAutoresolveFn, getCardFn, getCounters, getOnlyCardToAccessFn, handSizeFn, hasAnySubtypeFn, hasSubtypeFn, iceFn, identifyMarkAbility, inCorpScoredFn, inDiscardFn, inHandFn, installedFn, isCentralFn, isTypeFn, linkPlusFn, loseTagsFn, markChangedEvent, moveFn, muPlusFn, neverFn, playSfx, programFn, quantify, registerEventsFn, reorderChoice, rezzedFn, runEventsFn, runnerCanChooseDamageFn, runnerCanPayAndInstallFn, runnerFn, runnerHandSizePlusFn, runnerInstallFn, sabotageAbility, sameCard, shuffleDeck, strToInt, successfulRunReplaceBreach, swapAgendasFn, systemMsg, targetServerFn, toC, trashFn, updateBreakerStrengthFn } from './hardware_1';
 import { complementFn } from './hardware_6';
 
@@ -189,7 +187,7 @@ export const solidarityBadge: CardDef = {
     {
       event: 'runner-trash',
       async: true,
-      interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+      interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
       req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         return targets.some((t: any) => corpFn(t.card)) &&
           firstEventFn(state, side, 'runner-trash',
@@ -232,7 +230,7 @@ export const sportsHopper: CardDef = {
   'static-abilities': [linkPlusFn(1)],
   abilities: [{
     ...drawAbility(3, null, {
-      'change-in-game-state': { req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return !!(runnerFn(state)?.deck?.length); }) },
+      'change-in-game-state': { req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return !!(runnerFn(state)?.deck?.length); }) },
       cost: [toC(':trash-can')],
     }),
   }],
@@ -245,7 +243,7 @@ export const spyCamera: CardDef = {
     {
       action: true,
       cost: [toC('click', 1)],
-      'change-in-game-state': { req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return !!(runnerFn(state)?.deck?.length); }) },
+      'change-in-game-state': { req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return !!(runnerFn(state)?.deck?.length); }) },
       async: true,
       label: 'Look at the top X cards of the stack',
       msg: 'look at the top X cards of the stack and rearrange them',
@@ -488,7 +486,7 @@ export const theWizardsChest: CardDef = {
   },
   abilities: [{
     cost: [toC(':trash-can')],
-    'change-in-game-state': { req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return !!(runnerFn(state)?.deck?.length); }) },
+    'change-in-game-state': { req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return !!(runnerFn(state)?.deck?.length); }) },
     label: 'Set aside cards from the top of the stack',
     prompt: 'Choose a card type',
     'waiting-prompt': true,
@@ -621,7 +619,7 @@ export const touchstone: CardDef = {
       return firstEventFn(state, side, 'play-event');
     }),
     async: true,
-    silent: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    silent: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { addCounterFn(state, side, eid, card, 'credit', 1); }),
   }],
   interactions: {
@@ -640,7 +638,7 @@ export const turntable: CardDef = {
   'static-abilities': [muPlusFn(1)],
   events: [{
     event: 'agenda-stolen',
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       return !!(corpFn(state)?.scored?.length);
     }),
@@ -761,7 +759,7 @@ export const virtuoso: CardDef = {
             event: 'run-ends',
             duration: ':end-of-run',
             async: true,
-            interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+            interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
             msg: 'breach HQ',
             effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { breachServerFn(state, ':runner', eid, [':hq'], null); }),
           }]);
@@ -829,7 +827,7 @@ export const window: CardDef = {
   abilities: [{
     action: true,
     cost: [toC('click', 1)],
-    'change-in-game-state': { req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return !!(runnerFn(state)?.deck?.length); }) },
+    'change-in-game-state': { req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return !!(runnerFn(state)?.deck?.length); }) },
     'keep-menu-open': ':while-clicks-left',
     msg: 'draw 1 card from the bottom of the stack',
     effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { moveFn((runnerFn(state)?.deck || []).slice(-1)[0], ':hand'); }),

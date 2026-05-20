@@ -176,8 +176,8 @@ export function sameSide(side1: unknown, side2: unknown): boolean {
  * Mirrors same-card?
  */
 export function sameCard(
-  card1: { cid?: string } | null,
-  card2: { cid?: string } | null,
+  card1: { cid?: string } | null | undefined,
+  card2: { cid?: string } | null | undefined,
 ): boolean;
 export function sameCard<T>(
   fn: (c: T) => unknown,

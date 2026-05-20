@@ -49,7 +49,7 @@ export function ackToast(
 ): void {
   if (!toastId) return;
   const filter = (toasts: unknown[]): unknown[] =>
-    toasts.filter((t) => {
+    toasts.filter((t: any) => {
       const entry = t as ToastEntry;
       return entry.id !== toastId;
     });

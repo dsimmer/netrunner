@@ -4,15 +4,7 @@
 import type { GameState, ServerZone, Encounter } from "./state";
 import type { Card, Zone } from "./card";
 import type { EID } from "./eid";
-import type {
-  Ability,
-  Subroutine,
-  ValueFn,
-  ReqFn,
-  CardDef,
-  AbilityFn,
-  NumberFn,
-} from "./types.ts";
+import type { Ability, AbilityFn, CardDef, NumberFn, ReqFn, Side, State, Subroutine, ValueFn } from "./types.ts";
 import { CORP_SIDE, RUNNER_SIDE } from "./state";
 import { isICE, isInstalled, isRezzed, hasSubtype, getTitle } from "./card";
 import { getCardDef } from "./types.ts";
@@ -88,14 +80,14 @@ export function getExpectedSubroutines(
 
   if (isDisabledReg(state, ice) || !isRezzed(ice)) {
     // If disabled or unrezzed, only printed subs
-    return ((cdef.subroutines as any[]) ?? []).map((s) =>
+    return ((cdef.subroutines as any[]) ?? []).map((s: any) =>
       buildSub(s as any, ice.cid ?? "", { printed: true }),
     );
   }
 
   const printedSubsToLose =
     sumEffects(state, side, "lose-printed-subroutines", ice, []) ?? 0;
-  const basePrintedSubs = ((cdef.subroutines as any[]) ?? []).map((s) =>
+  const basePrintedSubs = ((cdef.subroutines as any[]) ?? []).map((s: any) =>
     buildSub(s as any, ice.cid ?? "", { printed: true }),
   );
   const printedSubroutines = basePrintedSubs.slice(printedSubsToLose);
@@ -170,11 +162,11 @@ export function updateIceSubroutines(
   const expected = getExpectedSubroutines(state, side, resolved);
   const active = (resolved.subroutines as RuntimeSubroutine[]) ?? [];
 
-  const expectedKeys = expected.map((s) => ({
+  const expectedKeys = expected.map((s: any) => ({
     source: s.source,
     label: s.label,
   }));
-  const activeKeys = active.map((s) => ({ source: s.source, label: s.label }));
+  const activeKeys = active.map((s: any) => ({ source: s.source, label: s.label }));
 
   const keysMatch =
     expectedKeys.length === activeKeys.length &&
@@ -187,7 +179,7 @@ export function updateIceSubroutines(
 
   const newSubs = reconcileSubroutines(expected, active)
     .map(buildUnbuiltSubs)
-    .map((sub, idx) => ({ ...sub, index: idx }));
+    .map((sub: any, idx: any) => ({ ...sub, index: idx }));
 
   const updated = { ...resolved, subroutines: newSubs };
   (update as any)(state, side, (_c: Card) => updated, updated);
@@ -256,7 +248,7 @@ export function pumpIce(...args: any[]): void {
     resolved,
     "ice-strength",
     duration,
-    req((s: any, sid: any, eid: any, c: any, targets: any) => sameCard(c, targets[0])),
+    req((s: State, sid: Side, eid: EID, c: Card, targets: any[]) => sameCard(c, targets[0])),
     () => n,
   );
   updateIceStrength(state, side, resolved);
@@ -313,7 +305,7 @@ export function breakerStrengthBonus(
     req: req(
       (state, side, eid, card, targets) =>
         sameCard(card, (targets as Card[])[0]) &&
-        reqFn(state, side, eid, card, targets),
+        (typeof reqFn === "function" ? (reqFn as any)(state, side, eid, card, targets) : !!reqFn),
     ),
     value: typeof bonus === "function" ? bonus : () => bonus,
   } as unknown as Ability;
@@ -359,7 +351,7 @@ export function updateAllIcebreakers(state?: GameState, side?: string): any {
 }
 function _updateAllIcebreakers(state: GameState, side: string): boolean {
   let changed = false;
-  for (const ib of allActiveInstalled(state, RUNNER_SIDE).filter((c) =>
+  for (const ib of allActiveInstalled(state, RUNNER_SIDE).filter((c: any) =>
     hasSubtype(c, "Icebreaker"),
   )) {
     if (updateBreakerStrength(state, side, ib)) changed = true;
@@ -401,7 +393,7 @@ export function pump(...args: any[]): void {
     resolved,
     "breaker-strength",
     duration,
-    req((s: any, sid: any, eid: any, c: any, targets: any) => sameCard(c, targets[0])),
+    req((s: State, sid: Side, eid: EID, c: Card, targets: any[]) => sameCard(c, targets[0])),
     () => n,
   );
   updateBreakerStrength(state, side, resolved);
@@ -421,7 +413,7 @@ export function pumpAllIcebreakers(
   n: number,
   duration: string = "end-of-encounter",
 ): void {
-  for (const ib of allActiveInstalled(state, RUNNER_SIDE).filter((c) =>
+  for (const ib of allActiveInstalled(state, RUNNER_SIDE).filter((c: any) =>
     hasSubtype(c, "Icebreaker"),
   )) {
     pump(state, side, ib, n, duration);
@@ -437,7 +429,7 @@ function addStealthToLabel(
 ): string | null {
   if (!cost) return null;
   const flat = cost.flat();
-  const creditCost = flat.find((c) => (c as any)?.type === "credit");
+  const creditCost = flat.find((c: any) => (c as any)?.type === "credit");
   if (!creditCost) return null;
   const sv = stealthValue(creditCost as any);
   if (sv > 0) {
@@ -460,7 +452,7 @@ function addStealthToLabel(
  * args: Additional options (:label, :additional-ability, :req).
  */
 export function breakSub(
-  cost: number | Record<string, unknown>[],
+  cost: number | any[],
   n: number | NumberFn,
   subtypes?: string | string[] | null,
   args?: Record<string, unknown>,
@@ -488,7 +480,7 @@ export function breakSub(
       if (!isActiveIce(state, currentIce)) return false;
       if (
         !subtypeSet.has("All") &&
-        ![...subtypeSet].some((st) => hasSubtype(currentIce, st))
+        ![...subtypeSet].some((st: any) => hasSubtype(currentIce, st))
       )
         return false;
       const breakable = breakableSubroutinesChoice(
@@ -500,7 +492,7 @@ export function breakSub(
       );
       if (!breakable || breakable.length === 0) return false;
       if (args?.req && typeof (args.req as ReqFn) === "function") {
-        return (args.req as ReqFn)(state, side, eid, card, targets);
+        return (args.req as (...a: any[]) => any)(state, side, eid, card, targets);
       }
       return true;
     }),
@@ -589,7 +581,10 @@ export function strengthPump(
       `add ${strength} strength${durationString}${stealthSuffix}`,
     req: req((state, side, eid, card, targets) => {
       const strReq = (args as any)?.req as ReqFn | undefined;
-      if (strReq) return strReq(state, side, eid, card, targets);
+      if (strReq) {
+        if (typeof strReq !== "function") return !!strReq;
+        return (strReq as (...a: any[]) => any)(state, side, eid, card, targets);
+      }
       return true;
     }),
     cost: [costData],
@@ -652,7 +647,7 @@ export function substituteXCreditCosts(
 ): (Record<string, unknown> | undefined)[] {
   if (x === undefined || x === null || scale === undefined || scale === null)
     return cost;
-  const adjusted = cost.filter((c) => (c as any)?.type !== "x-credits");
+  const adjusted = cost.filter((c: any) => (c as any)?.type !== "x-credits");
   if (adjusted.length === cost.length) return cost;
   return [...adjusted, toC("credit", x * scale) as any];
 }
@@ -683,13 +678,16 @@ export const breakerAutoPump: Ability = {
     const canPump = (ability: Ability) => {
       if (!(ability as any).pump) return false;
       const reqFn = (ability as any).req as ReqFn | undefined;
-      if (reqFn) return reqFn(state, side, eid, card, []);
+      if (reqFn) {
+        if (typeof reqFn !== "function") return !!reqFn;
+        return (reqFn as (...a: any[]) => any)(state, side, eid, card, []);
+      }
       return true;
     };
 
     const pumpCandidates = defAbilities
-      .filter((a) => !(a as any).autoPumpIgnore)
-      .map((ability) => {
+      .filter((a: any) => !(a as any).autoPumpIgnore)
+      .map((ability: any) => {
         if (canPump(ability)) {
           const cost = cardAbilityCost(state, side, ability, card, [
             currentIce,
@@ -705,7 +703,7 @@ export const breakerAutoPump: Ability = {
 
     const pumpAbilityEntry =
       pumpCandidates.length > 0
-        ? pumpCandidates.reduce((best, entry) => {
+        ? pumpCandidates.reduce((best: any, entry: any) => {
             const bestCost = best.cost ?? [];
             const entryCost = entry.cost ?? [];
             const bestTotal = (bestCost as any[]).reduce(
@@ -756,11 +754,11 @@ export const breakerAutoPump: Ability = {
       : 0;
 
     const subs = (currentIce.subroutines as RuntimeSubroutine[]) ?? [];
-    const unbrokenSubs = subs.filter((s) => !s.broken).length;
+    const unbrokenSubs = subs.filter((s: any) => !s.broken).length;
 
     // Check for unbreakable subs
     const noUnbreakableSubs =
-      subs.filter((s) => {
+      subs.filter((s: any) => {
         const breakable = s.breakable;
         if (typeof breakable === "function") {
           return (
@@ -865,7 +863,7 @@ export function autoIcebreaker(cdef: CardDef): CardDef {
     "ice-subtype-changed",
     "breaker-strength-changed",
     "subroutines-changed",
-  ].map((event) => ({ ...breakerAutoPump, event }) as any);
+  ].map((event: any) => ({ ...breakerAutoPump, event }) as any);
 
   return {
     ...cdef,

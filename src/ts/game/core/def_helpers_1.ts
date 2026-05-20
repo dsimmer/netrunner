@@ -107,7 +107,7 @@ export function continueAbility(...args: any[]): any {
 
 export function combineAbilities(...abilities: any[]): any {
   if (abilities.length < 2) return abilities[0];
-  const combined = abilities.slice(1).reduce((acc, ab) => {
+  const combined = abilities.slice(1).reduce((acc: any, ab: any) => {
     return {
       label: `${acc.label}. ${ab.label}`,
       async: true,
@@ -598,7 +598,7 @@ export function runServerFromChoicesAbility(
   return {
     prompt: "Choose a server",
     choices: (state: GameState) =>
-      choices.filter((s) => canRunServer(state, s)),
+      choices.filter((s: any) => canRunServer(state, s)),
     "change-in-game-state": {
       req: (state: GameState) =>
         ((state as any).runnableServers ?? []).filter((s: string) =>

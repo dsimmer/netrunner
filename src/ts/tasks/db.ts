@@ -10,6 +10,7 @@ import {
   DeckLine,
   DeckStatus,
 } from "../jinteki/validator";
+import type { Card } from '../types';
 
 // ---------------------------------------------------------------------------
 // MongoDB connection helpers

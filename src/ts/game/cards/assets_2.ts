@@ -1,4 +1,4 @@
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Server, Side, State } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreActions from '../core/actions';
 import * as coreAgendas from '../core/agendas';
@@ -48,8 +48,6 @@ import * as coreUpdate from '../core/update';
 import * as coreWinning from '../core/winning';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
-import type { CardDef } from '../../types';
-
 import { executiveTrashEffect, gainPowerCounter } from './assets_1';
 
 // Stub helpers (to be ported from clj cards/*.clj)
@@ -64,7 +62,7 @@ export const calvinB4L3Y: CardDef = {
     once: ':per-turn',
   })],
   'on-trash': {
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     optional: {
       req: req(function*(state: State, side: Side): Generator<any, any, any> { return side === ':runner'; }),
       'waiting-prompt': true,
@@ -141,7 +139,7 @@ export const charlotteCacador: CardDef = (() => {
     },
   };
   const queueAbility: any = {
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     skippable: true,
     event: ':corp-turn-begins',
     req: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
@@ -166,7 +164,7 @@ export const charlotteCacador: CardDef = (() => {
   return {
     title: 'Charlotte Caçador',
     advanceable: ':always',
-    flags: { 'corp-phase-12': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+    flags: { 'corp-phase-12': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
     'derezzed-events': [coreDefHelpers.corpRezToast],
     events: [queueAbility],
     abilities: [choiceAbi, trashAb],
@@ -227,7 +225,7 @@ export const chiefSlee: CardDef = {
 export const citySurveillance: CardDef = {
   title: 'City Surveillance',
   'derezzed-events': [coreDefHelpers.corpRezToast],
-  flags: { 'runner-phase-12': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'runner-phase-12': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   events: [{
     event: ':runner-turn-begins',
     player: ':runner',
@@ -264,7 +262,7 @@ export const clearinghouse: CardDef = (() => {
     once: ':per-turn',
     async: true,
     label: 'Trash this asset to do 1 meat damage for each hosted advancement counter (start of turn)',
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     req: req(function*(state: State): Generator<any, any, any> { return !!(state as any).corpPhase12; }),
     effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       yield wait_for(state, [{ asyncResult: 'result' },
@@ -289,7 +287,7 @@ export const clearinghouse: CardDef = (() => {
   return {
     title: 'Clearinghouse',
     'derezzed-events': [coreDefHelpers.corpRezToast],
-    flags: { 'corp-phase-12': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+    flags: { 'corp-phase-12': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
     events: [{ ...ability, event: ':corp-turn-begins' }],
     advanceable: ':always',
     abilities: [ability],
@@ -318,13 +316,13 @@ export const cloneSuffrageMovement: CardDef = {
 // Cohort Guidance Program
 export const cohortGuidanceProgram: CardDef = {
   title: 'Cohort Guidance Program',
-  flags: { 'corp-phase-12': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'corp-phase-12': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   'derezzed-events': [coreDefHelpers.corpRezToast],
   events: [{
     event: ':corp-turn-begins',
     skippable: true,
     prompt: 'Choose one',
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     choices: req(function*(state: State): Generator<any, any, any> {
       const opts: string[] = [];
       if ((state as any).corp?.hand?.length) {
@@ -503,7 +501,7 @@ export const corporateTown: CardDef = (() => {
     choices: { card: (c: Card) => coreCard.resource(c) },
     msg: msg((state: State, side: Side, eid: EID, card: Card, targets: any[]) =>
       `trash ${(targets[0] as any)?.title}`),
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     req: req(function*(state: State): Generator<any, any, any> {
       return (coreBoard.allInstalled(state, ':runner') || []).some((c: Card) => coreCard.resource(c));
     }),
@@ -554,7 +552,7 @@ export const csrCampaign: CardDef = (() => {
     async: true,
     label: 'Draw 1 card (start of turn)',
     automatic: ':draw-cards',
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       yield wait_for(state, [{ asyncResult: 'result' },
         coreEngine.resolveAbility(state, side, {
@@ -569,7 +567,7 @@ export const csrCampaign: CardDef = (() => {
   return {
     title: 'CSR Campaign',
     'derezzed-events': [coreDefHelpers.corpRezToast],
-    flags: { 'corp-phase-12': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+    flags: { 'corp-phase-12': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
     events: [{ ...ability, event: ':corp-turn-begins' }],
     abilities: [ability, coreOptional.setAutoresolve(':auto-fire', 'CSR Campaign')],
   };
@@ -646,7 +644,7 @@ export const dailyBusinessShow: CardDef = {
       }),
       once: ':per-turn',
       'once-key': ':daily-business-show-put-bottom',
-      interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+      interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
       silent: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
         const dbs = (coreBoard.allInstalled(state, ':corp') || []).filter((c: Card) =>
           (c as any)?.title === 'Daily Business Show' && coreCard.rezzed(c));
@@ -702,7 +700,7 @@ export const dailyQuest: CardDef = (() => {
   };
   return {
     title: 'Daily Quest',
-    'rez-req': req(function*(state: State): Generator<any, any, any> { return (state as any).activePlayer === ':corp'; }),
+    'rez-req': req(function*(state: State): Generator<any, any, any> { return state.activePlayer === ':corp'; }),
     events: [
       {
         event: ':successful-run',
@@ -805,7 +803,7 @@ export const dragoIvanov: CardDef = {
   advanceable: ':always',
   abilities: [{
     cost: [corePayment.toC('advancement', 2)],
-    req: req(function*(state: State): Generator<any, any, any> { return (state as any).activePlayer === ':corp'; }),
+    req: req(function*(state: State): Generator<any, any, any> { return state.activePlayer === ':corp'; }),
     msg: 'give the runner a tag',
     async: true,
     effect: effect(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {

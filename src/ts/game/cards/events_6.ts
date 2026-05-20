@@ -6,7 +6,7 @@
  * Each card has properties like makes-run, on-play, events, static-abilities, etc.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreAgendas from '../core/agendas';
 import * as coreBadPublicity from '../core/bad_publicity';
@@ -62,8 +62,6 @@ import { serverCards } from './_helpers';
 
 // Import defcard helper - each card is a card definition object
 import { defcard } from '../core/def_helpers';
-import type { CardDef } from '../../types';
-
 import { drawAbi, runAnyServerAbility, runServerAbility } from './events_1';
 import { rejigPickUp, rejigPutDown } from './events_7';
 import * as coreUtils from '../utils';
@@ -799,7 +797,7 @@ export const raindropsCutStone: CardDef = {
       req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> { return forms.thisCardRun; }),
       interactive: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> { return true; }),
       effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
-        const cardsToDraw = coreCard.getCard(state, card)?.power || 0;
+        const cardsToDraw = ((coreCard.getCard(state, card) as any)?.power as number) || 0;
         yield continue_ability(
           state,
           side,
@@ -824,7 +822,7 @@ export const rebirth: CardDef = {
     rfgInsteadOfTrashing: true,
     choices: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       const runnerIdentity = (state as any).runner?.identity;
-      const format = (state as any).format;
+      const format = state.format;
       const isDraftId = (c: Card) => c.code?.startsWith('00');
       const isSwappable = (c: Card) =>
         c.type === 'Identity' && c.side === 'Runner' && runnerIdentity?.faction === c.faction && !isDraftId(c) && runnerIdentity?.title !== c.title &&

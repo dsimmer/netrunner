@@ -4,8 +4,7 @@
 import type { GameState, ServerZone } from "./state";
 import type { Card, Zone } from "./card";
 import type { EID } from "./eid";
-import type { Ability } from "./types.ts";
-
+import type { Ability, Counter } from "./types.ts";
 import {
   isAgenda,
   isAsset,
@@ -258,10 +257,10 @@ function runnerCanHost(
 ): Card[] | null {
   if (opts.hostCard || opts.facedown) return null;
 
-  const allHosts = allInstalled(state, RUNNER_SIDE).filter((c) =>
+  const allHosts = allInstalled(state, RUNNER_SIDE).filter((c: any) =>
     someHostingEffect(state, c),
   );
-  const relevant = allHosts.filter((h) => {
+  const relevant = allHosts.filter((h: any) => {
     const ab = someHostingEffect(state, h);
     return !ab || !ab.req || ab.req(state, RUNNER_SIDE, eid, h, [card]);
   });
@@ -320,7 +319,7 @@ export function runnerCanPayAndInstall(
   if (!args.hostCard && !args.noHost) {
     const potentialHosts = runnerCanHost(state, RUNNER_SIDE, eid, card, args);
     if (potentialHosts) {
-      return potentialHosts.some((h) =>
+      return potentialHosts.some((h: any) =>
         runnerCanPayAndInstall(state, RUNNER_SIDE, eid, card, {
           ...args,
           hostCard: h,
@@ -716,7 +715,7 @@ function runnerHostChoice(
     state,
     RUNNER_SIDE,
     {
-      choices: [...potentialHosts.map((h) => h.title ?? ""), "The Rig"],
+      choices: [...potentialHosts.map((h: any) => h.title ?? ""), "The Rig"],
       prompt: `Choose a destination for ${card.title ?? ""}`,
       async: true,
       effect: req(() => {

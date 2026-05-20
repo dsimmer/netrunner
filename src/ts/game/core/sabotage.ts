@@ -4,8 +4,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { Ability, ReqFn } from "./types.ts";
-
+import type { Ability, AbilityFn, ReqFn } from "./types.ts";
 import { corp, inHand } from "./card";
 import { effectCompleted } from "./eid";
 import { resolveAbility } from "./engine";
@@ -21,7 +20,7 @@ import { enumerateStr, enumerateCards, pluralize, quantify } from "../utils";
  * Returns a ReqFn that produces the prompt text for the sabotage card-selection
  * step.  Mirrors `choosing-prompt-req`.
  */
-export function choosingPromptReq(n: number): ReqFn {
+export function choosingPromptReq(n: number): any {
   return (state: GameState) => {
     const cardsRd = (state.corp.deck ?? []).length;
     const forcedHq = n - cardsRd;
@@ -54,7 +53,7 @@ function cardsStr(
     (public_ ? ` (${enumerateCards(unknown)})` : "");
 
   if (known.length > 0) {
-    const parts: string[] = known.map((c) => c.title ?? "");
+    const parts: string[] = known.map((c: any) => c.title ?? "");
     if (unknown.length > 0) parts.push(unknownStr);
     return ` ${enumerateStr(parts)} from ${from}`;
   }
@@ -70,7 +69,7 @@ function cardsStr(
  * corp (targets) plus any remainder from the top of R&D.  Mirrors
  * `trash-selected-req`.
  */
-export function trashSelectedReq(n: number): ReqFn {
+export function trashSelectedReq(n: number): AbilityFn {
   return (
     state: GameState,
     side: string,
@@ -96,10 +95,10 @@ export function trashSelectedReq(n: number): ReqFn {
       (state.breach as any)?.["known-cids"]?.deck ?? [],
     );
 
-    const knownHqCards = toTrash.filter((c) => knownHandCids.has(c.cid));
-    const knownRdCards = toTrash.filter((c) => knownDeckCids.has(c.cid));
-    const unknownHqCards = targetCards.filter((c) => !knownHandCids.has(c.cid));
-    const unknownRdCards = rndToTrash.filter((c) => !knownDeckCids.has(c.cid));
+    const knownHqCards = toTrash.filter((c: any) => knownHandCids.has(c.cid));
+    const knownRdCards = toTrash.filter((c: any) => knownDeckCids.has(c.cid));
+    const unknownHqCards = targetCards.filter((c: any) => !knownHandCids.has(c.cid));
+    const unknownRdCards = rndToTrash.filter((c: any) => !knownDeckCids.has(c.cid));
 
     let publicMsg = "trashes";
     if (selectedHq > 0) {

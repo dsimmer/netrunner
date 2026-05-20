@@ -119,10 +119,10 @@ export function resolveDamagePrevention(
         ),
       () => {
         // After pre-damage resolves, copy remaining into damage prevention
-        const preCtx = (state as any).prevent?.[
+        const preCtx = state.prevent?.[
           "pre-damage"
         ] as PreventionContext;
-        (state as any).prevent.damage = {
+        state.prevent.damage = {
           count: preCtx?.count ?? n,
           remaining: preCtx?.remaining ?? n,
           prevented: preCtx?.prevented ?? 0,
@@ -178,7 +178,7 @@ function resolveEncounterPreventionForSide(
   side: string,
   eid: EID,
 ): void {
-  const encounter = (state as any).prevent?.encounter as PreventionContext;
+  const encounter = state.prevent?.encounter as PreventionContext;
   const promptStr = `Prevent ${encounter?.title ?? "an"} ability?`;
   const optionStr = `Allow ${encounter?.title ?? "the"} ability`;
 
@@ -287,7 +287,7 @@ export function resolveEndRunPrevention(
       { asyncResult: true },
       () => {
         const remaining = (
-          (state as any).prevent?.["end-run"] as PreventionContext
+          state.prevent?.["end-run"] as PreventionContext
         )?.remaining;
         if (remaining === 0) {
           completeWithResult(state, side, eid, fetchAndClear(state, "end-run"));
@@ -419,7 +419,7 @@ export function preventExpose(
   eid: EID,
   card: Card,
 ): void {
-  const ctx = (state as any).prevent?.expose;
+  const ctx = state.prevent?.expose;
   if (!ctx) {
     console.error(
       `tried to prevent expose outside of an expose prevention window\n${nLastLogs(state, 5)}`,
@@ -453,7 +453,7 @@ export function preventExpose(
           c: Card,
           t: unknown[],
         ) {
-          return [...remaining].sort((a, b) =>
+          return [...remaining].sort((a: any, b: any) =>
             (a.title ?? "").localeCompare(b.title ?? ""),
           );
         }),
@@ -489,10 +489,10 @@ function resolveExposePreventionForSide(
   side: string,
   eid: EID,
 ): void {
-  const remaining = ((state as any).prevent?.expose?.remaining as Card[]) ?? [];
+  const remaining = (state.prevent?.expose?.remaining as Card[]) ?? [];
 
   const promptStr = `Prevent ${enumerateStr(
-    remaining.map((c) => cardStr(state, c, { visible: side === "corp" })),
+    remaining.map((c: any) => cardStr(state, c, { visible: side === "corp" })),
     "or",
   )} from being exposed?`;
   const optionStr = `Allow ${quantify(remaining.length, "card")} to be exposed`;
@@ -541,11 +541,11 @@ export function resolveExposePrevention(
 
   // Filter out rezzed or nil cards
   const newTargets = targets
-    .map((c) => getCard(state, c))
+    .map((c: any) => getCard(state, c))
     .filter((c): c is Card => c != null && !rezzed(c));
 
-  (state as any).prevent.expose.remaining = newTargets;
-  (state as any).prevent.expose.count = newTargets.length;
+  state.prevent.expose.remaining = newTargets;
+  state.prevent.expose.count = newTargets.length;
 
   if (unpreventable || newTargets.length === 0) {
     completeWithResult(state, side, eid, fetchAndClear(state, "expose"));
@@ -592,7 +592,7 @@ function resolveBadPubPreventionForSide(
   side: string,
   eid: EID,
 ): void {
-  const ctx = (state as any).prevent?.["bad-publicity"] as PreventionContext;
+  const ctx = state.prevent?.["bad-publicity"] as PreventionContext;
   const count = ctx?.count ?? 0;
   const remaining = (ctx?.remaining as number) ?? 0;
 
@@ -742,7 +742,7 @@ function resolveTagPreventionForSide(
   side: string,
   eid: EID,
 ): void {
-  const ctx = (state as any).prevent?.tag as PreventionContext;
+  const ctx = state.prevent?.tag as PreventionContext;
   const count = ctx?.count ?? 0;
   const remaining = (ctx?.remaining as number) ?? 0;
 

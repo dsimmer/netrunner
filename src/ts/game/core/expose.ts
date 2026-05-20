@@ -50,7 +50,7 @@ export function resolveExpose(
   }
 
   const msg = `${args.card ? `uses ${args.card.title} to expose ` : "exposes "}${enumerateStr(
-    targets.map((t) => cardStr(state, t, { visible: true })),
+    targets.map((t: any) => cardStr(state, t, { visible: true })),
   )}`;
   systemMsg(state, side, msg);
 

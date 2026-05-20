@@ -6,6 +6,8 @@ import type { Card } from "./card";
 import { getCard } from "./finding";
 import { getScoringOwner } from "./finding";
 import { toKeyword } from "../utils";
+import type { State } from './types';
+
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -152,7 +154,7 @@ export function updateIn(
     obj = args[0];
     // Best-effort: assume args[1] (side) is path root, args[2] is card or further path; treat remaining as path; last arg is fn
     fn = args[args.length - 1];
-    path = args.slice(1, args.length - 1).flatMap((p) => Array.isArray(p) ? p : [p]);
+    path = args.slice(1, args.length - 1).flatMap((p: any) => Array.isArray(p) ? p : [p]);
   } else {
     return undefined;
   }

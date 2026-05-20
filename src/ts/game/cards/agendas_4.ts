@@ -6,7 +6,7 @@
  * Each card has properties like on-score, on-access, events, static-abilities, etc.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State, Subroutine, Zone } from '../../types';
 import * as coreAgendas from '../core/agendas';
 import * as coreBoard from '../core/board';
 import * as coreCard from '../core/card';
@@ -48,8 +48,6 @@ import * as coreUpdate from '../core/update';
 import * as coreWinning from '../core/winning';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
-import type { CardDef } from '../../types';
-
 import { agendaCounters } from './agendas_1';
 import * as coreBadPublicity from '../core/bad_publicity';
 
@@ -208,7 +206,7 @@ export const personalityProfiles: CardDef = {
       }),
       async: true,
       effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
-        const runnerHand = [...(state as any).runner?.hand || []];
+        const runnerHand = [...state.runner?.hand || []];
         const c = runnerHand.sort(() => Math.random() - 0.5)[0];
         coreSay.systemMsg(state, side, `uses ${card.title} to force the Runner to trash ${c.title} from the grip at random`);
         yield wait_for(state, [{ asyncResult: 'result' }, coreMoving.trash(state, side, eid, c, { causeCard: card })], []);
@@ -222,7 +220,7 @@ export const personalityProfiles: CardDef = {
       }),
       async: true,
       effect: effect(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
-        const runnerHand = [...(state as any).runner?.hand || []];
+        const runnerHand = [...state.runner?.hand || []];
         const c = runnerHand.sort(() => Math.random() - 0.5)[0];
         coreSay.systemMsg(state, side, `uses ${card.title} to force the Runner to trash ${c.title} from the grip at random`);
         yield wait_for(state, [{ asyncResult: 'result' }, coreMoving.trash(state, side, eid, c, { causeCard: card })], []);

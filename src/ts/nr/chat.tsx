@@ -18,7 +18,10 @@ import News from "./news";
 import {
   cardPreviewMouseOver,
   cardPreviewMouseOut,
+  setZoomChannelCallback,
 } from "./gameboard/card_preview";
+import { imageUrl } from "./cardbrowser_1";
+import type { CardData } from "./cardbrowser_1";
 
 // ──────────────────────────────────────────────────────────────────
 // Helpers (mirrors current-block-list, filter-blocked-messages)
@@ -135,6 +138,24 @@ function MessageView({
 }
 
 // ──────────────────────────────────────────────────────────────────
+// Card zoom preview (mirrors card-zoom / card-zoom-image)
+// ──────────────────────────────────────────────────────────────────
+
+function CardZoom({ card }: { card: CardData | null }): React.ReactElement {
+  if (!card) {
+    return <div className="card-zoom" />;
+  }
+  const url = imageUrl(card);
+  return (
+    <div className="card-zoom fade">
+      <div className="card-preview blue-shade">
+        {url && <img src={url} alt={card.title ?? ""} />}
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
 // Channel list (mirrors :channels in app-state + channel-view)
 // ──────────────────────────────────────────────────────────────────
 
@@ -167,12 +188,29 @@ export default function ChatPage(): React.ReactElement {
   const [msg, setMsg] = useState("");
   const [maxLen, setMaxLen] = useState<number | null>(null);
   const [scrolling, setScrolling] = useState(false);
+  const [zoomCard, setZoomCard] = useState<CardData | null>(null);
 
   const msgListRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const appVersion = useAppState(
     (s) => (s as { appVersion?: string }).appVersion,
   );
+
+  // Subscribe to the zoom channel so message hover/out (which call
+  // cardPreviewMouseOver/Out → zoomChannelPut) update the preview panel.
+  // Mirrors (go (while true (let [card (<! (:zoom-ch @s))] (swap! s assoc :zoom card))))
+  useEffect(() => {
+    setZoomChannelCallback((value: unknown) => {
+      if (value && typeof value === "object") {
+        setZoomCard(value as CardData);
+      } else {
+        setZoomCard(null);
+      }
+    });
+    return () => {
+      setZoomChannelCallback(() => undefined);
+    };
+  }, []);
 
   // Mirrors (go (swap! chat-state assoc :config (:json (<! (GET "/chat/config")))))
   useEffect(() => {
@@ -375,6 +413,9 @@ export default function ChatPage(): React.ReactElement {
           ))}
         </div>
         <div className="chat-container">
+          <div className="chat-card-zoom">
+            <CardZoom card={zoomCard} />
+          </div>
           <div className="chat-box">
             <div
               className="blue-shade panel message-list"

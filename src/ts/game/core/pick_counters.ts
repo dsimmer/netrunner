@@ -215,7 +215,7 @@ export function pickVirusCountersToSpend(
         );
       } else {
         const message = enumerateStr(
-          Object.values(newSelected).map((s) => {
+          Object.values(newSelected).map((s: any) => {
             const { card: c, number } = s;
             return `${quantify(number, "virus counter")} from ${c.title ?? ""}`;
           }),
@@ -259,7 +259,7 @@ export function pickVirusCountersToSpend(
           completeWithResult(state, side, eid, "cancel");
         } else {
           const message = enumerateStr(
-            Object.values(selectedCards).map((s) => {
+            Object.values(selectedCards).map((s: any) => {
               const { card: c, number } = s;
               return `${quantify(number, "virus counter")} from ${c.title ?? ""}`;
             }),
@@ -410,8 +410,8 @@ export function pickCreditReducers(
   let providerCards = providerFunc();
   const allUsedUp = (cid: string): boolean =>
     (uses[cid]?.used ?? 0) >= (uses[cid]?.["max-uses"] ?? 1);
-  providerCards = providerCards.filter((c) => !allUsedUp(c.cid));
-  const discountProvider = providerCards.filter((c) => {
+  providerCards = providerCards.filter((c: any) => !allUsedUp(c.cid));
+  const discountProvider = providerCards.filter((c: any) => {
     const cdef = cardDef(c) as any;
     return cdef?.interactions?.["pay-credits"]?.["cost-reduction"];
   });
@@ -444,7 +444,7 @@ export function pickCreditReducers(
     choices: {
       card: (c: Card) =>
         inColl(
-          discountProvider.map((p) => p.cid),
+          discountProvider.map((p: any) => p.cid),
           c.cid,
         ),
     },
@@ -560,9 +560,9 @@ export function pickCreditProvidingCards(
   const bps = badPubSpent ?? 0;
 
   const counterCount =
-    Object.values(sel).reduce((acc, s) => acc + (s?.number ?? 0), 0) +
+    Object.values(sel).reduce((acc: any, s: any) => acc + (s?.number ?? 0), 0) +
     (bps || 0);
-  const selectedStealth = Object.values(sel).filter((s) =>
+  const selectedStealth = Object.values(sel).filter((s: any) =>
     hasSubtype(s.card, "Stealth"),
   );
   const stealthCount = selectedStealth.reduce(
@@ -571,12 +571,12 @@ export function pickCreditProvidingCards(
   );
   let provCards =
     tc != null && counterCount - tc === stealthCount - st
-      ? providerFunc().filter((c) => hasSubtype(c, "Stealth"))
+      ? providerFunc().filter((c: any) => hasSubtype(c, "Stealth"))
       : providerFunc();
   const allUsedUp = (cid: string): boolean =>
     (us[cid]?.used ?? 0) >= (us[cid]?.["max-uses"] ?? 99);
-  provCards = provCards.filter((c) => !allUsedUp(c.cid));
-  provCards = provCards.filter((c) => {
+  provCards = provCards.filter((c: any) => !allUsedUp(c.cid));
+  provCards = provCards.filter((c: any) => {
     const cdef = cardDef(c) as any;
     return !cdef?.interactions?.["pay-credits"]?.["cost-reduction"];
   });
@@ -604,7 +604,7 @@ export function pickCreditProvidingCards(
       const haveCardStrs = Object.keys(sel).length > 0 || bps > 0;
       const cardStrs = haveCardStrs
         ? enumerateStr([
-            ...Object.values(sel).map((s) => {
+            ...Object.values(sel).map((s: any) => {
               const { card: c, number } = s;
               return `${number} [Credits] from ${c.title ?? ""}`;
             }),
@@ -621,8 +621,8 @@ export function pickCreditProvidingCards(
       }
       lose(state, side, "credit", remainder);
       const cards = Object.values(sel)
-        .map((s) => s.card)
-        .filter((c) => {
+        .map((s: any) => s.card)
+        .filter((c: any) => {
           const cdef = cardDef(c) as any;
           return !cdef?.interactions?.["pay-credits"]?.["cost-reduction"];
         });
@@ -681,7 +681,7 @@ export function pickCreditProvidingCards(
     pc &&
     ((pc !== "bad-publicity" &&
       inColl(
-        provCards.map((c) => c.cid),
+        provCards.map((c: any) => c.cid),
         pc.cid,
       )) ||
       pc === "bad-publicity")
@@ -791,7 +791,7 @@ export function pickCreditProvidingCards(
     choices: {
       card: (c: Card) =>
         inColl(
-          provCards.map((p) => p.cid),
+          provCards.map((p: any) => p.cid),
           c.cid,
         ),
     },

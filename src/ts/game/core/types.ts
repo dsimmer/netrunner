@@ -4,9 +4,16 @@
 
 import type { GameState } from "./state";
 import type { EID } from "./eid";
-import type { Card } from "./card";
+import type { Card, Zone, Counter } from "./card";
 
-export type { EID, Card, GameState };
+export type { EID, Card, GameState, Zone, Counter };
+
+// Generic server descriptor: name string ("hq", "remote2") or zone vector.
+export type Server = string | string[];
+// Generic options bag accepted by many engine helpers (Clojure-style kwargs).
+export type EngineOpts = Record<string, unknown>;
+// Generator return type produced by req/effect macro bodies.
+export type AbilityGen<T = unknown> = Generator<unknown, T, unknown>;
 
 // Convenience aliases used widely across card files.
 export type State = GameState;
@@ -35,7 +42,7 @@ export type MsgFn =
       [key: string]: any;
     };
 
-export type ValueFn = AnyFn;
+export type ValueFn = AnyFn | number | boolean | string | unknown;
 
 export type NumberFn = AnyFn | number;
 
@@ -62,6 +69,8 @@ export interface Cost {
 export interface PsiAbility {
   equal?: Ability;
   unequal?: Ability;
+  "not-equal"?: Ability;
+  [key: string]: any;
 }
 
 export interface TraceAbility {
@@ -108,14 +117,12 @@ export interface Ability {
 // Cards in progress sometimes pass a function (req-style) directly; allow that.
 export type ChoicesSpec =
   | string[]
-  | "*"
-  | "credit"
-  | "counter"
+  | string
   | ReqFn
   | {
       number?: NumberFn;
       default?: NumberFn;
-      card?: (c: Card) => boolean;
+      card?: (c: Card) => boolean | unknown;
       req?: ReqFn;
       all?: boolean;
       max?: NumberFn;

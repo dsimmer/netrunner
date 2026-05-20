@@ -5,7 +5,9 @@ import { wsSend } from "./ws";
 
 interface User {
   __type?: string;
-  [key: string]: any;
+  username?: string;
+  emailhash?: string;
+  [key: string]: unknown;
 }
 
 interface Message {
@@ -17,7 +19,7 @@ interface Message {
 
 interface CurrentGame {
   gameid?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface LobbyChatProps {
@@ -84,7 +86,7 @@ export const lobbyChat = React.forwardRef<HTMLDivElement, LobbyChatProps>(
                 <Avatar user={msgItem.user as { emailhash?: string; username?: string }} opts={{ size: 38 }} />
                 <div className="content">
                   <div className="username">
-                    {(msgItem.user as any).username}
+                    {(msgItem.user as User).username}
                   </div>
                   <div>{msgItem.text}</div>
                 </div>

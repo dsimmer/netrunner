@@ -4,6 +4,8 @@ export * from './prevention_2';
 import { req as reqFn, wait_for } from "../macros";
 import { sameCard } from "./card";
 import { canPay } from "./payment";
+import type { Card, EID, Side, State } from './types.ts';
+
 
 /**
  * Prevention ability: prevent trashing of an installed card by type.
@@ -34,7 +36,7 @@ export function preventTrashInstalledByType(
     type: ":ability",
     label,
     ability: {
-      req: reqFn(function* (state: any, side: any, eid: any, card: any, targets: any[]) {
+      req: reqFn(function* (state: State, side: Side, eid: EID, card: Card, targets: any[]) {
         const ctx = targets?.[0];
         if (!ctx || ctx.unpreventable) return false;
         if (!validContext(ctx)) return false;
@@ -43,7 +45,7 @@ export function preventTrashInstalledByType(
       }),
       async: true,
       "fake-cost": cost,
-      effect: reqFn(function* (state: any, side: any, eid: any, card: any) {
+      effect: reqFn(function* (state: State, side: Side, eid: EID, card: Card) {
         const targetsList = relevant(state, card);
         if (targetsList.length === 1) {
           yield wait_for(state, [{ asyncResult: "result" }, () => {

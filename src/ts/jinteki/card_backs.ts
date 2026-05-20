@@ -1,3 +1,4 @@
+import type { Card } from '../types';
 // Card back definitions (standard FFG, NSG, and prize unlockables).
 // Mirrors: src/cljc/jinteki/card_backs.cljc
 

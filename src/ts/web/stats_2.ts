@@ -10,6 +10,8 @@ import { response, jsonResponse, mongoTimeToUtcString, type HttpResponse } from 
 import { filterLogForSide, stripOpponentDeckName, toObjectId } from "./stats_1";
 import type { Annotation, RequestLike } from "./stats_1";
 import { indexPage } from "./pages";
+import type { Server } from '../types';
+
 
 /**
  * Clear deck stats.

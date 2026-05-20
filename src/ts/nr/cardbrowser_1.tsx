@@ -458,7 +458,7 @@ export function showAltArt(allowAllUsers = false): boolean {
 // image-url
 // ---------------------------------------------------------------------------
 
-function imageUrl(card: CardData, allowAllUsers = false): string | null {
+export function imageUrl(card: CardData, allowAllUsers = false): string | null {
   const state = useAppState.getState();
   const lang = state.options.cardLanguage as string ?? "en";
   const res = state.options.cardResolution as string ?? "default";

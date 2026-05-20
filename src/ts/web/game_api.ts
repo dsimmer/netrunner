@@ -251,8 +251,8 @@ export async function decklistHandler(ctx: RequestContext): Promise<any> {
 }
 
 function getSide(username: string, state: GameState): "corp" | "runner" | null {
-  if (username === state.corp?.user?.username) return "corp";
-  if (username === state.runner?.user?.username) return "runner";
+  if (username === (state as any).corp?.user?.username) return "corp";
+  if (username === (state as any).runner?.user?.username) return "runner";
   return null;
 }
 

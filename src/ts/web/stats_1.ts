@@ -515,13 +515,13 @@ export async function gameFinished(
         "end-date": new Date(),
         stats: cleanedStats,
         turn: state.turn,
-        "corp.agenda-points": (state.corp as any)?.["agenda-point"],
-        "runner.agenda-points": (state.runner as any)?.["agenda-point"],
+        "corp.agenda-points": ((state as any).corp as any)?.["agenda-point"],
+        "runner.agenda-points": ((state as any).runner as any)?.["agenda-point"],
         "bug-reported": state["bug-reported"],
         replay: shouldSaveReplay ? generateReplay(gameData.state) : undefined,
         "has-replay": (state.options as any)?.["save-replay"] ?? false,
         "replay-shared": shouldShareReplay,
-        log: state.log,
+        log: (state as any).log,
       },
     };
 
@@ -536,8 +536,8 @@ export async function gameFinished(
     );
 
     if (shouldSaveReplay && !shouldShareReplay) {
-      const corpUser = (state.corp as any)?.user || {};
-      const runnerUser = (state.corp as any)?.runner || {};
+      const corpUser = ((state as any).corp as any)?.user || {};
+      const runnerUser = ((state as any).corp as any)?.runner || {};
       if (corpUser.username) {
         await deleteOldReplay(db, corpUser.username);
       }

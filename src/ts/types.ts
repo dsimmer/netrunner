@@ -25,4 +25,9 @@ export type {
   StaticAbility,
   EventHandler,
   CardDef,
+  Zone,
+  Counter,
+  Server,
+  EngineOpts,
+  AbilityGen,
 } from "./game/core/types";

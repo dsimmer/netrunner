@@ -6,15 +6,7 @@ import { randomUUID } from "crypto";
 import type { GameState, Prompt } from "./state";
 import type { Card, Zone } from "./card";
 import type { EID } from "./eid";
-import type {
-  Ability,
-  ReqFn,
-  MsgFn,
-  AbilityFn,
-  NumberFn,
-  Cost,
-  ChoicesSpec,
-} from "./types.ts";
+import type { Ability, AbilityFn, ChoicesSpec, Cost, MsgFn, NumberFn, ReqFn } from "./types.ts";
 import type { Effect, RegisteredEvent } from "./state";
 import { CORP_SIDE, RUNNER_SIDE, getPlayer } from "./state";
 import {
@@ -122,8 +114,8 @@ export function serverCardTitles(
   return [
     ...new Set(
       allCardsList
-        .filter((c) => predicate(state, "", makeEID(state), null, [c]))
-        .map((c) => getTitle(c) ?? ""),
+        .filter((c: any) => predicate(state, "", makeEID(state), null, [c]))
+        .map((c: any) => getTitle(c) ?? ""),
     ),
   ].sort();
 }
@@ -195,7 +187,7 @@ function registerSuppressInternal(
   card: Card,
   events: Ability[],
 ): SuppressEntry[] {
-  const abilities: SuppressEntry[] = events.map((ability) => ({
+  const abilities: SuppressEntry[] = events.map((ability: any) => ({
     event: ability.event ?? "",
     ability: { ...ability, event: undefined },
     card,
@@ -228,7 +220,7 @@ function unregisterSuppressInternal(
   card: Card,
   events: Ability[],
 ): void {
-  const eventNames = new Set(events.map((e) => e.event ?? ""));
+  const eventNames = new Set(events.map((e: any) => e.event ?? ""));
   const existing = (state as any).suppress ?? [];
   (state as any).suppress =existing.filter(
     (entry: SuppressEntry) =>
@@ -352,7 +344,7 @@ export function registerEvents(
   events: Ability[],
 ): RegisteredEvent[] {
   if (!events.length) return [];
-  const abilities = events.map((ability) => buildEventAbility(ability, card));
+  const abilities = events.map((ability: any) => buildEventAbility(ability, card));
   state.events = [...state.events, ...abilities];
   return abilities;
 }
@@ -442,7 +434,7 @@ export function updateFloatingEventDurations(
   fromKey: string,
   toKey: string,
 ): void {
-  state.events = state.events.map((e) =>
+  state.events = state.events.map((e: any) =>
     e.duration === fromKey ? { ...e, duration: toKey } : e,
   );
 }
@@ -457,7 +449,7 @@ export function unregisterFloatingEvents(
   duration: string,
 ): void {
   if (duration === "default-duration") return;
-  state.events = state.events.filter((e) => e.duration !== duration);
+  state.events = state.events.filter((e: any) => e.duration !== duration);
 }
 
 /**
@@ -469,7 +461,7 @@ export function unregisterEventByUUID(
   _side: string,
   uuid: string,
 ): void {
-  state.events = state.events.filter((e) => e.uuid !== uuid);
+  state.events = state.events.filter((e: any) => e.uuid !== uuid);
 }
 
 // ---------------------------------------------------------------------------
@@ -592,7 +584,7 @@ export function cardForAbility(
       const side = getSide(ability.card);
       const installed = allInstalled(state, side ?? "");
       const cid = ability.card.cid;
-      const swapped = installed.find((c) => c.cid === cid) ?? null;
+      const swapped = installed.find((c: any) => c.cid === cid) ?? null;
       if (swapped) return validCondition(state, swapped, ability);
     }
   }
@@ -638,7 +630,7 @@ export function gatherEvents(
   targets: unknown[],
   cardAbilities?: any[] | null,
 ): RegisteredEvent[] {
-  const matching = state.events.filter((e) => e.event === event);
+  const matching = state.events.filter((e: any) => e.event === event);
   const all = cardAbilities
     ? [...matching, ...cardAbilities.filter(Boolean)]
     : matching;
@@ -653,7 +645,7 @@ export function gatherEvents(
   }
 
   // Active player's handlers last (non-active first)
-  valid.sort((a, b) => {
+  valid.sort((a: any, b: any) => {
     const aActive = isActivePlayer(state, a) ? 1 : 0;
     const bActive = isActivePlayer(state, b) ? 1 : 0;
     return aActive - bActive;

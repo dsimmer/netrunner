@@ -416,7 +416,7 @@ function rezAll(state: GameState, side: string, eid: EID, cards: Card[]): void {
  * Mirrors `rez-all-turn-agendas-faceup`.
  */
 function rezAllTurnAgendasFaceup(cards: Card[]): Ability | null {
-  const agendas = cards.filter((c) => isAgenda(c) && !c.seen);
+  const agendas = cards.filter((c: any) => isAgenda(c) && !c.seen);
   if (agendas.length === 0) return null;
 
   return {
@@ -473,13 +473,13 @@ export function commandRezAll(state: GameState, side: string): void {
               _targets: unknown[],
             ): void => {
               // Mark all discard pile agendas as seen
-              state.corp.discard = state.corp.discard.map((c) => ({
+              state.corp.discard = state.corp.discard.map((c: any) => ({
                 ...c,
                 seen: true,
               }));
 
               const installed = allInstalled(state, side);
-              const toRez = installed.filter((c) => !isRezzed(c));
+              const toRez = installed.filter((c: any) => !isRezzed(c));
 
               wait_for(
                 state,
@@ -905,7 +905,7 @@ export function commandInstallIce(state: GameState, side: string): void {
 export function commandPeek(state: GameState, side: string, n: number): void {
   const deck = side === CORP_SIDE ? state.corp.deck : state.runner.deck;
   const topCards = deck.slice(0, n);
-  const titles = topCards.map((c) => getTitle(c) ?? "");
+  const titles = topCards.map((c: any) => getTitle(c) ?? "");
   const isPlural = n > 1;
 
   showPrompt(

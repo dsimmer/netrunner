@@ -2,6 +2,8 @@
 // Mirrors: src/cljs/nr/gameboard/card_preview.cljs
 
 import { useAppState } from "../appstate";
+import type { Card } from '../../types';
+
 
 // ---------------------------------------------------------------------------
 // Zoom channel (mirrors CLJS `zoom-channel`, a core.async chan)

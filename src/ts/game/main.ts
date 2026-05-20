@@ -5,8 +5,7 @@
 
 import * as core from './core';
 import * as toasts from './toasts';
-import type { State, Side } from '../types';
-
+import type { Side, State } from '../types';
 /**
  * Creates a unique action id for each server response - used in client lock
  */

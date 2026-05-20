@@ -5,7 +5,7 @@
  * Contains all Runner hardware card definitions with their abilities and events.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreActions from '../core/actions';
 import * as coreBoard from '../core/board';
@@ -55,8 +55,6 @@ import * as utils from '../utils';
 import * as jintekiUtils from '../../jinteki/utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 import { coreThreat } from './_helpers';
-import type { CardDef } from '../../types';
-
 // Helper for toC
 export function toC(...args: any[]): any {
   return (corePayment.toC as any)?.(...args);
@@ -887,8 +885,8 @@ export function noEventFn(state: State, side: Side | null, event: string, pred?:
 }
 
 // Helper for event-count
-export function eventCountFn(state: State, side: Side, event: string, pred?: any): number {
-  return coreEvents.eventCount?.(state, side, event, pred) ?? 0;
+export function eventCountFn(...args: any[]): number {
+  return (coreEvents.eventCount as any)?.(...args) ?? 0;
 }
 
 // Helper for run-events

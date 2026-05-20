@@ -1,10 +1,17 @@
 // Run mechanics.
 // Mirrors: src/clj/game/core/runs.clj
 
-import type { GameState, RunState, Encounter } from "./state";
+import type {
+  GameState,
+  RunState,
+  Encounter,
+  ServerZone,
+  RunEffectEntry,
+  RunSourceCard,
+} from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { Ability } from "./types";
+import type { Ability, Server } from "./types";
 import {
   breachServer,
 } from "./access_2";
@@ -149,9 +156,9 @@ export function getRunnableZones(
     ),
   );
   const candidate = args?.zones ?? getZones(state);
-  const permitted = candidate.filter((z) => !restrictedZones.has(z));
+  const permitted = candidate.filter((z: string) => !restrictedZones.has(z));
   if (ignoreCosts) return permitted;
-  return permitted.filter((z) => {
+  return permitted.filter((z: string) => {
     const cost = totalRunCost(state, side, effCard, { server: unknownToKw(z) });
     return canPay(state, "runner", effEid, effCard, null, cost ?? []) !== null;
   });
@@ -159,7 +166,7 @@ export function getRunnableZones(
 
 export function canRunServer(state: GameState, server: unknown): boolean {
   const kw = unknownToKw(server);
-  return getRunnableZones(state).some((z) => z === kw);
+  return getRunnableZones(state).some((z: string) => z === kw);
 }
 
 // ---------------------------------------------------------------------------
@@ -193,8 +200,8 @@ export function clearEncounter(state: GameState): void {
   const enc = getCurrentEncounter(state);
   if (!enc) return;
   state.encounters.pop();
-  (state as any).perEncounter = null;
-  if (enc.eid) effectCompleted(state, null as any, enc.eid);
+  state.perEncounter = null;
+  if (enc.eid) effectCompleted(state, null, enc.eid);
 }
 
 // ---------------------------------------------------------------------------
@@ -259,29 +266,39 @@ export function runContinue(state: GameState, side: string, eid: EID | null): vo
 // Mirrors: make-run in runs.clj
 // ---------------------------------------------------------------------------
 export function makeRun(state: GameState, side: string, eid: EID, server: unknown, card?: Card | null, args?: { clickRun?: boolean; ignoreCosts?: boolean } | null): void;
-export function makeRun(...rawArgs: any[]): void;
-export function makeRun(...rawArgs: any[]): void {
+export function makeRun(eid: EID, server: unknown, card?: Card | null): void;
+export function makeRun(...rawArgs: unknown[]): void {
   let state: GameState, side: string, eid: EID, server: unknown;
   let card: Card | null = null;
   let args: { clickRun?: boolean; ignoreCosts?: boolean } | null = null;
-  if (rawArgs.length >= 4 && typeof rawArgs[2] === "object" && rawArgs[2] !== null && "id" in rawArgs[2]) {
-    state = rawArgs[0]; side = rawArgs[1]; eid = rawArgs[2]; server = rawArgs[3];
-    card = rawArgs[4] ?? null;
-    args = rawArgs[5] ?? null;
-  } else if (typeof rawArgs[0] === "object" && rawArgs[0] !== null && "id" in rawArgs[0]) {
+  const isEid = (v: unknown): v is EID =>
+    typeof v === "object" && v !== null && "id" in (v as Record<string, unknown>);
+  if (rawArgs.length >= 4 && isEid(rawArgs[2])) {
+    state = rawArgs[0] as GameState;
+    side = rawArgs[1] as string;
+    eid = rawArgs[2];
+    server = rawArgs[3];
+    card = (rawArgs[4] as Card | null | undefined) ?? null;
+    args = (rawArgs[5] as { clickRun?: boolean; ignoreCosts?: boolean } | null | undefined) ?? null;
+  } else if (isEid(rawArgs[0])) {
     // (eid, server, card) — legacy short form
-    eid = rawArgs[0]; server = rawArgs[1]; card = rawArgs[2] ?? null;
-    state = (rawArgs[3] as GameState) ?? ({} as GameState);
+    eid = rawArgs[0];
+    server = rawArgs[1];
+    card = (rawArgs[2] as Card | null | undefined) ?? null;
+    state = (rawArgs[3] as GameState | undefined) ?? ({} as GameState);
     side = "runner";
   } else {
-    state = rawArgs[0]; side = rawArgs[1]; eid = rawArgs[2]; server = rawArgs[3];
-    card = rawArgs[4] ?? null;
-    args = rawArgs[5] ?? null;
+    state = rawArgs[0] as GameState;
+    side = rawArgs[1] as string;
+    eid = rawArgs[2] as EID;
+    server = rawArgs[3];
+    card = (rawArgs[4] as Card | null | undefined) ?? null;
+    args = (rawArgs[5] as { clickRun?: boolean; ignoreCosts?: boolean } | null | undefined) ?? null;
   }
   const costArgs = { ...(args ?? {}), server: unknownToKw(server) };
   const costs = totalRunCost(state, side, card ?? null, costArgs);
   const runCard = card ? getCard(state, card) ?? card : null;
-  (eid as any).sourceType = "make-run";
+  eid.sourceType = "make-run";
 
   const canDo =
     canRun(state, "runner") &&
@@ -293,7 +310,7 @@ export function makeRun(...rawArgs: any[]): void {
     return;
   }
 
-  if ((state as any).endRun) delete (state as any).endRun.ended;
+  if (state.endRun) delete state.endRun.ended;
   if (args?.clickRun) {
     if (!state.runner.register) state.runner.register = {};
     (state.runner.register as Record<string, unknown>)["made-click-run"] = true;
@@ -304,8 +321,8 @@ export function makeRun(...rawArgs: any[]): void {
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, binds: any) {
-        const paymentStr = binds.asyncResult?.msg as string | undefined;
+      function (s: GameState, _e: EID, binds: { asyncResult?: { msg?: string } }) {
+        const paymentStr = binds.asyncResult?.msg;
         if (!paymentStr) {
           effectCompleted(s, side, eid);
           return;
@@ -320,8 +337,13 @@ export function makeRun(...rawArgs: any[]): void {
                   return Array.isArray(z) ? z[z.length - 1] : String(server);
                 })();
         const zoneKey = unknownToKw(serverZone);
-        const serverList = s.corp.servers as any;
-        const serverNode = serverList[zoneKey] ?? serverList.remote?.[zoneKey];
+        const serverList = s.corp.servers as unknown as Record<
+          string,
+          ServerZone | Record<string, ServerZone> | undefined
+        >;
+        const directNode = serverList[zoneKey] as ServerZone | undefined;
+        const remoteNode = (serverList.remote as Record<string, ServerZone> | undefined)?.[zoneKey];
+        const serverNode = directNode ?? remoteNode;
         const ices = (serverNode?.ices ?? []) as Card[];
         const n = ices.length;
 
@@ -347,7 +369,7 @@ export function makeRun(...rawArgs: any[]): void {
           // Mirrors: :current-ice nil, :events nil — we only carry the few fields TS uses
         } as RunState;
         if (runCard) {
-          const sourceCard = {
+          const sourceCard: RunSourceCard = {
             code: runCard.code,
             cid: runCard.cid,
             zone: runCard.zone,
@@ -357,7 +379,7 @@ export function makeRun(...rawArgs: any[]): void {
             art: runCard.art,
             implementation: runCard.implementation,
           };
-          (state.run as any).sourceCard = sourceCard;
+          if (state.run) state.run.sourceCard = sourceCard;
           const updated: Card = {
             ...runCard,
             special: { ...(runCard.special ?? {}), "run-id": runId },
@@ -371,16 +393,18 @@ export function makeRun(...rawArgs: any[]): void {
           s,
           [
             { asyncResult: "result" },
-            function (s2: GameState, _e2: EID, _b: any) {
-              (s2.run as any).badPublicityAvailable = countBadPub(s2 as any);
-              (s2.runner as any).nextRunCredit = 0;
+            function (s2: GameState, _e2: EID, _b: { asyncResult?: unknown }) {
+              if (s2.run) s2.run.badPublicityAvailable = countBadPub(s2);
+              s2.runner.nextRunCredit = 0;
               if (!s2.runner.register) s2.runner.register = {};
-              const made = ((s2.runner.register as any)["made-run"] as unknown[]) ?? [];
+              const made = (s2.runner.register["made-run"] as unknown[] | undefined) ?? [];
               made.push(s2.run!.server[0]);
-              (s2.runner.register as any)["made-run"] = made;
-              const stats = (s2.stats as any)[side]?.runs ?? {};
-              stats.started = (stats.started ?? 0) + 1;
-              (s2.stats as any)[side] = { ...((s2.stats as any)[side] ?? {}), runs: stats };
+              s2.runner.register["made-run"] = made;
+              const sideStats = (s2.stats[side] as Record<string, unknown> | undefined) ?? {};
+              const runs = (sideStats.runs as { started?: number } | undefined) ?? {};
+              runs.started = (runs.started ?? 0) + 1;
+              sideStats.runs = runs;
+              s2.stats[side] = sideStats;
               queueEvent(s2, "run", {
                 server: s2.run!.server,
                 position: n,
@@ -394,7 +418,7 @@ export function makeRun(...rawArgs: any[]): void {
             s,
             side,
             makeEIDFrom(s, eid),
-            (s.runner as any).nextRunCredit ?? 0,
+            s.runner.nextRunCredit ?? 0,
           ],
         );
       },
@@ -408,7 +432,7 @@ export function makeRun(...rawArgs: any[]): void {
 // ---------------------------------------------------------------------------
 function continueInitiation(state: GameState, side: string, _eid: EID | null): void {
   if (!state.run?.noAction) {
-    if (state.run) state.run.noAction = side as any;
+    if (state.run) state.run.noAction = side;
     if (side === "corp") {
       systemMsg(state, side, "has no further action");
     }
@@ -467,7 +491,7 @@ export function checkForEmptyServer(state: GameState): boolean {
   const serverKey = run.server?.[0];
   if (!serverKey) return false;
   if (!isRemote(serverKey)) return false;
-  const remote = (state.corp.servers.remote as Record<string, any>)?.[serverKey as string];
+  const remote = state.corp.servers.remote?.[serverKey];
   if (!remote) return true;
   return (remote.content?.length ?? 0) === 0 && (remote.ices?.length ?? 0) === 0;
 }
@@ -487,7 +511,7 @@ export function encounterEnds(state: GameState, side: string, eid: EID): void {
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, _b: any) {
+      function (s: GameState, _e: EID, _b: { asyncResult?: unknown }) {
         updateAllSubtypes(s);
         const run = s.run;
         const phase = run?.phase;
@@ -497,7 +521,7 @@ export function encounterEnds(state: GameState, side: string, eid: EID): void {
           return;
         }
         if (
-          (s as any).endRun?.ended ||
+          s.endRun?.ended ||
           (s.encounters?.length ?? 0) > 1 ||
           !run ||
           run.successful
@@ -554,7 +578,7 @@ function startNextPhaseApproachIce(state: GameState, side: string, eid: EID | nu
   checkAutoNoAction(state);
   const phaseEid = makePhaseEID(state, eid);
   const ice = getCurrentIce(state);
-  const onApproach = ice ? (cardDef(ice) as any)?.["on-approach"] : null;
+  const onApproach = ice ? cardDef(ice)["on-approach"] : null;
   if (ice) {
     systemMsg(state, "runner", `approaches ${cardStr(state, ice)}`);
   }
@@ -566,8 +590,8 @@ function startNextPhaseApproachIce(state: GameState, side: string, eid: EID | nu
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, _b: any) {
-        if (checkForEmptyServer(s) || (s as any).endRun?.ended) {
+      function (s: GameState, _e: EID, _b: { asyncResult?: unknown }) {
+        if (checkForEmptyServer(s) || s.endRun?.ended) {
           handleEndRun(s, side, phaseEid);
         } else {
           effectCompleted(s, side, phaseEid);
@@ -581,7 +605,7 @@ function startNextPhaseApproachIce(state: GameState, side: string, eid: EID | nu
       makeEIDFrom(state, phaseEid),
       {
         cancelFn: (s: GameState) =>
-          !!(s as any).endRun?.ended || checkForEmptyServer(s),
+          !!s.endRun?.ended || checkForEmptyServer(s),
       },
     ],
   );
@@ -592,7 +616,7 @@ function startNextPhaseApproachIce(state: GameState, side: string, eid: EID | nu
 // ---------------------------------------------------------------------------
 function continueApproachIce(state: GameState, side: string, _eid: EID | null): void {
   if (!state.run?.noAction) {
-    if (state.run) state.run.noAction = side as any;
+    if (state.run) state.run.noAction = side;
     if (side === "corp") {
       systemMsg(state, side, "has no further action");
     }
@@ -604,8 +628,8 @@ function continueApproachIce(state: GameState, side: string, _eid: EID | null): 
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, _b: any) {
-        if (checkForEmptyServer(s) || (s as any).endRun?.ended) {
+      function (s: GameState, _e: EID, _b: { asyncResult?: unknown }) {
+        if (checkForEmptyServer(s) || s.endRun?.ended) {
           handleEndRun(s, side, phaseEid);
         } else if (rezzed(approachedIce)) {
           setNextPhase(s, "encounter-ice");
@@ -651,7 +675,7 @@ export function canBypassIce(state: GameState, side: string, ice: Card | null): 
  */
 function shouldEndEncounter(state: GameState, side: string, ice: Card): boolean {
   return (
-    !!(state as any).endRun?.ended ||
+    !!state.endRun?.ended ||
     canBypassIce(state, side, getCard(state, ice)) ||
     !getCard(state, ice) ||
     !isActiveIce(state, getCard(state, ice)) ||
@@ -667,14 +691,18 @@ function preventableEncounterAbi(abi: Ability, ice: Card): Ability {
   return {
     async: true,
     interactive: () => true,
-    "ability-name": `${(abi as any)["ability-name"] ?? ice.title} encounter`,
+    "ability-name": `${abi["ability-name"] ?? ice.title} encounter`,
     effect: (state: GameState, side: string, eid: EID, _card: Card | null) => {
       wait_for(
         state,
         [
           { asyncResult: "result" },
-          function (s: GameState, _e: EID, binds: any) {
-            const remaining = (binds.asyncResult as any)?.remaining ?? 0;
+          function (
+            s: GameState,
+            _e: EID,
+            binds: { asyncResult?: { remaining?: number } },
+          ) {
+            const remaining = binds.asyncResult?.remaining ?? 0;
             if (remaining > 0) {
               registerPendingEvent(s, "resolve-ice-encounter-abi", ice, abi);
               queueEvent(s, "resolve-ice-encounter-abi", { ice });
@@ -689,7 +717,7 @@ function preventableEncounterAbi(abi: Ability, ice: Card): Ability {
           state,
           side,
           {
-            title: `${(abi as any)["ability-name"] ?? ice.title} encounter`,
+            title: `${abi["ability-name"] ?? ice.title} encounter`,
             card: ice,
           },
         ],
@@ -709,10 +737,16 @@ export function encounterIce(
 ): void {
   state.encounters.push({ eid, ice } as Encounter);
   checkAutoNoAction(state);
-  const onEncounter = (cardDef(ice) as any)?.["on-encounter"];
-  const appliedEncounters = getEffects(state, null as any, "gain-encounter-ability", ice, []) as Ability[];
+  const onEncounter = cardDef(ice)["on-encounter"] as Ability | undefined;
+  const appliedEncounters = getEffects(
+    state,
+    null as unknown as string,
+    "gain-encounter-ability",
+    ice,
+    [],
+  ) as Ability[];
   const all = [...(appliedEncounters ?? []), onEncounter].filter(Boolean) as Ability[];
-  const allEncounters = all.map((abi) => preventableEncounterAbi(abi, ice));
+  const allEncounters = all.map((abi: Ability) => preventableEncounterAbi(abi, ice));
   systemMsg(
     state,
     "runner",
@@ -726,7 +760,7 @@ export function encounterIce(
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, _b: any) {
+      function (s: GameState, _e: EID, _b: { asyncResult?: unknown }) {
         if (shouldEndEncounter(s, side, ice)) {
           encounterEnds(s, side, eid);
           return;
@@ -738,7 +772,7 @@ export function encounterIce(
             s,
             [
               { asyncResult: "result" },
-              function (s2: GameState, _e2: EID, _b2: any) {
+              function (s2: GameState, _e2: EID, _b2: { asyncResult?: unknown }) {
                 if (shouldEndEncounter(s2, side, ice)) {
                   encounterEnds(s2, side, eid);
                 }
@@ -797,17 +831,17 @@ export function forceIceEncounter(
   showRunPrompts(state, `encountering ${ice.title}`, ice);
   const oldPhase = state.run?.phase;
   if (newState) setPhase(state, newState);
-  (state as any).forcedEncounter = ((state as any).forcedEncounter ?? 0) + 1;
+  state.forcedEncounter = (state.forcedEncounter ?? 0) + 1;
   wait_for(
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, _b: any) {
-        const fe = (s as any).forcedEncounter as number | undefined;
+      function (s: GameState, _e: EID, _b: { asyncResult?: unknown }) {
+        const fe = s.forcedEncounter;
         if (fe && fe > 1) {
-          (s as any).forcedEncounter = fe - 1;
+          s.forcedEncounter = fe - 1;
         } else {
-          delete (s as any).forcedEncounter;
+          delete s.forcedEncounter;
         }
         clearRunPrompts(s);
         if (!s.run && (s.encounters?.length ?? 0) === 0) {
@@ -881,9 +915,9 @@ function startNextPhaseMovement(state: GameState, side: string, eidIn: EID | nul
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, _b: any) {
+      function (s: GameState, _e: EID, _b: { asyncResult?: unknown }) {
         resetAllIce(s, side);
-        if (checkForEmptyServer(s) || (s as any).endRun?.ended) {
+        if (checkForEmptyServer(s) || s.endRun?.ended) {
           handleEndRun(s, side, eid);
         } else if (s.run?.nextPhase) {
           startNextPhase(s, side, eid);
@@ -899,7 +933,7 @@ function startNextPhaseMovement(state: GameState, side: string, eidIn: EID | nul
       makeEID(state),
       {
         cancelFn: (s: GameState) =>
-          !!(s as any).endRun?.ended ||
+          !!s.endRun?.ended ||
           currentServer !== s.run?.server ||
           !!s.run?.nextPhase ||
           checkForEmptyServer(s),
@@ -917,15 +951,15 @@ function approachServer(state: GameState, side: string, eid: EID): void {
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, _b: any) {
+      function (s: GameState, _e: EID, _b: { asyncResult?: unknown }) {
         systemMsg(s, "runner", `approaches ${zoneToName(s.run!.server[0])}`);
         queueEvent(s, "approach-server", null);
         wait_for(
           s,
           [
             { asyncResult: "result" },
-            function (s2: GameState, _e2: EID, _b2: any) {
-              if (checkForEmptyServer(s2) || (s2 as any).endRun?.ended) {
+            function (s2: GameState, _e2: EID, _b2: { asyncResult?: unknown }) {
+              if (checkForEmptyServer(s2) || s2.endRun?.ended) {
                 handleEndRun(s2, side, eid);
               } else if (s2.run?.nextPhase) {
                 startNextPhase(s2, side, eid);
@@ -943,7 +977,7 @@ function approachServer(state: GameState, side: string, eid: EID): void {
             {
               cancelFn: (s2: GameState) =>
                 checkForEmptyServer(s2) ||
-                !!(s2 as any).endRun?.ended ||
+                !!s2.endRun?.ended ||
                 !!s2.run?.nextPhase,
             },
           ],
@@ -966,13 +1000,13 @@ function approachServer(state: GameState, side: string, eid: EID): void {
 // ---------------------------------------------------------------------------
 function continueMovement(state: GameState, side: string, _eid: EID | null): void {
   if (!state.run?.noAction) {
-    if (state.run) state.run.noAction = side as any;
+    if (state.run) state.run.noAction = side;
     if (side === "runner") {
       systemMsg(state, side, "will continue the run");
     }
   } else {
     const eid = makePhaseEID(state, null);
-    if (checkForEmptyServer(state) || (state as any).endRun?.ended) {
+    if (checkForEmptyServer(state) || state.endRun?.ended) {
       handleEndRun(state, side, eid);
     } else if ((state.run?.position ?? 0) > 0) {
       setNextPhase(state, "approach-ice");
@@ -1026,10 +1060,11 @@ export function redirectRun(
   if (!state.run || state.run.phase === "success") return;
   const zone = serverToZone(state, server);
   const dest = Array.isArray(zone) ? zone[zone.length - 1] : server;
+  const allServers = state.corp.servers as unknown as Record<string, ServerZone | undefined>;
   const numIce =
-    ((state.corp.servers as any)[dest]?.ices?.length ??
-      (state.corp.servers.remote as any)?.[dest]?.ices?.length ??
-      0) as number;
+    allServers[dest]?.ices?.length ??
+    state.corp.servers.remote?.[dest]?.ices?.length ??
+    0;
   let effectivePhase = phase ?? null;
   if (effectivePhase === "approach-ice") {
     effectivePhase = numIce > 0 ? "approach-ice" : "movement";
@@ -1060,16 +1095,18 @@ export function gainRunCredits(
 
 export function gainNextRunCredits(n: number): (state: GameState, side: string) => void;
 export function gainNextRunCredits(state: GameState, side: string, n: number): void;
-export function gainNextRunCredits(...args: any[]): any {
+export function gainNextRunCredits(
+  ...args: [number] | [GameState, string, number]
+): ((state: GameState, side: string) => void) | void {
   if (args.length === 1) {
-    const n = args[0] as number;
+    const n = args[0];
     return (s: GameState, _sd: string) => {
-      (s.runner as any).nextRunCredit = ((s.runner as any).nextRunCredit ?? 0) + n;
+      s.runner.nextRunCredit = (s.runner.nextRunCredit ?? 0) + n;
     };
   }
-  const state = args[0] as GameState;
-  const n = args[2] as number;
-  (state.runner as any).nextRunCredit = ((state.runner as any).nextRunCredit ?? 0) + n;
+  const state = args[0];
+  const n = args[2];
+  state.runner.nextRunCredit = (state.runner.nextRunCredit ?? 0) + n;
 }
 
 // ---------------------------------------------------------------------------
@@ -1082,7 +1119,7 @@ export function addRunEffect(
   ability: Ability,
   props: { mandatory?: boolean },
 ): void {
-  const entry = { card, mandatory: props.mandatory, ability };
+  const entry: RunEffectEntry = { card, mandatory: props.mandatory, ability };
   if (!state.run) return;
   if (!state.run.runEffects) state.run.runEffects = [];
   state.run.runEffects.push(entry);
@@ -1093,6 +1130,7 @@ export function successfulRunReplaceBreach(props: {
   "target-server"?: string;
   "this-card-run"?: boolean;
   duration?: string;
+  mandatory?: boolean;
 }): Ability {
   const ability = props.ability;
   const attackedServer = props["target-server"];
@@ -1101,24 +1139,24 @@ export function successfulRunReplaceBreach(props: {
   return {
     event: "successful-run",
     duration,
-    req: ((state: GameState, _side: string, _eid: EID, _card: Card | null, targets: unknown[]) => {
+    req: (state: GameState, _side: string, _eid: EID, _card: Card | null, targets: unknown[]) => {
       const ctx = targets?.[0] as Record<string, unknown> | undefined;
-      const thisCardRun = !!(ctx as any)?.["this-card-run"];
+      const thisCardRun = !!ctx?.["this-card-run"];
       if (useThisCardRun && !thisCardRun) return false;
       switch (attackedServer) {
         case "archives":
         case "rd":
         case "hq":
-          return attackedServer === targetServer({ server: ctx?.server as any });
+          return attackedServer === targetServer({ server: ctx?.server as Server });
         case "remote":
-          return isRemote(targetServer({ server: ctx?.server as any }));
+          return isRemote(targetServer({ server: ctx?.server as Server }));
         default:
           return true;
       }
-    }) as any,
+    },
     silent: () => true,
     effect: (state: GameState, _side: string, _eid: EID, card: Card | null) => {
-      if (card) addRunEffect(state, card, ability, { mandatory: (props as any).mandatory });
+      if (card) addRunEffect(state, card, ability, { mandatory: props.mandatory });
     },
   } as Ability;
 }
@@ -1128,7 +1166,7 @@ export function successfulRunReplaceBreach(props: {
 // ---------------------------------------------------------------------------
 function chooseReplacementAbility(
   state: GameState,
-  handlers: Array<{ card: Card; ability: Ability; mandatory?: boolean }>,
+  handlers: RunEffectEntry[],
 ): void {
   const mandatory = handlers.some((h) => h.mandatory);
   const titles = handlers.map((h) => h.card?.title ?? "").filter(Boolean);
@@ -1143,7 +1181,7 @@ function chooseReplacementAbility(
       state,
       [
         { asyncResult: "result" },
-        function (s: GameState, _e: EID, _b: any) {
+        function (s: GameState, _e: EID, _b: { asyncResult?: unknown }) {
           handleEndRun(s, "runner", eid);
         },
       ],
@@ -1158,7 +1196,7 @@ function chooseReplacementAbility(
       state,
       [
         { asyncResult: "result" },
-        function (s: GameState, _e: EID, _b: any) {
+        function (s: GameState, _e: EID, _b: { asyncResult?: unknown }) {
           handleEndRun(s, "runner", eid);
         },
       ],
@@ -1184,7 +1222,7 @@ function chooseReplacementAbility(
         prompt: "Choose a breach replacement ability",
         choices,
         async: true,
-        effect: ((s: GameState, _side: string, _eid: EID, _card: Card | null, targets: unknown[]) => {
+        effect: (s: GameState, _side: string, _eid: EID, _card: Card | null, targets: unknown[]) => {
           const target = targets?.[0] as Card | string;
           const chosen = handlers.find((h) =>
             typeof target === "string"
@@ -1197,7 +1235,7 @@ function chooseReplacementAbility(
               s,
               [
                 { asyncResult: "result" },
-                function (s2: GameState, _e2: EID, _b: any) {
+                function (s2: GameState, _e2: EID, _b: { asyncResult?: unknown }) {
                   handleEndRun(s2, "runner", eid);
                 },
               ],
@@ -1220,14 +1258,14 @@ function chooseReplacementAbility(
               s,
               [
                 { asyncResult: "result" },
-                function (s2: GameState, _e2: EID, _b: any) {
+                function (s2: GameState, _e2: EID, _b: { asyncResult?: unknown }) {
                   handleEndRun(s2, "runner", eid);
                 },
               ],
               [breachServer, s, "runner", makeEIDFrom(s, eid), s.run!.server],
             );
           }
-        }) as any,
+        },
       } as Ability,
       null,
       [],
@@ -1250,17 +1288,13 @@ export function preventAccess(state: GameState, _side?: string): void {
 // ---------------------------------------------------------------------------
 export function completeRun(state: GameState, side: string): void {
   const eid = makePhaseEID(state, null);
-  if ((state as any).endRun?.ended) {
+  if (state.endRun?.ended) {
     runCleanup(state, "runner", eid);
     return;
   }
   const theRun = state.run!;
   const server = theRun.server;
-  const replacementEffects = (theRun.runEffects ?? []) as Array<{
-    card: Card;
-    ability: Ability;
-    mandatory?: boolean;
-  }>;
+  const replacementEffects = (theRun.runEffects ?? []) as RunEffectEntry[];
 
   if (theRun.preventAccess) {
     resolveAbility(
@@ -1270,14 +1304,14 @@ export function completeRun(state: GameState, side: string): void {
         prompt: `You are prevented from breaching ${zoneToName(server[0])} this run.`,
         choices: ["OK"],
         async: true,
-        effect: ((s: GameState, _side: string, _eid: EID, _card: Card | null) => {
+        effect: (s: GameState, _side: string, _eid: EID, _card: Card | null) => {
           systemMsg(
             s,
             "runner",
             `is prevented from breaching ${zoneToName(server[0])} this run.`,
           );
           handleEndRun(s, side, eid);
-        }) as any,
+        },
       } as Ability,
       null,
       [],
@@ -1289,7 +1323,7 @@ export function completeRun(state: GameState, side: string): void {
       state,
       [
         { asyncResult: "result" },
-        function (s: GameState, _e: EID, _b: any) {
+        function (s: GameState, _e: EID, _b: { asyncResult?: unknown }) {
           handleEndRun(s, side, eid);
         },
       ],
@@ -1316,15 +1350,15 @@ function registerSuccessfulRun(
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, _b: any) {
+      function (s: GameState, _e: EID, _b: { asyncResult?: unknown }) {
         if (anyEffects(s, side, "block-successful-run", (v) => !!v, null, [])) {
           effectCompleted(s, side, eid);
           return;
         }
         if (!s.runner.register) s.runner.register = {};
-        const successful = ((s.runner.register as any)["successful-run"] as unknown[]) ?? [];
+        const successful = (s.runner.register["successful-run"] as unknown[] | undefined) ?? [];
         successful.push(s.run?.server?.[0]);
-        (s.runner.register as any)["successful-run"] = successful;
+        s.runner.register["successful-run"] = successful;
         if (s.run) s.run.successful = true;
         const marked = isMark(s, s.run?.server?.[0] ?? "")
           ? { "marked-server": true }
@@ -1332,7 +1366,7 @@ function registerSuccessfulRun(
         const keys = {
           server: s.run?.server,
           "run-id": s.run?.runId,
-          "subroutines-fired": (s.run as any)?.subroutinesFired,
+          "subroutines-fired": s.run?.subroutinesFired,
           ...marked,
         };
         queueEvent(s, "successful-run", keys);
@@ -1351,7 +1385,7 @@ export function successfulRun(state: GameState, side: string): void {
       state,
       [
         { asyncResult: "result" },
-        function (s: GameState, _e: EID, _b: any) {
+        function (s: GameState, _e: EID, _b: { asyncResult?: unknown }) {
           completeRun(s, side);
         },
       ],
@@ -1372,16 +1406,16 @@ export function successfulRun(state: GameState, side: string): void {
 function registerUnsuccessfulRun(state: GameState, side: string, eid: EID): void {
   const run = state.run!;
   if (!state.runner.register) state.runner.register = {};
-  const unsuccessful = ((state.runner.register as any)["unsuccessful-run"] as unknown[]) ?? [];
+  const unsuccessful = (state.runner.register["unsuccessful-run"] as unknown[] | undefined) ?? [];
   unsuccessful.push(run.server?.[0]);
-  (state.runner.register as any)["unsuccessful-run"] = unsuccessful;
+  state.runner.register["unsuccessful-run"] = unsuccessful;
   run.unsuccessful = true;
   wait_for(
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, _b: any) {
-        queueEvent(s, "unsuccessful-run", run as any);
+      function (s: GameState, _e: EID, _b: { asyncResult?: unknown }) {
+        queueEvent(s, "unsuccessful-run", run as unknown as Record<string, unknown>);
         checkpoint(s, null, eid);
       },
     ],
@@ -1402,7 +1436,7 @@ function resolveEndRun(state: GameState, side: string, eid: EID): void {
 // ---------------------------------------------------------------------------
 export function endRun(eid: EID, card: Card | null): void;
 export function endRun(state: GameState, side: string, eid: EID, card: Card | null, args?: { unpreventable?: boolean } | null): void;
-export function endRun(...args: any[]): void {
+export function endRun(...args: unknown[]): void {
   if (args.length === 2) {
     // shorthand (eid, card) — used in legacy card shims; no state available, no-op.
     return;
@@ -1417,8 +1451,12 @@ export function endRun(...args: any[]): void {
       state,
       [
         { asyncResult: "result" },
-        function (s: GameState, _e: EID, binds: any) {
-          const remaining = (binds.asyncResult as any)?.remaining ?? 0;
+        function (
+          s: GameState,
+          _e: EID,
+          binds: { asyncResult?: { remaining?: number } },
+        ) {
+          const remaining = binds.asyncResult?.remaining ?? 0;
           if (remaining > 0) {
             resolveEndRun(s, side, eid);
           } else {
@@ -1454,8 +1492,12 @@ export function jackOut(state: GameState, side: string, eid: EID): void {
       state,
       [
         { asyncResult: "result" },
-        function (s: GameState, _e: EID, binds: any) {
-          const paymentStr = (binds.asyncResult as any)?.msg as string | undefined;
+        function (
+          s: GameState,
+          _e: EID,
+          binds: { asyncResult?: { msg?: string } },
+        ) {
+          const paymentStr = binds.asyncResult?.msg;
           if (paymentStr) {
             if (paymentStr.trim().length > 0) {
               systemMsg(s, "runner", `${paymentStr} to jack out`);
@@ -1464,8 +1506,12 @@ export function jackOut(state: GameState, side: string, eid: EID): void {
               s,
               [
                 { asyncResult: "result" },
-                function (s2: GameState, _e2: EID, b2: any) {
-                  const remaining = (b2.asyncResult as any)?.remaining ?? 0;
+                function (
+                  s2: GameState,
+                  _e2: EID,
+                  b2: { asyncResult?: { remaining?: number } },
+                ) {
+                  const remaining = b2.asyncResult?.remaining ?? 0;
                   if (remaining > 0) {
                     resolveJackOut(s2, side, eid);
                   } else {
@@ -1515,23 +1561,24 @@ function runEndFx(
 // run-cleanup
 // ---------------------------------------------------------------------------
 export function runCleanup(state: GameState, side: string, eid: EID): void {
-  if (!(state as any).endRun) (state as any).endRun = {};
-  (state as any).endRun.ended = true;
+  if (!state.endRun) state.endRun = {};
+  state.endRun.ended = true;
   if (getCurrentEncounter(state)) {
     queueEvent(state, "end-of-encounter", { ice: getCurrentIce(state) });
   }
   const marked = isMark(state, state.run?.server?.[0] ?? "");
-  const run = marked
-    ? { ...(state.run as any), "marked-server": true }
-    : (state.run as any);
+  const baseRun = state.run as RunState | null | undefined;
+  const run: (RunState & { "marked-server"?: boolean }) | null | undefined = marked
+    ? { ...(baseRun as RunState), "marked-server": true }
+    : baseRun;
   const runEid: EID | undefined = run?.eid;
   if (!state.runner.register) state.runner.register = {};
-  (state.runner.register as any)["last-run"] = run;
+  state.runner.register["last-run"] = run;
   state.runner.credit -= state.runner.runCredit ?? 0;
   state.runner.runCredit = 0;
   state.run = null;
-  if ((state as any).endRun?.ended) delete (state as any).endRun.ended;
-  queueEvent(state, "run-ends", run);
+  if (state.endRun?.ended) delete state.endRun.ended;
+  queueEvent(state, "run-ends", run as unknown as Record<string, unknown>);
   clearEncounter(state);
   clearRunPrompts(state);
   resetAllIce(state, side);
@@ -1540,8 +1587,8 @@ export function runCleanup(state: GameState, side: string, eid: EID): void {
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, _b: any) {
-        runEndFx(s, side, run);
+      function (s: GameState, _e: EID, _b: { asyncResult?: unknown }) {
+        runEndFx(s, side, run ?? {});
         effectCompleted(s, side, eid);
         if (runEid) effectCompleted(s, side, runEid);
       },
@@ -1564,14 +1611,14 @@ export function forcedEncounterCleanup(
   side: string,
   eid: EID,
 ): void {
-  if ((state as any).endRun?.ended) delete (state as any).endRun.ended;
+  if (state.endRun?.ended) delete state.endRun.ended;
   wait_for(
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, _b: any) {
+      function (s: GameState, _e: EID, _b: { asyncResult?: unknown }) {
         resetAllIce(s, side);
-        (s as any).perEncounter = null;
+        s.perEncounter = null;
         clearRunRegister(s);
         effectCompleted(s, side, eid);
       },
@@ -1596,25 +1643,25 @@ export function handleEndRun(
   eid: EID | null,
 ): void {
   const effEid = eid ?? makeEID(state);
-  const runnerPrompt = state.runner.promptState ?? (state.runnerPrompt?.[0] as any);
-  const corpPrompt = state.corp.promptState ?? (state.corpPrompt?.[0] as any);
+  const runnerPrompt = state.runner.promptState ?? state.runnerPrompt?.[0];
+  const corpPrompt = state.corp.promptState ?? state.corpPrompt?.[0];
 
   if (
     state.run &&
     !getCurrentEncounter(state) &&
-    (!runnerPrompt || (runnerPrompt as any).promptType === "run") &&
-    (!corpPrompt || (corpPrompt as any).promptType === "run")
+    (!runnerPrompt || runnerPrompt.promptType === "run") &&
+    (!corpPrompt || corpPrompt.promptType === "run")
   ) {
     runCleanup(state, side, effEid);
     return;
   }
 
   if (
-    !(state as any).endRun?.ended &&
+    !state.endRun?.ended &&
     (state.run || getCurrentEncounter(state))
   ) {
-    if (!(state as any).endRun) (state as any).endRun = {};
-    (state as any).endRun.ended = true;
+    if (!state.endRun) state.endRun = {};
+    state.endRun.ended = true;
     if (state.run) preventAccess(state, side);
     const enc = getCurrentEncounter(state);
     if (enc && !enc.ending) {
@@ -1639,7 +1686,7 @@ export function totalCardsAccessed(
     return run.cardsAccessed?.[server] ?? 0;
   }
   const accessed = run.cardsAccessed ?? {};
-  return Object.values(accessed).reduce((a, b) => a + b, 0);
+  return Object.values(accessed).reduce((a: number, b: number) => a + b, 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -1689,5 +1736,5 @@ export function thisServer(state: GameState, card: Card | null): boolean {
   const zone = getZone(card);
   const runServer = state.run.server;
   if (!zone || !runServer) return false;
-  return (zone as any)[1] === (runServer as any)[0];
+  return zone[1] === runServer[0];
 }

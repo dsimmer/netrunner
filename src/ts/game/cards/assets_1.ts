@@ -1,4 +1,4 @@
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreActions from '../core/actions';
 import * as coreAgendas from '../core/agendas';
@@ -48,8 +48,6 @@ import * as coreUpdate from '../core/update';
 import * as coreWinning from '../core/winning';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
-import type { CardDef } from '../../types';
-
 // ============================================================================
 // Helper functions
 // ============================================================================
@@ -354,14 +352,14 @@ export const amaniSenai: CardDef = {
   events: [
     {
       event: ':agenda-scored',
-      interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+      interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
       async: true,
       effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         const ctx = (targets as any)[0] || {};
         const agenda = ctx.card;
         yield wait_for(state, [{ asyncResult: 'result' },
           coreEngine.resolveAbility(state, side, {
-            interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+            interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
             optional: {
               prompt: 'Initiate a trace?',
               autoresolve: coreOptional.getAutoresolve(':auto-fire'),
@@ -385,14 +383,14 @@ export const amaniSenai: CardDef = {
     },
     {
       event: ':agenda-stolen',
-      interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+      interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
       async: true,
       effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         const ctx = (targets as any)[0] || {};
         const agenda = ctx.card;
         yield wait_for(state, [{ asyncResult: 'result' },
           coreEngine.resolveAbility(state, side, {
-            interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+            interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
             optional: {
               prompt: 'Initiate a trace?',
               autoresolve: coreOptional.getAutoresolve(':auto-fire'),
@@ -433,7 +431,7 @@ export const ansonRose: CardDef = (() => {
   return {
     title: 'Anson Rose',
     'derezzed-events': [coreDefHelpers.corpRezToast],
-    flags: { 'corp-phase-12': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+    flags: { 'corp-phase-12': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
     events: [
       { ...ability, event: ':corp-turn-begins' },
       {
@@ -487,7 +485,7 @@ export const anthillExcavationContract: CardDef = (() => {
       `gain ${Math.min(4, coreCard.getCounters(card, ':credit'))} [Credits] and draw a card`),
     async: true,
     automatic: ':draw-cards',
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       yield wait_for(state, [{ asyncResult: 'result' },
         coreDrawing.draw(state, side, 1, { suppressCheckpoint: true })], []);
@@ -653,7 +651,7 @@ export const bassCH1R180G4: CardDef = {
 // Behold!
 export const behold: CardDef = {
   title: 'Behold!',
-  flags: { 'rd-reveal': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'rd-reveal': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   'on-access': {
     optional: {
       req: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
@@ -702,7 +700,7 @@ export const bioraidWorkCrew: CardDef = {
   implementation: 'Timing restriction of ability use not enforced',
   abilities: [{
     label: 'Install 1 card, paying all costs',
-    req: req(function*(state: State): Generator<any, any, any> { return (state as any).activePlayer === ':corp'; }),
+    req: req(function*(state: State): Generator<any, any, any> { return state.activePlayer === ':corp'; }),
     'change-in-game-state': { req: req(function*(state: State): Generator<any, any, any> { return !!((state as any).corp?.hand?.length); }) },
     prompt: 'Choose a card in HQ to install',
     choices: {
@@ -739,7 +737,7 @@ export const bladderwort: CardDef = (() => {
     label: 'Gain 1 [Credits] (start of turn)',
     once: ':per-turn',
     automatic: ':pre-gain-credits',
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     async: true,
     effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       yield wait_for(state, [{ asyncResult: 'result' },
@@ -784,7 +782,7 @@ export const brainTapingWarehouse: CardDef = {
 // Breached Dome
 export const breachedDome: CardDef = {
   title: 'Breached Dome',
-  flags: { 'rd-reveal': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'rd-reveal': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   poison: true,
   'on-access': {
     async: true,
@@ -829,7 +827,7 @@ export const broadcastSquare: CardDef = {
 // Byte!
 export const byte: CardDef = {
   title: 'Byte!',
-  flags: { 'rd-reveal': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'rd-reveal': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   'on-access': {
     optional: {
       req: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {

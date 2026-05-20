@@ -129,7 +129,9 @@ export function optionalAbility(
 
   const yesReq = (yesAbility as any)?.req as ReqFn | undefined;
   const yesReqOk = yesReq
-    ? yesReq(state, side, eid, card, targets as Card[])
+    ? (typeof yesReq === "function"
+        ? (yesReq as (...a: any[]) => any)(state, side, eid, card, targets as Card[])
+        : !!yesReq)
     : true;
   const yesPayable = canPay(
     state,
@@ -303,7 +305,16 @@ export function setAutoresolve(toggleKw: string, abilityName: string): Ability {
  *
  * Mirrors `get-autoresolve`.
  */
-export function getAutoresolve(
+export function getAutoresolve(toggleKw: string, pred?: AutoresolvePred): (state: GameState, side: string, eid: EID, card: Card | null, targets: Card[]) => string | undefined;
+export function getAutoresolve(state: GameState, side: string, card: Card | null, toggleKw: string): (state: GameState, side: string, eid: EID, card: Card | null, targets: Card[]) => string | undefined;
+export function getAutoresolve(...rawArgs: any[]): any {
+  // 4-arg form: (state, side, card, toggleKw) — drop the state/side/card and use just the kw
+  if (rawArgs.length === 4 && typeof rawArgs[3] === "string") {
+    return _getAutoresolveImpl(rawArgs[3]);
+  }
+  return _getAutoresolveImpl(rawArgs[0], rawArgs[1]);
+}
+function _getAutoresolveImpl(
   toggleKw: string,
   pred: AutoresolvePred = { always: "Yes", never: "No" },
 ): (

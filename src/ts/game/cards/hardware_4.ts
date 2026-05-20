@@ -5,7 +5,7 @@
  * Contains all Runner hardware card definitions with their abilities and events.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreActions from '../core/actions';
 import * as coreBoard from '../core/board';
@@ -55,8 +55,6 @@ import * as utils from '../utils';
 import * as jintekiUtils from '../../jinteki/utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 import { preventUpToNDamageFn, coreChooseOneMod } from './_helpers';
-import type { CardDef } from '../../types';
-
 import { addCounterFn, allActiveInstalledFn, allInstalledFn, anyEffectsFn, asAgendaFn, breachAccessBonus, cardStr, corpFn, countVirusProgramsFn, damageNameFn, effectCompletedFn, enumerateCards, eventFn, exposeFn, facedownFn, faceupFn, firstEventFn, gainCreditsFn, getAutoresolveFn, getCardFn, getCounters, getCurrentEncounterFn, getSetAsideFn, hasSubtypeFn, hostFn, iceFn, inDiscardFn, installedFn, jackOutFn, linkPlusFn, loseCreditsFn, loseTagsFn, makeResultFn, moveFn, muPlusFn, noEventFn, offerJackOut, preventDamageFn, preventTagFn, preventableFn, programFn, quantify, removeOnce, resolveAbilityFn, resourceFn, rezzedFn, runnerCanPayAndInstallFn, runnerFn, runnerHandSizePlusFn, runnerInstallFn, sameCard, setAsideFn, shuffleDeck, systemMsg, targetServerFn, threatLevelFn, toC, trashFn, updateBreakerStrengthFn, updateFn, virusMuPlusFn, virusProgramFn, winFn } from './hardware_1';
 
 // __cardScopeShim — placeholders for legacy literal-scope references
@@ -224,7 +222,7 @@ export const flipSwitch: CardDef = {
     event: 'initialize-trace',
     optional: {
       req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
-        return (state as any).activePlayer === ':runner';
+        return state.activePlayer === ':runner';
       }),
       'waiting-prompt': true,
       prompt: 'Trash Flip Switch to reduce the base trace strength to 0?',
@@ -240,9 +238,9 @@ export const flipSwitch: CardDef = {
   abilities: [
     {
       label: 'Jack out',
-      'change-in-game-state': { req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return !!(runFn(state) || getCurrentEncounterFn(state)); }) },
+      'change-in-game-state': { req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return !!(runFn(state) || getCurrentEncounterFn(state)); }) },
       req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
-        return (state as any).activePlayer === ':runner';
+        return state.activePlayer === ':runner';
       }),
       msg: 'jack out',
       cost: [toC(':trash-can')],
@@ -251,9 +249,9 @@ export const flipSwitch: CardDef = {
     },
     {
       label: 'Remove 1 tag',
-      'change-in-game-state': { req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return countRealTagsFn(state) > 0; }) },
+      'change-in-game-state': { req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return countRealTagsFn(state) > 0; }) },
       req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
-        return (state as any).activePlayer === ':runner';
+        return state.activePlayer === ':runner';
       }),
       msg: 'remove 1 tag',
       cost: [toC(':trash-can')],
@@ -278,7 +276,7 @@ export const forger: CardDef = {
           ]));
       }),
       optional: true,
-      interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+      interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     },
     [{
       option: 'Avoid 1 tag',
@@ -293,7 +291,7 @@ export const forger: CardDef = {
     msg: 'remove 1 tag',
     label: 'Remove 1 tag',
     cost: [toC(':trash-can')],
-    'change-in-game-state': { req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return countRealTagsFn(state) > 0; }) },
+    'change-in-game-state': { req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return countRealTagsFn(state) > 0; }) },
     async: true,
     effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { loseTagsFn(eid, 1); }),
   }],
@@ -345,7 +343,7 @@ export const fridayChip: CardDef = {
       };
       const multAb = {
         prompt: `Place virus counters on ${card.title}?`,
-        choices: { number: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return amtTrashed; }), default: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return amtTrashed; }) },
+        choices: { number: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return amtTrashed; }), default: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return amtTrashed; }) },
         async: true,
         effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { const target: any = (targets as any[])?.[0]; systemMsg(':runner', `uses ${card.title} to place ${quantify(target, 'virus counter')} on itself`); addCounterFn(':runner', eid, card, 'virus', target); }),
       };
@@ -360,14 +358,14 @@ export const gachapon: CardDef = {
   title: 'Gachapon',
   abilities: [{
     label: 'Install a card from among the top 6 cards of the stack',
-    'change-in-game-state': { req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return !!(runnerFn(state)?.deck?.length); }) },
+    'change-in-game-state': { req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return !!(runnerFn(state)?.deck?.length); }) },
     cost: [toC(':trash-can')],
     async: true,
     'waiting-prompt': true,
     effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> { const target: any = (targets as any[])?.[0];
       const deck = runnerFn(state)?.deck || [];
       setAsideFn(state, side, eid, deck.slice(0, 6));
-      const setAsideCards = getSetAsideFn(state, side, eid).sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+      const setAsideCards = getSetAsideFn(state, side, eid).sort((a: any, b: any) => (a.title || '').localeCompare(b.title || ''));
       systemMsg(state, side, `${(eid as any).latestPaymentStr || 'The player'} to use ${card.title} to set aside ${enumerateCards(setAsideCards)} from the top of the stack`);
       yield wait_for(state, [{ asyncResult: 'result' },
         resolveAbilityFn(state, side, {
@@ -412,7 +410,7 @@ export const gachapon: CardDef = {
         },
         async: true,
         'not-distinct': true,
-        choices: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> {
+        choices: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> {
           const finished = (toShuffle?.length ?? 0) >= 3 || setAsideCards.length === 0;
           return finished ? ['Done', 'Start over'] : setAsideCards;
         }),
@@ -465,7 +463,7 @@ function shuffleNextFn(setAsideCards: Card[], chosenCard: Card | null, toShuffle
     },
     async: true,
     'not-distinct': true,
-    choices: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> {
+    choices: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> {
       const finished = (toShuffle?.length ?? 0) >= 3 || setAsideCards.length === 0;
       return finished ? ['Done', 'Start over'] : setAsideCards;
     }),
@@ -670,7 +668,7 @@ export const grimoire: CardDef = {
   'static-abilities': [muPlusFn(2)],
   events: [{
     event: 'runner-install',
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       const ctx = forms.context(state, card, targets) || {};
       return hasSubtypeFn(ctx.card, 'Virus');
@@ -707,7 +705,7 @@ export const hermes: CardDef = {
   title: 'Hermes',
   let: {
     ability: {
-      interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+      interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
       prompt: 'Choose an unrezzed card',
       'change-in-game-state': {
         silent: true,
@@ -813,7 +811,7 @@ export const jeitinho: CardDef = {
     {
       event: 'bypassed-ice',
       location: ':discard',
-      interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+      interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
       req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         return threatLevelFn(3, state) && inDiscardFn(card);
       }),
@@ -916,7 +914,7 @@ export const knobkierie: CardDef = {
   events: [{
     event: 'successful-run',
     skippable: true,
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     optional: {
       req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         return firstEventFn(state, ':runner', 'successful-run') &&

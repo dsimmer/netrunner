@@ -1,4 +1,4 @@
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Server, Side, State } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreActions from '../core/actions';
 import * as coreAgendas from '../core/agendas';
@@ -48,8 +48,6 @@ import * as coreUpdate from '../core/update';
 import * as coreWinning from '../core/winning';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
-import type { CardDef } from '../../types';
-
 // Stub helpers (to be ported from clj cards/*.clj)
 function advanceAmbush(_args?: any, _ability?: any): any { return {}; }
 export const ronaldFive: CardDef = (() => {
@@ -414,7 +412,7 @@ export const shiKyu: CardDef = {
 
 export const shock: CardDef = {
   title: 'Shock!',
-  flags: { 'rd-reveal': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'rd-reveal': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   poison: true,
   'on-access': {
     msg: 'do 1 net damage',
@@ -429,7 +427,7 @@ export const shock: CardDef = {
 export const siu: CardDef = {
   title: 'SIU',
   'derezzed-events': [coreDefHelpers.corpRezToast],
-  flags: { 'corp-phase-12': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'corp-phase-12': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   abilities: [{
     label: 'Trace 3 - Give the Runner 1 tag',
     req: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
@@ -452,7 +450,7 @@ export const siu: CardDef = {
 
 export const snare: CardDef = {
   title: 'Snare!',
-  flags: { 'rd-reveal': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'rd-reveal': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   'on-access': {
     optional: {
       req: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
@@ -484,7 +482,7 @@ export const snare: CardDef = {
 
 export const spaceCamp: CardDef = {
   title: 'Space Camp',
-  flags: { 'rd-reveal': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'rd-reveal': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   poison: true,
   'on-access': {
     optional: {
@@ -701,7 +699,7 @@ export const svyatogorExcavator: CardDef = (() => {
         return coreFinding.allInstalled(state, ':corp').length >= 2;
       }),
     },
-    events: [{ ...ability, event: ':corp-turn-begins', interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) }],
+    events: [{ ...ability, event: ':corp-turn-begins', interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) }],
     abilities: [ability],
   };
 })();
@@ -731,7 +729,7 @@ export const teamSponsorship: CardDef = {
     event: ':agenda-scored',
     prompt: 'Choose a card from Archives or HQ to install',
     'show-discard': true,
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     async: true,
     choices: {
       card: (c: Card) =>
@@ -751,7 +749,7 @@ export const teamSponsorship: CardDef = {
 export const techStartup: CardDef = {
   title: 'Tech Startup',
   'derezzed-events': [coreDefHelpers.corpRezToast],
-  flags: { 'corp-phase-12': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'corp-phase-12': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   abilities: [{
     label: 'Search R&D for an asset to install',
     prompt: 'Choose an asset',

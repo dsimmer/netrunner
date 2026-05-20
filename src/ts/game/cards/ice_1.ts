@@ -5,7 +5,7 @@
  * Contains ~317 card definitions with their abilities and events.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreBadPublicity from '../core/bad_publicity';
 import * as coreBoard from '../core/board';
 import * as coreCard from '../core/card';
@@ -39,8 +39,6 @@ import * as coreToasts from '../core/toasts';
 import * as coreUpdate from '../core/update';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
-import type { CardDef } from '../../types';
-
 // ============================================================================
 // Helper functions
 // ============================================================================
@@ -103,7 +101,7 @@ export function maybeDrawSub(qty: number): any {
   };
 }
 
-function drawUpToSub(qty: number, args: any = {}): any {
+export function drawUpToSub(qty: number, args: any = {}): any {
   return {
     async: true,
     label: `Draw up to ${utils.quantify(qty, 'card')}`,
@@ -152,7 +150,7 @@ export function endTheRunUnlessRunnerPays(cost: any, reason: string = 'subroutin
   };
 }
 
-function endTheRunUnlessCorpPays(cost: any): any {
+export function endTheRunUnlessCorpPays(cost: any): any {
   return {
     async: true,
     label: `End the run unless the Corp pays ${corePayment.buildCostLabel([cost])}`,
@@ -530,7 +528,7 @@ export function installFromHqOrArchivesSub(args: any = {}): any {
   };
 }
 
-const cannotStealOrTrashSub: any = {
+export const cannotStealOrTrashSub: any = {
   label: 'The Runner cannot steal or trash Corp cards for the remainder of this run',
   msg: 'prevent the Runner from stealing or trashing Corp cards for the remainder of the run',
   effect: effect(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
@@ -607,7 +605,7 @@ function addGrailSubs(cards: Card[]): any {
 
 const revealGrail: any = {
   prompt: 'Reveal up to 2 pieces of Grail ice from HQ (first ice chosen will be first sub)',
-  interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+  interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
   choices: { max: 2, card: grailInHand },
   async: true,
   'waiting-prompt': true,
@@ -653,7 +651,7 @@ export function trashTypeOrEndTheRun(typeName: string, typeFn: (c: Card) => bool
   };
 }
 
-function variableSubsIce(subsCount: (state: State, side: Side, eid: EID, card: Card, targets: any[]) => number, sub: any): any {
+export function variableSubsIce(subsCount: (state: State, side: Side, eid: EID, card: Card, targets: any[]) => number, sub: any): any {
   return {
     'static-abilities': [{
       type: ':additional-subroutines',

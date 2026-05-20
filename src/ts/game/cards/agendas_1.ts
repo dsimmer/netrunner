@@ -6,7 +6,7 @@
  * Each card has properties like on-score, on-access, events, static-abilities, etc.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAgendas from '../core/agendas';
 import * as coreBoard from '../core/board';
 import * as coreCard from '../core/card';
@@ -48,7 +48,6 @@ import * as coreUpdate from '../core/update';
 import * as coreWinning from '../core/winning';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
-import type { CardDef } from '../../types';
 import * as coreBadPublicity from '../core/bad_publicity';
 
 // __cardScopeShim: ambient 'state' and 'target' references at literal scope.

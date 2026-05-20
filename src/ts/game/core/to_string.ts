@@ -6,6 +6,8 @@ import type { Card, Zone } from "./card";
 import { getTitle, corp, ice, rezzed, installed, cardIndex } from "./card";
 import { getCard } from "./finding";
 import { isCentral } from "./servers";
+import type { Server } from './types';
+
 
 // ---------------------------------------------------------------------------
 // zone -> name helpers (mirrors zone->name in servers.clj)

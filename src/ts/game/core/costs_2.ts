@@ -11,8 +11,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { Ability, NumberFn } from "./types.ts";
-
+import type { Ability, Cost, NumberFn } from "./types.ts";
 import {
   badPublicityAvailable,
   gainBadPublicity,
@@ -121,7 +120,7 @@ handlerDispatch.set("gain-tag", (c, state, side, eid) => {
 valueDispatch.set("tag", (c) => c.amount);
 labelDispatch.set("tag", (c) => `remove ${quantify(value(c), "tag")}`);
 payableDispatch.set("tag", (c, state) => {
-  return ((state as any).runner?.tag?.base ?? 0) - value(c) >= 0;
+  return (state.runner?.tag?.base ?? 0) - value(c) >= 0;
 });
 handlerDispatch.set("tag", (c, state, side, eid) => {
   waitFor(
@@ -149,7 +148,7 @@ valueDispatch.set("x-tags", () => 0);
 labelDispatch.set("x-tags", () => "remove X tags");
 payableDispatch.set("x-tags", () => true);
 handlerDispatch.set("x-tags", (_c, state, side, eid, card) => {
-  const tagBase = (state as any).runner?.tag?.base ?? 0;
+  const tagBase = state.runner?.tag?.base ?? 0;
   if (tagBase <= 0) {
     completeWithResult(state, side, eid, {
       "paid/msg": "removes 0 tags",
@@ -215,7 +214,7 @@ labelDispatch.set(
 );
 payableDispatch.set("tag-or-bad-pub", () => true);
 handlerDispatch.set("tag-or-bad-pub", (c, state, side, eid, card) => {
-  const tagBase = (state as any).runner?.tag?.base ?? 0;
+  const tagBase = state.runner?.tag?.base ?? 0;
   if (tagBase - value(c) < 0) {
     waitFor(
       state,
@@ -374,7 +373,7 @@ handlerDispatch.set("rfg-program", (c, state, side, eid, card) => {
           move(s, sd, tagged, "rfg");
         }
         completeWithResult(s, sd, ei, {
-          "paid/msg": `removes ${quantify(value(c), "installed program")} from the game (${enumerateStr(targets.map((t) => cardStr(s, t)))})`,
+          "paid/msg": `removes ${quantify(value(c), "installed program")} from the game (${enumerateStr(targets.map((t: any) => cardStr(s, t)))})`,
           "paid/type": "rfg-program",
           "paid/value": value(c),
           "paid/targets": targets,
@@ -436,7 +435,7 @@ function registerTrashInstalled(
             (asyncResult) => {
               const trashed = (asyncResult as Card[]) ?? [];
               completeWithResult(s, sd, ei, {
-                "paid/msg": `trashes ${quantify(trashed.length, description)} (${enumerateStr(targets.map((t) => cardStr(s, t)))})`,
+                "paid/msg": `trashes ${quantify(trashed.length, description)} (${enumerateStr(targets.map((t: any) => cardStr(s, t)))})`,
                 "paid/type": type,
                 "paid/value": trashed.length,
                 "paid/targets": targets,
@@ -456,7 +455,7 @@ registerTrashInstalled(
   "trash-other-installed",
   "installed card",
   (state, side, card) =>
-    allInstalled(state, side).filter((c) => !sameCard(card as any, c)),
+    allInstalled(state, side).filter((c: any) => !sameCard(card as any, c)),
   (_state, side, card) => (c) =>
     isInstalled(c) &&
     !sameCard(c, card as any) &&
@@ -514,7 +513,7 @@ handlerDispatch.set("hardware", (c, state, side, eid, card) => {
           (asyncResult) => {
             const trashed = (asyncResult as Card[]) ?? [];
             completeWithResult(s, sd, ei, {
-              "paid/msg": `trashes ${quantify(trashed.length, "installed piece")} of hardware (${enumerateStr(targets.map((t) => cardStr(s, t)))})`,
+              "paid/msg": `trashes ${quantify(trashed.length, "installed piece")} of hardware (${enumerateStr(targets.map((t: any) => cardStr(s, t)))})`,
               "paid/type": "hardware",
               "paid/value": trashed.length,
               "paid/targets": targets,
@@ -549,7 +548,7 @@ registerTrashInstalled(
   "connection",
   "installed connection resource",
   (state) =>
-    allActiveInstalled(state, "runner").filter((c) =>
+    allActiveInstalled(state, "runner").filter((c: any) =>
       hasSubtype(c, "Connection"),
     ),
   () => (c) =>
@@ -619,7 +618,7 @@ handlerDispatch.set("derez-other-harmonic", (c, state, side, eid, card) => {
             } as any),
           () => {
             completeWithResult(s, sd, ei, {
-              "paid/msg": `derezzes ${targets.length} Harmonic ice (${enumerateStr(targets.map((t) => cardStr(s, t)))})`,
+              "paid/msg": `derezzes ${targets.length} Harmonic ice (${enumerateStr(targets.map((t: any) => cardStr(s, t)))})`,
               "paid/type": "derez",
               "paid/value": targets.length,
               "paid/targets": targets,
@@ -643,7 +642,7 @@ labelDispatch.set(
   (c) => `trash ${quantify(value(c), "rezzed Bioroid")}`,
 );
 payableDispatch.set("bioroid-run-server", (c, state) => {
-  const run = (state as any).run;
+  const run = state.run;
   if (!run) return false;
   const runServer = run?.server?.[0];
   return (
@@ -659,7 +658,7 @@ payableDispatch.set("bioroid-run-server", (c, state) => {
   );
 });
 handlerDispatch.set("bioroid-run-server", (c, state, side, eid, card) => {
-  const runServer = (state as any).run?.server?.[0];
+  const runServer = state.run?.server?.[0];
   continue_ability(
     state,
     side,
@@ -703,7 +702,7 @@ handlerDispatch.set("bioroid-run-server", (c, state, side, eid, card) => {
           (asyncResult) => {
             const trashed = (asyncResult as Card[]) ?? [];
             completeWithResult(s, sd, ei, {
-              "paid/msg": `trashes ${quantify(trashed.length, " rezzed Bioroid", "")} (${enumerateStr(targets.map((t) => cardStr(s, t)))})`,
+              "paid/msg": `trashes ${quantify(trashed.length, " rezzed Bioroid", "")} (${enumerateStr(targets.map((t: any) => cardStr(s, t)))})`,
               "paid/type": "bioroid-run-server",
               "paid/value": trashed.length,
               "paid/targets": targets,
@@ -793,7 +792,7 @@ handlerDispatch.set("trash-from-hand", (c, state, side, eid) => {
             const trashed = (asyncResult as Card[]) ?? [];
             const detail =
               sd === "runner" && trashed.length > 0
-                ? ` (${enumerateStr(targets.map((t) => cardStr(s, t)))})`
+                ? ` (${enumerateStr(targets.map((t: any) => cardStr(s, t)))})`
                 : "";
             completeWithResult(s, sd, ei, {
               "paid/msg": `trashes ${quantify(trashed.length, "card")}${detail} from ${handName}`,

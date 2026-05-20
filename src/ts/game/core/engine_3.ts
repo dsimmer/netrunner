@@ -6,9 +6,7 @@ import { randomUUID } from "node:crypto";
 import type { GameState, Prompt } from "./state";
 import type { Card, Zone } from "./card";
 import type { EID } from "./eid";
-import type {
-  Ability, ReqFn, MsgFn, AbilityFn, NumberFn, Cost, ChoicesSpec,
-} from "./types.ts";
+import type { Ability, AbilityFn, ChoicesSpec, Cost, MsgFn, NumberFn, ReqFn } from "./types.ts";
 import type { Effect, RegisteredEvent } from "./state";
 import { CORP_SIDE, RUNNER_SIDE, getPlayer } from "./state";
 import {
@@ -88,8 +86,8 @@ export function triggerEventSync(
   };
 
   const handlers = gatherEvents(state, side, eid, event, targets);
-  const activePlayerEvents = handlers.filter((h) => isPlayer(activePlayer, h));
-  const opponentEvents = handlers.filter((h) => isPlayer(opponent, h));
+  const activePlayerEvents = handlers.filter((h: any) => isPlayer(activePlayer, h));
+  const opponentEvents = handlers.filter((h: any) => isPlayer(opponent, h));
 
   wait_for(
     state,
@@ -136,18 +134,21 @@ function triggerEventSimultPlayer(
         );
 
     // Non-silent handlers
-    const nonSilent = filtered.filter((h) => {
+    const nonSilent = filtered.filter((h: any) => {
       const silent = (h.ability as any)?.silent;
       const card = cardForAbility(state, h);
       if (!silent) return true;
       if (silent === true) return false;
-      return !(silent as ReqFn)(state, side, makeEID(state), card, eventTargets as Card[]);
+      if (typeof silent !== "function") return !silent;
+      return !(silent as (...a: any[]) => any)(state, side, makeEID(state), card, eventTargets as Card[]);
     });
 
-    const interactive = nonSilent.filter((h) => {
+    const interactive = nonSilent.filter((h: any) => {
       const interactiveFn = (h.ability as any)?.interactive as ReqFn | undefined;
       const card = cardForAbility(state, h);
-      return interactiveFn ? interactiveFn(state, side, makeEID(state), card, eventTargets as Card[]) : false;
+      if (!interactiveFn) return false;
+      if (typeof interactiveFn !== "function") return !!interactiveFn;
+      return (interactiveFn as (...a: any[]) => any)(state, side, makeEID(state), card, eventTargets as Card[]);
     });
 
     // If only 1 handler or no interactive ones, auto-resolve
@@ -168,7 +169,7 @@ function triggerEventSimultPlayer(
       }
 
       const remaining = nonSilent.length === 1
-        ? filtered.filter((h) => !sameCard(card, cardForAbility(state, h)))
+        ? filtered.filter((h: any) => !sameCard(card, cardForAbility(state, h)))
         : filtered.slice(1);
 
       return {
@@ -201,12 +202,12 @@ function triggerEventSimultPlayer(
     }
 
     // Show prompt for manual ordering
-    const titles = nonSilent.map((h) => {
+    const titles = nonSilent.map((h: any) => {
       const abiName = (h.ability as any)?.abilityName as string | undefined;
       const card = cardForAbility(state, h);
       return abiName ?? card ?? ({ title: "unknown" } as Card);
     });
-    const choices = [...titles.map((c) => (typeof c === "string" ? c : (getTitle(c) ?? ""))), "Done"];
+    const choices = [...titles.map((c: any) => (typeof c === "string" ? c : (getTitle(c) ?? ""))), "Done"];
 
     return {
       prompt: "Choose a trigger to resolve",
@@ -224,9 +225,9 @@ function triggerEventSimultPlayer(
             registerOnce(state, "", handler, handler.card);
           }
           const autoHandlers = handlers
-            .filter((h) => !handlerSkippable(h))
-            .sort((a, b) => (printedTitle((a as any).card) ?? "").localeCompare(printedTitle((b as any).card) ?? ""))
-            .sort((a, b) => {
+            .filter((h: any) => !handlerSkippable(h))
+            .sort((a: any, b: any) => (printedTitle((a as any).card) ?? "").localeCompare(printedTitle((b as any).card) ?? ""))
+            .sort((a: any, b: any) => {
               const pa = (a.ability as any)?.automatic;
               const pb = (b.ability as any)?.automatic;
               return (automaticPriority[pa ?? true] ?? 10) - (automaticPriority[pb ?? true] ?? 10);
@@ -243,7 +244,7 @@ function triggerEventSimultPlayer(
           }
         } else {
           // Find selected handler
-          const toResolve = handlers.find((h) => {
+          const toResolve = handlers.find((h: any) => {
             const card = cardForAbility(state, h);
             const abiName = (h.ability as any)?.abilityName;
             if (abiName) return abiName === target;
@@ -266,7 +267,7 @@ function triggerEventSimultPlayer(
             [
               { asyncResult: "result" },
               function (s: GameState, _e: EID, _b: any) {
-                const remaining = handlers.filter((h) => h !== toResolve);
+                const remaining = handlers.filter((h: any) => h !== toResolve);
                 if (shouldContinue(s, handlers)) {
                   continue_ability(s, side, chooseHandler(remaining), null, eventTargets);
                 } else {
@@ -309,7 +310,21 @@ function eventTitle(event: string): string {
  * Trigger event simultaneously (manual ordering).
  * Mirrors `trigger-event-simult`.
  */
-export function triggerEventSimult(
+export function triggerEventSimult(state: GameState, side: string, event: string | null, opts: any, ...targets: unknown[]): void;
+export function triggerEventSimult(state: GameState, side: string, eid: EID, event: string | null, opts: any, ...targets: unknown[]): void;
+export function triggerEventSimult(...rawArgs: any[]): void {
+  let state: GameState, side: string, eid: EID, event: string | null, opts: any, targets: unknown[];
+  if (typeof rawArgs[2] === "string" || rawArgs[2] === null) {
+    state = rawArgs[0]; side = rawArgs[1]; event = rawArgs[2]; opts = rawArgs[3] ?? {};
+    eid = makeEID(state);
+    targets = rawArgs.slice(4);
+  } else {
+    state = rawArgs[0]; side = rawArgs[1]; eid = rawArgs[2]; event = rawArgs[3]; opts = rawArgs[4] ?? {};
+    targets = rawArgs.slice(5);
+  }
+  return _triggerEventSimult(state, side, eid, event, opts, ...targets);
+}
+function _triggerEventSimult(
   state: GameState,
   side: string,
   eid: EID,
@@ -337,11 +352,11 @@ export function triggerEventSimult(
     : [];
 
   const handlers = gatherEvents(state, side, eid, event, targets, caList);
-  const activePlayerEvents = handlers.filter((h) => {
+  const activePlayerEvents = handlers.filter((h: any) => {
     const s = getSide(h.card);
     return s === activePlayer || getAbilitySide(h) === activePlayer;
   });
-  const opponentEvents = handlers.filter((h) => {
+  const opponentEvents = handlers.filter((h: any) => {
     const s = getSide(h.card);
     return s === opponent || getAbilitySide(h) === opponent;
   });
@@ -404,7 +419,7 @@ export function queueEvent(
   contextMap?: Record<string, unknown> | null,
 ): void {
   if (!event) return;
-  const queued = (state as any).queuedEvents ?? {};
+  const queued = (state.queuedEvents ?? {}) as unknown as Record<string, any[]>;
   if (!Array.isArray(queued[event])) {
     queued[event] = [];
   }
@@ -423,7 +438,7 @@ function gatherQueuedEventHandlers(
   const result: Array<{ handlers: RegisteredEvent[]; contextMaps: unknown[][] }> = [];
   for (const [event, contextMaps] of Object.entries(eventMaps)) {
     result.push({
-      handlers: state.events.filter((e) => e.event === event),
+      handlers: state.events.filter((e: any) => e.event === event),
       contextMaps: [...(contextMaps as unknown[][])],
     });
   }
@@ -470,7 +485,7 @@ function createHandlers(
   });
 
   // Sort: non-active player first
-  valid.sort((a, b) => {
+  valid.sort((a: any, b: any) => {
     const aActive = isActivePlayer(state, a.handler) ? 1 : 0;
     const bActive = isActivePlayer(state, b.handler) ? 1 : 0;
     return aActive - bActive;
@@ -498,24 +513,27 @@ function triggerQueuedEventPlayer(
   const cancelFn = args.cancelFn ?? null;
   const filtered = (cancelFn && cancelFn(state))
     ? handlers
-    : handlers.filter((h) => {
+    : handlers.filter((h: any) => {
         const card = cardForAbility(state, h.handler);
         if (!card || card.disabled) return false;
         return !triggerSuppress(state, toKeyword(getSide(card) ?? ""), h.handler.event, card, ...h.context);
       });
 
-  const nonSilent = filtered.filter((h) => {
+  const nonSilent = filtered.filter((h: any) => {
     const silent = (h.handler.ability as any)?.silent;
     if (!silent) return true;
     const card = cardForAbility(state, h.handler);
     if (silent === true) return false;
-    return !(silent as ReqFn)(state, side, makeEID(state), card, h.context as Card[]);
+    if (typeof silent !== "function") return !silent;
+    return !(silent as (...a: any[]) => any)(state, side, makeEID(state), card, h.context as Card[]);
   });
 
-  const interactive = nonSilent.filter((h) => {
+  const interactive = nonSilent.filter((h: any) => {
     const interactiveFn = (h.handler.ability as any)?.interactive as ReqFn | undefined;
     const card = cardForAbility(state, h.handler);
-    return interactiveFn ? interactiveFn(state, side, makeEID(state), card, h.context as Card[]) : false;
+    if (!interactiveFn) return false;
+    if (typeof interactiveFn !== "function") return !!interactiveFn;
+    return (interactiveFn as (...a: any[]) => any)(state, side, makeEID(state), card, h.context as Card[]);
   });
 
   if (filtered.length <= 1 || interactive.length === 0 || nonSilent.length <= 1) {
@@ -525,7 +543,7 @@ function triggerQueuedEventPlayer(
     const context = h.context;
     const abilityCard = cardForAbility(state, toResolve);
     const remaining = nonSilent.length === 1
-      ? filtered.filter((fh) => !sameCard(abilityCard, cardForAbility(state, fh.handler)))
+      ? filtered.filter((fh: any) => !sameCard(abilityCard, cardForAbility(state, fh.handler)))
       : filtered.slice(1);
 
     if (abilityCard) {
@@ -552,7 +570,7 @@ function triggerQueuedEventPlayer(
     }
   } else {
     // Show prompt
-    const choicesMap = filtered.map((h) => {
+    const choicesMap = filtered.map((h: any) => {
       const card = cardForAbility(state, h.handler);
       const abiName = (h.handler.ability as any)?.abilityName;
       return [abiName ?? card ?? { title: "unknown" } as Card, h];
@@ -574,9 +592,9 @@ function triggerQueuedEventPlayer(
               registerOnce(state, "", h, h.card);
             }
             const autoHandlers = filtered
-              .filter((h) => !handlerSkippable(h))
-              .sort((a, b) => (printedTitle(a.handler.card) ?? "").localeCompare(printedTitle(b.handler.card) ?? ""))
-              .sort((a, b) => {
+              .filter((h: any) => !handlerSkippable(h))
+              .sort((a: any, b: any) => (printedTitle(a.handler.card) ?? "").localeCompare(printedTitle(b.handler.card) ?? ""))
+              .sort((a: any, b: any) => {
                 const pa = (a.handler.ability as any)?.automatic;
                 const pb = (b.handler.ability as any)?.automatic;
                 return (automaticPriority[pa ?? true] ?? 10) - (automaticPriority[pb ?? true] ?? 10);
@@ -609,7 +627,7 @@ function triggerQueuedEventPlayer(
               [
                 { asyncResult: "result" },
                 function (s: GameState, _e: EID, _b: any) {
-                  const remaining = filtered.filter((h) => h !== handler);
+                  const remaining = filtered.filter((h: any) => h !== handler);
                   triggerQueuedEventPlayer(s, side, eid, remaining, args);
                 },
               ],
@@ -634,16 +652,16 @@ export function markPendingAbilities(
   eid: EID,
   _args: any,
 ): { handlers: Array<{ handler: RegisteredEvent; context: unknown[] }>; contextMaps: unknown[] } {
-  const eventMaps = (state as any).queuedEvents ?? {};
+  const eventMaps = (state.queuedEvents ?? {}) as unknown as Record<string, unknown[][]>;
   for (const [event, contextMaps] of Object.entries(eventMaps)) {
     logEvent(state, event, contextMaps as unknown[]);
   }
   if (Object.keys(eventMaps).length === 0) {
     return { handlers: [], contextMaps: [] };
   }
-  const handlers = createHandlers(state, eid, eventMaps);
+  const handlers = createHandlers(state, eid, eventMaps as any);
   (state as any).queuedEvents = {};
-  state.events = state.events.filter((e) => e.duration !== "pending");
+  state.events = state.events.filter((e: any) => e.duration !== "pending");
   return { handlers, contextMaps: Object.values(eventMaps).flat() as unknown[] };
 }
 
@@ -671,8 +689,8 @@ export function triggerPendingAbilities(
     return s === player || as2 === player;
   };
 
-  const activePlayerHandlers = handlers.filter((h) => isPlayer(activePlayer, h));
-  const opponentHandlers = handlers.filter((h) => isPlayer(opponent, h));
+  const activePlayerHandlers = handlers.filter((h: any) => isPlayer(activePlayer, h));
+  const opponentHandlers = handlers.filter((h: any) => isPlayer(opponent, h));
 
   wait_for(
     state,

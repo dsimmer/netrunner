@@ -194,7 +194,7 @@ export function loseTags(...rawArgs: any[]): void {
   if (actualN <= 0) return;
 
   // Update lose stats
-  const stats = (state as any).stats;
+  const stats = state.stats;
   if (stats?.runner?.lose) {
     stats.runner.lose.tag = (stats.runner.lose.tag ?? 0) + actualN;
   }

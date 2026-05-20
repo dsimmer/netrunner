@@ -3,6 +3,8 @@
 
 import { getZone, type Card, type Zone } from "./card";
 import { stringToNum } from "../utils";
+import type { Server } from './types';
+
 
 // ---------------------------------------------------------------------------
 // Server identification
@@ -88,7 +90,7 @@ export function nameZone(side: string, zone: unknown): string {
   const s = String(side).toLowerCase().replace(/^:/, "");
   const normalizedSide = s === "corp" ? "Corp" : s === "runner" ? "Runner" : side;
   const z = Array.isArray(zone) ? [...zone] : [zone];
-  const normalized = z.map((k) => String(k).replace(/^:/, "").toLowerCase());
+  const normalized = z.map((k: any) => String(k).replace(/^:/, "").toLowerCase());
 
   if (normalized.length === 1 && normalized[0] === "hand") {
     return normalizedSide === "Runner" ? "the Grip" : "HQ";
@@ -145,8 +147,8 @@ export function zoneSortKey(zone: unknown): number {
  */
 export function zonesToSortedNames(zones: unknown[]): string[] {
   return [...zones]
-    .sort((a, b) => zoneSortKey(a) - zoneSortKey(b))
-    .map((z) => zoneToName(z) ?? String(z));
+    .sort((a: any, b: any) => zoneSortKey(a) - zoneSortKey(b))
+    .map((z: any) => zoneToName(z) ?? String(z));
 }
 
 // ---------------------------------------------------------------------------
@@ -264,7 +266,7 @@ export function inSameServer(card1: Card | null, card2: Card | null): boolean {
   const zone2 = getZone(card2);
   return (
     zone1.length === zone2.length &&
-    zone1.every((v, i) => v === zone2[i]) &&
+    zone1.every((v: any, i: any) => v === zone2[i]) &&
     zone1[zone1.length - 1] === "content"
   );
 }
@@ -283,7 +285,7 @@ export function fromSameServer(upgrade: Card | null, target: Card | null): boole
   const upgradeZoneWithoutLast = upgradeZone.slice(0, -1);
   return (
     upgradeZoneWithoutLast.length === expectedZone.length &&
-    upgradeZoneWithoutLast.every((v, i) => v === expectedZone[i])
+    upgradeZoneWithoutLast.every((v: any, i: any) => v === expectedZone[i])
   );
 }
 

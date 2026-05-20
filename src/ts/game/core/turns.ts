@@ -324,7 +324,7 @@ export function startTurn(
   );
   const allCards = [...new Set([...activeCards, ...installedCards])];
 
-  const startCards = allCards.filter((c) =>
+  const startCards = allCards.filter((c: any) =>
     cardFlagFn(state, side, c, phaseKey, true),
   );
 

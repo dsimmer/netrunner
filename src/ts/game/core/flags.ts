@@ -64,7 +64,9 @@ export function cardFlagFn(
   const cdef = cardDef(card);
   const fn = (cdef as any).flags?.[flagKey] as ReqFn | undefined;
   if (!fn) return false;
-  const result = fn(state, side, makeEID(state), card, []);
+  const result = typeof fn === "function"
+    ? (fn as (...a: any[]) => any)(state, side, makeEID(state), card, [])
+    : fn;
   if (value !== undefined) return result === value;
   return result as unknown as boolean;
 }
@@ -82,7 +84,7 @@ export function anyFlagFn(
   cards?: Card[],
 ): boolean {
   const list = cards ?? allActive(state, side);
-  return list.some((c) => cardFlagFn(state, side, c, flagKey, value));
+  return list.some((c: any) => cardFlagFn(state, side, c, flagKey, value));
 }
 
 // ---------------------------------------------------------------------------
@@ -116,7 +118,7 @@ function checkFlag(
 ): boolean {
   const conditions = getFlagBucket(state, flagType)[flag] ?? [];
   const eid = makeEID(state);
-  return conditions.every((c) => c.condition(state, side, eid, card, []));
+  return conditions.every((c: any) => typeof c.condition === "function" ? (c.condition as any)(state, side, eid, card, []) : !!c.condition);
 }
 
 /**
@@ -130,7 +132,7 @@ export function checkFlagTypes(
   flag: string,
   flagTypes: FlagType[],
 ): boolean {
-  return flagTypes.every((ft) => checkFlag(state, side, card, ft, flag));
+  return flagTypes.every((ft: any) => checkFlag(state, side, card, ft, flag));
 }
 
 /**
@@ -148,7 +150,9 @@ export function getPreventingCards(
   const eid = makeEID(state);
   for (const ft of flagTypes) {
     for (const entry of getFlagBucket(state, ft)[flag] ?? []) {
-      if (!entry.condition(state, side, eid, card, [])) out.push(entry.card);
+      const cond = entry.condition;
+      const ok = typeof cond === "function" ? (cond as any)(state, side, eid, card, []) : !!cond;
+      if (!ok) out.push(entry.card);
     }
   }
   return out;
@@ -180,7 +184,7 @@ function clearFlagForCard(
   const bucket = getFlagBucket(state, flagType);
   const list = bucket[flag];
   if (!list) return;
-  bucket[flag] = list.filter((e) => e.card.cid !== card.cid);
+  bucket[flag] = list.filter((e: any) => e.card.cid !== card.cid);
 }
 
 /**
@@ -245,8 +249,8 @@ export function clearRunFlag(
 // Turn flag (cleared at end of turn)
 // ---------------------------------------------------------------------------
 
-export function registerTurnFlag(card: Card, flag: string, condition: ReqFn): void;
-export function registerTurnFlag(state: GameState, side: string, card: Card, flag: string, condition: ReqFn): void;
+export function registerTurnFlag(card: Card, flag: string, condition: ReqFn | null): void;
+export function registerTurnFlag(state: GameState, side: string, card: Card, flag: string, condition: ReqFn | null): void;
 export function registerTurnFlag(...args: any[]): void {
   if (args.length === 3) {
     // shorthand (card, flag, condition) — used inside effect() lambdas.
@@ -256,7 +260,7 @@ export function registerTurnFlag(...args: any[]): void {
   const state = args[0] as GameState;
   const card = args[2] as Card;
   const flag = args[3] as string;
-  const condition = args[4] as ReqFn;
+  const condition = (args[4] as ReqFn | null) ?? (() => false);
   registerFlag(state, card, "currentTurn", flag, condition);
 }
 
@@ -365,7 +369,7 @@ export function releaseZone(...args: any[]): void {
   }
   const holder = (state as any)[tside] as LockedHolder;
   const locked = ensureLocked(holder);
-  locked[tzone] = (locked[tzone] ?? []).filter((c) => c !== cid);
+  locked[tzone] = (locked[tzone] ?? []).filter((c: any) => c !== cid);
 }
 
 export function zoneLocked(
@@ -426,11 +430,14 @@ function canRezReason(state: GameState, side: string, card: Card): RezReason {
   if (!persistentFlag(state, side, card, "can-rez")) return "persistent-flag";
   if (
     uniqueness &&
-    allInstalled(state, "corp").some((c) => isRezzed(c) && c.code === card.code)
+    allInstalled(state, "corp").some((c: any) => isRezzed(c) && c.code === card.code)
   ) {
     return "unique";
   }
-  if (rezReq && !rezReq(state, side, makeEID(state), card, [])) return "req";
+  if (rezReq) {
+    const ok = typeof rezReq === "function" ? (rezReq as any)(state, side, makeEID(state), card, []) : !!rezReq;
+    if (!ok) return "req";
+  }
   return true;
 }
 
@@ -513,7 +520,7 @@ export function canRun(
   const entries = state.flagStack.currentTurn["can-run"] ?? [];
   if (entries.length === 0) return true;
   if (!silent) {
-    const titles = entries.map((e) => e.card.title ?? "");
+    const titles = entries.map((e: any) => e.card.title ?? "");
     toast(state, side, `Cannot run due to ${enumerateStr(titles)}`);
   }
   return false;
@@ -542,7 +549,7 @@ export function canAccessLoud(
     "persistent",
   ]);
   if (blockers.length === 0) return true;
-  const titles = blockers.map((c) => c.title ?? "");
+  const titles = blockers.map((c: any) => c.title ?? "");
   toast(
     state,
     side,
@@ -618,7 +625,7 @@ export function canScore(
  */
 export function isScored(state: GameState, side: string, card: Card): boolean {
   const scored = side === CORP_SIDE ? state.corp.scored : state.runner.scored;
-  return scored.some((c) => sameCard(c, card));
+  return scored.some((c: any) => sameCard(c, card));
 }
 
 export function inCorpScored(

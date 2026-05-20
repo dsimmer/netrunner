@@ -57,19 +57,19 @@ interface GamePlayer {
 
 function resetGameName(gameid: string): void {
   authenticated(() => {
-    wsSend(":lobby/rename-game", { gameid });
+    wsSend("lobby/rename-game", { gameid });
   });
 }
 
 function deleteGame(gameid: string): void {
   authenticated(() => {
-    wsSend(":lobby/delete-game", { gameid });
+    wsSend("lobby/delete-game", { gameid });
   });
 }
 
 function shiftGame(gameid: string, room: string): void {
   authenticated(() => {
-    wsSend(":lobby/shift-game", { gameid, room });
+    wsSend("lobby/shift-game", { gameid, room });
   });
 }
 

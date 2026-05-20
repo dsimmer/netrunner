@@ -1,4 +1,4 @@
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreActions from '../core/actions';
 import * as coreAgendas from '../core/agendas';
@@ -48,8 +48,6 @@ import * as coreUpdate from '../core/update';
 import * as coreWinning from '../core/winning';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
-import type { CardDef } from '../../types';
-
 import { takeNCreditsStartOfTurn } from './assets_1';
 
 // Stub helpers (to be ported from clj cards/*.clj)
@@ -76,13 +74,13 @@ export const luanaCampos: CardDef = {
   }),
   events: [{
     event: ':corp-turn-begins',
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     'change-in-game-state': {
       req: req(function*(state: State): Generator<any, any, any> { return coreFlags.countBadPub(state) > 0; }),
       silent: true,
     },
     optional: {
-      interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+      interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
       prompt: 'Host a bad publicity counter to gain 3 [Credits] and draw a card?',
       'yes-ability': {
         msg: 'gain 3 [Credits] and draw 1 card',
@@ -107,12 +105,12 @@ export const magistrateRevontulet: CardDef = {
     req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       return coreCard.agenda(targets[0]);
     }),
-    value: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return [corePayment.toC('credit', 3)]; }),
+    value: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return [corePayment.toC('credit', 3)]; }),
   }],
   events: [{
     event: ':agenda-scored',
     async: true,
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     msg: 'force the Runner to lose 3 [Credits]',
     effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       yield wait_for(state, [{ asyncResult: 'result' },
@@ -745,7 +743,7 @@ export const neurostasis: CardDef = { title: 'Neurostasis', ...advanceAmbush(
 
 export const newsTeam: CardDef = {
   title: 'News Team',
-  flags: { 'rd-reveal': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'rd-reveal': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   poison: true,
   'on-access': {
     async: true,
@@ -790,7 +788,7 @@ export const ngoFront: CardDef = (() => {
 export const nicoCampaign: CardDef = (() => {
   const ability: any = {
     async: true,
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     once: ':per-turn',
     automatic: ':draw-cards',
     label: 'Take 3 [Credits] (start of turn)',
@@ -825,7 +823,7 @@ export const nicoCampaign: CardDef = (() => {
 
 export const nightmareArchive: CardDef = {
   title: 'Nightmare Archive',
-  flags: { 'rd-reveal': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'rd-reveal': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   poison: true,
   'on-access': {
     async: true,

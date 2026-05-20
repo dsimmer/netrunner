@@ -5,7 +5,7 @@
  * Contains all Runner hardware card definitions with their abilities and events.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreActions from '../core/actions';
 import * as coreBoard from '../core/board';
@@ -55,8 +55,6 @@ import * as utils from '../utils';
 import * as jintekiUtils from '../../jinteki/utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 import { autoIcebreakerFn, targetFn } from './_helpers';
-import type { CardDef } from '../../types';
-
 import { accessBonusFn, addCounterFn, allActiveInstalledFn, anySubsBrokenFn, breachAccessBonus, breakSubFn, bypassIceFn, canTriggerFn, cardStr, corpFn, damageTypeFn, derezFn, drawFn, effectCompletedFn, endRunFn, eventFn, faceupFn, firstEventFn, gainCreditsFn, gainTagsFn, getAutoresolveFn, getCardFn, getCounters, getLinkFn, hardwareFn, hasSubtypeFn, iceFn, inHandFn, inHandStarFn, installedFn, isTaggedFn, linkPlusFn, lookAtTheTop, makeResultFn, makeRunFn, millFn, moveFn, muPlusFn, neverFn, playInstantFn, playTieredSfx, preventDamageFn, preventTagFn, preventUpToNDamageFn, preventableFn, programFn, pumpFn, quantify, registerEventsFn, registerLingeringEffectFn, registerOnceFn, resolveAbilityFn, revealFn, rezCostFn, runnerCanPayAndInstallFn, runnerFn, runnerInstallFn, sameCard, shuffleDeck, successfulRunReplaceBreach, systemMsg, targetServerFn, toC, trashCardsFn, trashFn, trashOnEmptyFn, triggerEventFn, unregisterEffectByUuidFn, updateBreakerStrengthFn, zoneNameFn } from './hardware_1';
 
 // __cardScopeShim: ambient 'state' and 'target' references at literal scope.
@@ -314,7 +312,7 @@ export const prognosticQLoop: CardDef = {
       req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         return firstEventFn(state, side, 'run');
       }),
-      'change-in-game-state': { silent: true, req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return !!(runnerFn(state)?.deck?.length); }) },
+      'change-in-game-state': { silent: true, req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return !!(runnerFn(state)?.deck?.length); }) },
       autoresolve: getAutoresolveFn('auto-fire'),
       prompt: 'Look at top 2 cards of the stack?',
       'yes-ability': lookAtTheTop(':runner', ':runner', 2),
@@ -326,7 +324,7 @@ export const prognosticQLoop: CardDef = {
       label: 'Reveal and install top card of the stack',
       once: ':per-turn',
       cost: [toC('credit', 1)],
-      'change-in-game-state': { req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return (runnerFn(state)?.deck?.length ?? 0) > 0; }) },
+      'change-in-game-state': { req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return (runnerFn(state)?.deck?.length ?? 0) > 0; }) },
       msg: (state: State, side: Side, eid: EID, card: Card, targets: any[]) => `reveal ${(runnerFn(state)?.deck?.[0])?.title || ''} from the top of the stack`,
       async: true,
       effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
@@ -377,7 +375,7 @@ export const qCoherenceChip: CardDef = {
     {
       event: 'runner-trash',
       async: true,
-      interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+      interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
       req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         const ctx = forms.context(state, card, targets) || {};
         return installedFn(ctx.card) && programFn(ctx.card);
@@ -388,7 +386,7 @@ export const qCoherenceChip: CardDef = {
     {
       event: 'corp-trash',
       async: true,
-      interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+      interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
       req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
         const ctx = forms.context(state, card, targets) || {};
         return installedFn(ctx.card) && programFn(ctx.card);
@@ -402,7 +400,7 @@ export const qCoherenceChip: CardDef = {
 // Qianju PT
 export const qianjuPT: CardDef = {
   title: 'Qianju PT',
-  flags: { 'runner-phase-12': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'runner-phase-12': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   abilities: [{
     label: 'Lose [Click], avoid 1 tag (start of turn)',
     once: ':per-turn',
@@ -412,7 +410,7 @@ export const qianjuPT: CardDef = {
     cost: [toC(':lose-click', 1)],
     msg: 'avoid the first tag received until [their] next turn',
     effect: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
-      const currentTurn = (state as any).turn;
+      const currentTurn = state.turn;
       const lingering = registerLingeringEffectFn(state, side, card, {
         type: ':forced-to-avoid-tag',
         duration: ':until-next-runner-turn-begins',
@@ -799,7 +797,7 @@ export const securityNexus: CardDef = {
   events: [{
     event: 'encounter-ice',
     skippable: true,
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     optional: {
       prompt: 'Trace 5 to bypass current ice?',
       once: ':per-turn',
@@ -899,7 +897,7 @@ export const sifr: CardDef = {
   events: [{
     event: 'encounter-ice',
     skippable: true,
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     optional: {
       prompt: 'Lower your maximum hand size by 1 to reduce the strength of encountered ice to 0?',
       once: ':per-turn',

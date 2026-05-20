@@ -2,6 +2,8 @@
 import { readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { slugify } from "../jinteki/utils";
+import type { Card } from '../types';
+
 
 // ---------------------------------------------------------------------------
 // sort_card_defs (mirrors tasks.sort-card-defs)

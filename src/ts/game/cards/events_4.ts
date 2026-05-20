@@ -6,7 +6,7 @@
  * Each card has properties like makes-run, on-play, events, static-abilities, etc.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreAgendas from '../core/agendas';
 import * as coreBadPublicity from '../core/bad_publicity';
@@ -60,8 +60,6 @@ import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 
 // Import defcard helper - each card is a card definition object
 import { defcard } from '../core/def_helpers';
-import type { CardDef } from '../../types';
-
 import { gainCreditsAbility, runAnyServerAbility, runServerAbility } from './events_1';
 import { intoTheDepthsAll, intoTheDepthsChoice } from './events_5';
 import * as coreUtils from '../utils';
@@ -610,9 +608,9 @@ export const immolationScript: CardDef = {
     async: true,
     req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> { const ctx: any = ((targets as any[])?.[0] as any)?.context ?? (targets as any[])?.[0];
       return ctx.server === 'archives' &&
-        [...(state as any).corp?.discard?.filter((c: Card) => coreCard.ice(c)).map((c: Card) => c.title), ...((coreBoard.allInstalled(state, 'corp') || [])
+        ([...(state.corp?.discard?.filter((c: Card) => coreCard.ice(c)).map((c: Card) => c.title) ?? []), ...((coreBoard.allInstalled(state, 'corp') || [])
           .filter((c: Card) => coreCard.rezzed(c))
-          .map((c: Card) => c.title))].filter((x: string, i: number, a: string[]) => a.indexOf(x) === i).length > 0;
+          .map((c: Card) => c.title))] as string[]).filter((x: string, i: number, a: string[]) => a.indexOf(x) === i).length > 0;
     }),
     prompt: 'Choose a piece of ice in Archives',
     choices: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {

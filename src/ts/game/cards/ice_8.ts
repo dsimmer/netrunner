@@ -5,7 +5,7 @@
  * Contains ~317 card definitions with their abilities and events.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State, Subroutine } from '../../types';
 import * as coreBadPublicity from '../core/bad_publicity';
 import * as coreBoard from '../core/board';
 import * as coreCard from '../core/card';
@@ -40,8 +40,6 @@ import * as coreUpdate from '../core/update';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 import { constellationIce } from './_helpers';
-import type { CardDef } from '../../types';
-
 import { addProgramToTopOfStack, addRunnerCardToGrip, bioraidBreak, doPsi, endTheRun, endTheRunUnlessRunnerPays, forcedToAvoidTags, gainCreditsSub, gainPowerCounter, heroToHero, installFromHqSub, maybeDrawSub, runnerLosesClick, runnerLosesCredits, tagTrace, takeBadPub, traceAbility, trashHardwareSub, trashProgramSub, trashResourceSub } from './ice_1';
 
 // Stub helpers (to be ported from clj cards/*.clj)
@@ -75,7 +73,7 @@ export const sandstone: CardDef = {
 // Sapper
 export const sapper: CardDef = {
   title: 'Sapper',
-  flags: { 'rd-reveal': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'rd-reveal': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   subroutines: [trashProgramSub],
   'on-access': {
     async: true,
@@ -498,7 +496,7 @@ export const sorocabanBlade: CardDef = {
     {
       event: ':end-of-encounter',
       silent: true,
-      req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+      req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
       effect: effect(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
         coreCard.updateCard(state, side, Object.assign({}, card, { special: Object.assign({}, (card as any).special, { sorocabanBlade: undefined }) }));
       }),
@@ -546,7 +544,7 @@ export const spiderweb: CardDef = {
 export const starlitKnight: CardDef = {
   title: 'Starlit Knight',
   'on-encounter': {
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     req: req(function*(state: State): Generator<any, any, any> { return coreThreat.threatLevel(4, state); }),
     effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       const subs = utils.sumTagEffects(state);
@@ -554,7 +552,7 @@ export const starlitKnight: CardDef = {
         type: ':additional-subroutines',
         duration: ':end-of-run',
         req: req(function*(s: State, sd: Side, e: EID, c: Card, tgts: any[]): Generator<any, any, any> { return coreCard.sameCard(card, tgts[0]); }),
-        value: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return { subroutines: Array(subs).fill(endTheRun) }; }),
+        value: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return { subroutines: Array(subs).fill(endTheRun) }; }),
       });
     }),
   },
@@ -743,7 +741,7 @@ export const syailendra: CardDef = {
   title: 'Syailendra',
   advanceable: ':always',
   'on-encounter': Object.assign({}, coreDefHelpers.placeAdvancementCounter(true), {
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     req: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       return coreCard.getCounters(card, ':advancement') >= 3;
     }),
@@ -913,7 +911,7 @@ export const tithonium: CardDef = {
         let trashedCard: Card | null = null;
         if (resources.length > 0) {
           const trashAbility = {
-            req: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return resources.length > 0; }),
+            req: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return resources.length > 0; }),
             async: true,
             choices: { all: true, card: (c: Card) => coreCard.installed(c) && coreCard.resource(c) },
             effect: req(function*(s: State, sd: Side, e: EID, c: Card, tgts: any[]): Generator<any, any, any> {

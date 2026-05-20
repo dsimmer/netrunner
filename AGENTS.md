@@ -6,4 +6,4 @@ You must make sure that all functionality is faithfully ported. Where a library 
 
 If you need to reference how a function works, check the equivalent clojure file.
 
-Do not use any git commands
+Do not use any git commands. Never use type 'any', use a defined type.

@@ -5,7 +5,7 @@
  * This file contains ~219 corp operation card definitions with their abilities and events.
  */
 
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreActions from '../core/actions';
 import * as coreBadPublicity from '../core/bad_publicity';
@@ -56,8 +56,6 @@ import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 
 import { cardDef } from '../core/card_defs';
-import type { CardDef } from '../../types';
-
 import { gainNClicks, lockdown, trashType } from './operations_1';
 
 // __cardScopeShim: 'state', 'target', etc. are referenced at CardDef literal
@@ -575,7 +573,7 @@ export const pivot: CardDef = {
     prompt: 'Choose a card',
     waitingPrompt: true,
     msg: msg('reveal ', (state: State, side: Side, eid: EID, card: Card, targets: any[]) => targets[0]?.title, ' from R&D and add it to HQ'),
-    choices: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => [...(state as any).corp?.deck || []].sort((a, b) => a.title.localeCompare(b.title)).filter((c: Card) => coreCard.operation(c) || coreCard.agenda(c))),
+    choices: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => [...state.corp?.deck || []].sort((a: any, b: any) => a.title.localeCompare(b.title)).filter((c: Card) => coreCard.operation(c) || coreCard.agenda(c))),
     onChangeGameState: {
       req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).corp?.deck?.length > 0 || (coreThreat.threatLevel(3, state) && (state as any).corp?.hand?.length > 0)),
     },

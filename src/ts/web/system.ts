@@ -42,6 +42,8 @@ import "./lobby";
 import "./angel_arena";
 import "./angel_arena/utils";
 import { startStatsLogging, stopStatsLogging } from "./telemetry";
+import type { Card, Server, Side } from '../types';
+
 
 // ---- Types ----
 

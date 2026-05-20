@@ -48,6 +48,8 @@ import { makeCorpDeck, makeRunnerDeck } from "../jinteki/chimera";
 import { sideFromStr } from "../jinteki/utils";
 
 import { handleMessageAndSendDiffs, sendStateToUid, updateAndSendDiffs } from './game_1';
+import type { Card, Side } from '../types';
+
 
 /** :game/rejoin */
 function uidInLobbyAsOriginalPlayer(uid: string): Lobby | undefined {
@@ -171,7 +173,7 @@ registerMsgHandler("game/action", (msg: WSMessage) => {
       const state = (lobby as any).state;
       let lastLogs = "unable to fetch log from state";
       if (state) {
-        const log = (state.log as Array<{ public?: string; user?: string; text?: string }>) ?? [];
+        const log = ((state as any).log as Array<{ public?: string; user?: string; text?: string }>) ?? [];
         lastLogs = log
           .filter((entry) => entry.public && entry.user === "__system__")
           .map((entry) => entry.text ?? "")
@@ -494,8 +496,8 @@ export function switchSideForLobby(gameid: string): void {
   const state = (lobby as any).state as Record<string, unknown> | undefined;
   if (!state) return;
 
-  const oldRunner = (state.runner as Record<string, unknown>)?.user;
-  const oldRunnerOptions = (state.runner as Record<string, unknown>)?.options;
+  const oldRunner = ((state as any).runner as Record<string, unknown>)?.user;
+  const oldRunnerOptions = ((state as any).runner as Record<string, unknown>)?.options;
 
   // Swap runner/corp user and options
   const newState = { ...state };

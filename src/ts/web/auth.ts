@@ -11,6 +11,8 @@ import { syncKeys } from "../jinteki/settings";
 import { getContent } from "../jinteki/i18n";
 import { bannedMsg } from "./versions";
 import { getAppState, swapAppState } from "./app_state";
+import type { Server } from '../types';
+
 
 // ---------------------------------------------------------------------------
 // Types

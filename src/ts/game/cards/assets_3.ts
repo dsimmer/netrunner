@@ -1,4 +1,4 @@
-import type { State, Side, Card, EID } from '../../types';
+import type { Card, CardDef, EID, Side, State } from '../../types';
 import * as coreAccess from '../core/access';
 import * as coreActions from '../core/actions';
 import * as coreAgendas from '../core/agendas';
@@ -49,8 +49,6 @@ import * as coreWinning from '../core/winning';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 import { campaign } from './_helpers';
-import type { CardDef } from '../../types';
-
 // Stub helpers (to be ported from clj cards/*.clj)
 function advanceAmbush(_args?: any, _ability?: any): any { return {}; }
 // Echo Chamber
@@ -170,7 +168,7 @@ export const encryptionProtocol: CardDef = {
 // Esca
 export const esca: CardDef = {
   title: 'Esca',
-  flags: { 'rd-reveal': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'rd-reveal': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   poison: true,
   'on-access': {
     msg: 'force the Runner to lose 1 [Credits]',
@@ -248,7 +246,7 @@ export const executiveBootCamp: CardDef = {
   'derezzed-events': [coreDefHelpers.corpRezToast],
   events: [{
     event: ':corp-turn-begins',
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     prompt: 'Rez a card, paying 1 [Credit] less',
     'waiting-prompt': true,
     choices: {
@@ -385,7 +383,7 @@ export const federalFundraising: CardDef = (() => {
       return !!(state as any).corpPhase12 && ((state as any).corp?.deck?.length > 0);
     }),
     skippable: true,
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     label: 'Look at the top 3 cards of R&D (start of turn)',
     async: true,
     effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
@@ -416,7 +414,7 @@ export const federalFundraising: CardDef = (() => {
   return {
     title: 'Federal Fundraising',
     'derezzed-events': [coreDefHelpers.corpRezToast],
-    flags: { 'corp-phase-12': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+    flags: { 'corp-phase-12': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
     events: [{ ...ability, event: ':corp-turn-begins' }],
     abilities: [ability],
   };
@@ -449,7 +447,7 @@ export const frontCompany: CardDef = {
       return Object.keys((state as any).corp?.servers?.remote || {}).map((k: string) => k);
     }),
   }],
-  'rez-req': req(function*(state: State): Generator<any, any, any> { return (state as any).activePlayer === ':corp'; }),
+  'rez-req': req(function*(state: State): Generator<any, any, any> { return state.activePlayer === ':corp'; }),
   events: [{
     event: ':run',
     req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
@@ -564,7 +562,7 @@ export const gaslight: CardDef = (() => {
     skippable: true,
     async: true,
     label: 'Search R&D for an operation (start of turn)',
-    interactive: req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }),
+    interactive: req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }),
     req: req(function*(state: State): Generator<any, any, any> { return !!(state as any).corpPhase12; }),
     effect: req(function*(state: State, side: Side, eid: EID, card: Card): Generator<any, any, any> {
       yield wait_for(state, [{ asyncResult: 'result' },
@@ -587,7 +585,7 @@ export const gaslight: CardDef = (() => {
   return {
     title: 'Gaslight',
     'derezzed-events': [coreDefHelpers.corpRezToast],
-    flags: { 'corp-phase-12': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+    flags: { 'corp-phase-12': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
     events: [{ ...ability, event: ':corp-turn-begins' }],
     abilities: [ability],
   };
@@ -757,7 +755,7 @@ export const heartsAndMinds: CardDef = (() => {
   return {
     title: 'Hearts and Minds',
     'derezzed-events': [coreDefHelpers.corpRezToast],
-    flags: { 'corp-phase-12': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+    flags: { 'corp-phase-12': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
     events: [{ ...ability, event: ':corp-turn-begins' }],
     abilities: [ability],
   };
@@ -766,7 +764,7 @@ export const heartsAndMinds: CardDef = (() => {
 // Honeyfarm
 export const honeyfarm: CardDef = {
   title: 'Honeyfarm',
-  flags: { 'rd-reveal': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+  flags: { 'rd-reveal': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
   poison: true,
   'on-access': {
     msg: 'force the Runner to lose 1 [Credits]',
@@ -819,7 +817,7 @@ export const clydeVanRite: CardDef = (() => {
   return {
     title: 'Clyde Van Rite',
     'derezzed-events': [coreDefHelpers.corpRezToast],
-    flags: { 'corp-phase-12': req(function*(state: any, side?: any, eid?: any, card?: any, targets?: any): Generator<any, any, any> { return true; }) },
+    flags: { 'corp-phase-12': req(function*(state: State, side?: Side, eid?: EID, card?: Card, targets?: any[]): Generator<any, any, any> { return true; }) },
     events: [{ ...ability, event: ':corp-turn-begins' }],
     abilities: [ability],
   };

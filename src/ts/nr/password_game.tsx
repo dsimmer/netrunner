@@ -3,14 +3,22 @@ import { authenticated } from "./auth";
 import { tr, trSpan, trRoomType } from "./translations";
 import { wsSendWithCb } from "./ws";
 
-interface LobbyState {
-  "password-game"?: {
-    game?: any;
-    action?: string;
-    "request-side"?: string;
-  } | null;
+interface PasswordGameInfo {
+  game?: PasswordGameTarget;
+  action?: string;
+  "request-side"?: string;
+}
+
+export interface LobbyState {
+  "password-game"?: PasswordGameInfo | null;
   editing?: boolean;
-  [key: string]: any;
+  [key: string]: unknown;
+}
+
+interface PasswordGameTarget {
+  gameid?: string;
+  title?: string;
+  [key: string]: unknown;
 }
 
 interface PasswordGameProps {
@@ -23,27 +31,33 @@ interface InputState {
   "error-msg"?: [string, string] | null;
 }
 
+interface JoinParams {
+  gameid?: string;
+  password?: string;
+  "request-side"?: string;
+}
+
 const joinGame = (
   setLobbyState: React.Dispatch<React.SetStateAction<LobbyState>>,
   setInputState: React.Dispatch<React.SetStateAction<InputState>>,
   inputState: InputState,
-  game: any,
+  game: PasswordGameTarget,
   action: string,
   requestSide: string | undefined
 ) => {
-  authenticated((_: any) => {
+  authenticated(() => {
     const actionMap: Record<string, string> = {
       join: "lobby/join",
       watch: "lobby/watch",
       rejoin: "game/rejoin",
     };
     const command = actionMap[action] || "lobby/join";
-    const params: Record<string, any> = {
+    const params: JoinParams = {
       gameid: game.gameid,
       password: inputState.password,
     };
     if (requestSide) {
-      params.request_side = requestSide;
+      params["request-side"] = requestSide;
     }
 
     // Mirrors (sente/cb-success? + case on response):

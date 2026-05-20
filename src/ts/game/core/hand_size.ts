@@ -4,7 +4,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { ReqFn, ValueFn, StaticAbility } from "./types.ts";
+import type { ReqFn, Side, State, StaticAbility, ValueFn } from "./types.ts";
 import { CORP_SIDE, RUNNER_SIDE } from "./state";
 import { sumEffects } from "./effects";
 
@@ -84,7 +84,7 @@ export function corpHandSizePlus(
 ): StaticAbility {
   const r: any = value === undefined ? null : reqOrValue;
   const v: any = value === undefined ? reqOrValue : value;
-  const corpReq: ReqFn = (state: any, side: any, eid: any, card: any, targets: any) => {
+  const corpReq: ReqFn = (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
     if (side !== CORP_SIDE) return false;
     return r ? (typeof r === 'function' ? r(state, side, eid, card, targets) : r) : true;
   };
@@ -102,7 +102,7 @@ export function runnerHandSizePlus(
   // Permissive: callers may pass just a value (number) or a (req, value) pair.
   const r: any = value === undefined ? null : reqOrValue;
   const v: any = value === undefined ? reqOrValue : value;
-  const runnerReq: ReqFn = (state: any, side: any, eid: any, card: any, targets: any) => {
+  const runnerReq: ReqFn = (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
     if (side !== RUNNER_SIDE) return false;
     return r ? (typeof r === 'function' ? r(state, side, eid, card, targets) : r) : true;
   };

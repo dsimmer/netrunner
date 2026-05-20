@@ -39,6 +39,8 @@ import {
 import { startRun, finishRun, addNewMatch } from "./angel_arena/runs";
 
 import { average, selectState } from './angel_arena_2';
+import type { State } from '../types';
+
 
 
 // ---------------------------------------------------------------------------
