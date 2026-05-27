@@ -49,7 +49,7 @@ export function forcedToAvoidTags(...args: any[]): boolean {
 }
 
 export function currentlyEncounteringCard(card: Card, state: State): boolean {
-  return coreCard.sameCard(coreRuns.getCurrentEncounter(state)?.ice, card);
+  return coreCard.sameCard(coreRuns.getCurrentEncounter(state)?.ice ?? null, card);
 }
 
 export function bioraidBreak(cost: number, qty: number, args: any = {}): any {
@@ -191,7 +191,7 @@ export function endTheRunUnlessRunnerPays(
       return [
         "End the run",
         corePayment.canPay(state, ":runner", eid, card, null, [cost])
-          ? utils.capitalize(corePayment.costToString([cost]))
+          ? utils.capitalize(corePayment.costToString([cost]) ?? "")
           : null,
       ].filter(Boolean);
     }),
@@ -267,7 +267,7 @@ export function endTheRunUnlessCorpPays(cost: any): any {
       return [
         "End the run",
         corePayment.canPay(state, ":corp", eid, card, null, [cost])
-          ? utils.capitalize(corePayment.costToString([cost]))
+          ? utils.capitalize(corePayment.costToString([cost]) ?? "")
           : null,
       ].filter(Boolean);
     }),
@@ -1130,7 +1130,7 @@ function spaceIce(...abilities: any[]): any {
 }
 
 function grailInHand(card: Card): boolean {
-  return (
+  return !!(
     coreCard.corp(card) &&
     coreCard.inHand(card) &&
     coreCard.hasSubtype(card, "Grail")
@@ -1324,8 +1324,16 @@ export function variableSubsIce(
         ): Generator<any, any, any> {
           return coreCard.sameCard(card, targets[0]);
         }),
-        value: req(function* (state: State): Generator<any, any, any> {
-          return { subroutines: Array(subsCount(state)).fill(sub) };
+        value: req(function* (
+          state: State,
+          side: Side,
+          eid: EID,
+          card: Card,
+          targets: any[],
+        ): Generator<any, any, any> {
+          return {
+            subroutines: Array(subsCount(state, side, eid, card, targets)).fill(sub),
+          };
         }),
       },
     ],

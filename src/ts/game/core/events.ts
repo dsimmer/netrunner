@@ -247,22 +247,31 @@ export function firstInstalledTrashOwn(
 
 /**
  * Returns the targets of each run event with the given key that was triggered this run.
+ * Accepts either (state, side, ev) or (run, ev).
  *
  * Clojure:
  *   ([state _ ev] (when (:run @state) (run-events (:run @state) ev)))
  *   ([run ev]    (mapcat rest (filter #(= ev (first %)) (:events run))))
  */
 export function runEvents(
-  state: GameState,
-  _side: unknown,
-  ev: string,
+  stateOrRun: GameState | unknown,
+  sideOrEv: unknown,
+  ev?: string,
 ): unknown[] {
-  const run = state.run;
+  let run: any;
+  let event: string;
+  if (ev === undefined) {
+    run = stateOrRun;
+    event = sideOrEv as string;
+  } else {
+    run = (stateOrRun as GameState).run;
+    event = ev;
+  }
   if (!run) return [];
-  const events = (run as any).events as TurnEventEntry[] | undefined;
+  const events = run.events as TurnEventEntry[] | undefined;
   if (!events) return [];
   return events
-    .filter(([event]) => event === ev)
+    .filter(([e]) => e === event)
     .flatMap(([_event, targets]) => targets ?? []);
 }
 

@@ -324,8 +324,8 @@ function breachServer(
 ): any {
   return coreAccess.breachServer?.(state, side, eid, srv, opts);
 }
-function accessBonus(side: any, server?: any, n?: number): any {
-  return coreAccess.accessBonus?.(side, server, n);
+function accessBonus(state: State, side: Side, n: number, duration?: string): any {
+  return coreAccess.accessBonus?.(state, side, n, duration);
 }
 function steal(state: State, side: Side, eid: EID, c: any): any {
   return coreAccess.steal?.(state, side, eid, c);
@@ -373,7 +373,7 @@ function canPay(
   t: any,
   cost: any[],
 ): boolean {
-  return coreEngine.canPay?.(state, side, eid, c, t, cost) ?? false;
+  return !!corePayment.canPay?.(state, side, eid, c, t, ...cost);
 }
 function trashCost(state: State, side: Side, c: any): number {
   return coreCostFns.trashCost?.(state, side, c) ?? 0;
@@ -496,7 +496,7 @@ function successfulRunReplaceBreach(opts: any): any {
   return coreAccess.successfulRunReplaceBreach?.(opts);
 }
 function chooseOneHelper(opts: any, options?: any[]): any {
-  return coreChooseOne.chooseOneHelper?.(opts, options);
+  return coreChooseOne.chooseOneHelper?.(opts, options ?? []);
 }
 function pickVirusCountersToSpend(n: number): any {
   return corePickCounters.pickVirusCountersToSpend?.(n);
@@ -616,7 +616,7 @@ function shuffleDeck(state: State, side: Side, d: string): void {
   coreShuffling.shuffle?.(state, side, d);
 }
 function failToFind(): any {
-  return coreShuffling.failToFind?.();
+  return coreShuffling.failToFind;
 }
 function cancellable(items: any, opts?: any): any {
   return corePrompts.cancellable?.(items, opts);
@@ -639,8 +639,8 @@ function strToInt(s: string): number {
 function legalCard(format: any, status: any, c: any): boolean {
   return jintekiValidator.legal?.(format, status, c) ?? false;
 }
-function hasFlag(state: State, side: Side, kind: any, flag: any): boolean {
-  return coreFlags.hasFlag?.(state, side, kind, flag) ?? false;
+function hasFlag(state: State, kind: any, flag: any): boolean {
+  return coreFlags.hasFlag?.(state, kind, flag) ?? false;
 }
 function cardFlag(c: any, f: string, v: any): boolean {
   return coreFlags.cardFlag?.(c, f, v) ?? false;
@@ -765,7 +765,7 @@ function iceStrength(state: State, side: Side, ice: any): number {
   return coreIce.iceStrength?.(state, side, ice) ?? 0;
 }
 function breakSubroutine(state: State, ice: any, sub: any): void {
-  coreIce.breakSubroutine?.(state, ice, sub);
+  coreIce.breakSubroutineEx?.(state, ice, sub);
 }
 function unbrokenSubroutinesChoice(ice: any): any[] {
   return coreIce.unbrokenSubroutinesChoice?.(ice) ?? [];
@@ -797,7 +797,7 @@ function getRunnableZones(
 function geneticsTrigger(state: State, side: Side, event: string): boolean {
   return (
     firstEvent(state, side, event) ||
-    (hasFlag(state, side, ":persistent", ":genetics-trigger-twice") &&
+    (hasFlag(state, ":persistent", ":genetics-trigger-twice") &&
       (coreEvents.secondEvent?.(state, side, event) ?? false))
   );
 }
@@ -1110,7 +1110,7 @@ export const adjustedChronotype: CardDef = {
         return (
           losses === 1 ||
           (losses === 2 &&
-            hasFlag(state, side, ":persistent", ":genetics-trigger-twice"))
+            hasFlag(state, ":persistent", ":genetics-trigger-twice"))
         );
       }),
       msg: "gain [Click]",
@@ -4067,7 +4067,7 @@ export const eruAyasePessoa: CardDef = {
         state: State,
         side: Side,
       ): Generator<any, any, any> {
-        accessBonus(side, ":rd", 1);
+        accessBonus(state, side, 1, ":rd");
       }),
     },
   ],
@@ -6156,7 +6156,7 @@ export const manuelLattesDeMoura: CardDef = {
         card: Card,
         targets: any[],
       ): Generator<any, any, any> {
-        accessBonus(side, targets?.[0]?.context?.server, 1);
+        accessBonus(state, side, 1, targets?.[0]?.context?.server);
       }),
     },
   ],
@@ -6206,7 +6206,7 @@ export const prettyMaryDaSilva: CardDef = {
                   state: State,
                   side: Side,
                 ): Generator<any, any, any> {
-                  accessBonus(side, ":rd", 1);
+                  accessBonus(state, side, 1, ":rd");
                 }),
               },
             },
@@ -9466,7 +9466,7 @@ export const theTwinning: CardDef = {
               card: Card,
               targets2: any[],
             ): Generator<any, any, any> {
-              accessBonus(side, server, Math.max(0, targets2[0]));
+              accessBonus(state, side, Math.max(0, targets2[0]), server);
               addCounter(state, "runner", eid, card, "power", -targets2[0], {
                 placed: true,
               });

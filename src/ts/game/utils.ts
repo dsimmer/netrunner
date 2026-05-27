@@ -236,8 +236,16 @@ export function pluralize(
  * Returns "n word" with correct pluralisation.
  * Mirrors quantify.
  */
-export function quantify(n: number, word: string, suffix = "s"): string {
-  return `${n} ${pluralize(word, n, suffix)}`;
+export function quantify(
+  n: number,
+  word: string,
+  suffixOrSingle = "s",
+  pluralSuffix?: string,
+): string {
+  if (pluralSuffix !== undefined) {
+    return `${n} ${pluralize(word, suffixOrSingle, pluralSuffix, n)}`;
+  }
+  return `${n} ${pluralize(word, n, suffixOrSingle)}`;
 }
 
 /**

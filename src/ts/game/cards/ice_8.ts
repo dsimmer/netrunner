@@ -619,7 +619,7 @@ export const slotMachine: CardDef = (() => {
   }
   function top3Types(state: State, card: Card, et: string): number {
     const effects = coreEffects.getEffects(state, ":corp", et, card);
-    const cards: Card[] = effects?.[0] ?? [];
+    const cards: Card[] = (effects?.[0] as Card[]) ?? [];
     return new Set(cards.map((c: Card) => (c as any).type)).size;
   }
   function ability(): any {
@@ -697,7 +697,7 @@ export const slotMachine: CardDef = (() => {
         ): Generator<any, any, any> {
           const et = effectType(card);
           const effects = coreEffects.getEffects(state, ":corp", et, card);
-          const cards: Card[] = effects?.[0] ?? [];
+          const cards: Card[] = (effects?.[0] as Card[]) ?? [];
           const uniqueTypes = new Set(cards.map((c: Card) => (c as any).type))
             .size;
           if (
@@ -733,7 +733,7 @@ export const slotMachine: CardDef = (() => {
         ): Generator<any, any, any> {
           const et = effectType(card);
           const effects = coreEffects.getEffects(state, ":corp", et, card);
-          const cards: Card[] = effects?.[0] ?? [];
+          const cards: Card[] = (effects?.[0] as Card[]) ?? [];
           const uniqueTypes = new Set(cards.map((c: Card) => (c as any).type))
             .size;
           if (cards.length === 3 && uniqueTypes === 1) {
@@ -1268,7 +1268,7 @@ export const susanooNoMikoto: CardDef = {
               s: State,
               sd: Side,
             ): Generator<any, any, any> {
-              coreEffects.unregisterEffectByUuid(s, sd, lingering);
+              coreEffects.unregisterEffectByUuid(s, sd, lingering.uuid);
             }),
           },
         ]);
@@ -1575,7 +1575,7 @@ export const tatuBola: CardDef = {
                         sd,
                         coreEid.makeEid(s, e),
                         tgts[0],
-                        coreCard.getCard(s, card),
+                        coreCard.getCard(s, card) ?? card,
                       ),
                     ],
                     [],

@@ -94,7 +94,7 @@ export const mlinzi: CardDef = (() => {
             ? utils.capitalize(
                 corePayment.buildCostLabel([
                   corePayment.toC("trash-from-deck", millCnt),
-                ]),
+                ]) ?? "",
               )
             : null,
         ].filter(Boolean);
@@ -306,12 +306,12 @@ export const mycoweb: CardDef = {
     },
     rezAnIce({ costBonus: -2 }),
     resolveAnotherSubroutine(
-      (c: Card) => coreCard.hasSubtype(c, "Sentry"),
+      (c: Card) => !!coreCard.hasSubtype(c, "Sentry"),
       "Resolve subroutine on a rezzed Sentry",
       true,
     ),
     resolveAnotherSubroutine(
-      (c: Card) => coreCard.hasSubtype(c, "Code Gate"),
+      (c: Card) => !!coreCard.hasSubtype(c, "Code Gate"),
       "Resolve subroutine on another rezzed Code Gate",
     ),
   ],
@@ -1466,7 +1466,7 @@ export const rainbow: CardDef = {
 // Ravana 1.0
 export const ravana10: CardDef = (() => {
   const sub = resolveAnotherSubroutine(
-    (c: Card) => coreCard.hasSubtype(c, "Bioroid"),
+    (c: Card) => !!coreCard.hasSubtype(c, "Bioroid"),
     "Resolve a subroutine on a rezzed bioroid ice",
   );
   return {
@@ -1557,7 +1557,7 @@ export const rime: CardDef = {
         card: Card,
         targets: any[],
       ): Generator<any, any, any> {
-        return coreServers.protectingSameServer(state, card, targets[0]);
+        return coreServers.protectingSameServer(card, targets[0]);
       }),
       value: 1,
     },
