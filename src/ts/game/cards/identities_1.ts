@@ -3510,7 +3510,7 @@ export const card_Hiram0missionSvensson_ShadowOfThePast: CardDef = {
         card: Card,
         targets: any[],
       ): Generator<any, any, any> {
-        coreDefHelpers.scry(state, side, card, "corp", 1);
+        coreDefHelpers.scry(state, side, eid, card, "corp", 1);
       }),
     },
     {
@@ -3537,7 +3537,7 @@ export const card_Hiram0missionSvensson_ShadowOfThePast: CardDef = {
         card: Card,
         targets: any[],
       ): Generator<any, any, any> {
-        coreDefHelpers.scry(state, side, card, "corp", 1);
+        coreDefHelpers.scry(state, side, eid, card, "corp", 1);
       }),
     },
   ],
@@ -4208,7 +4208,7 @@ export const card_JesminderSareen_GirlBehindTheCurtain: CardDef = {
         card: Card,
         targets: any[],
       ): Generator<any, any, any> {
-        corePrevention.preventTag("runner", eid, 1);
+        corePrevention.preventTag(state, "runner", eid, 1);
       }),
     },
   ],
@@ -5258,7 +5258,7 @@ export const card_MaxX_MaximumPunkRock: CardDef = {
       ): Generator<any, any, any> {
         yield wait_for(
           state,
-          [{ asyncResult: "result" }, coreMoving.mill("runner", "runner", 2)],
+          [{ asyncResult: "result" }, coreMoving.mill(state, "runner", "runner", 2)],
           [],
         );
         coreDrawing.draw(state, "runner", eid, 1);
@@ -5292,7 +5292,7 @@ export const card_MaxX_MaximumPunkRock: CardDef = {
       ): Generator<any, any, any> {
         yield wait_for(
           state,
-          [{ asyncResult: "result" }, coreMoving.mill("runner", "runner", 2)],
+          [{ asyncResult: "result" }, coreMoving.mill(state, "runner", "runner", 2)],
           [],
         );
         coreDrawing.draw(state, "runner", eid, 1);

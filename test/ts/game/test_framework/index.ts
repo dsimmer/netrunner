@@ -1141,7 +1141,9 @@ function testStartingHand(
       core.move(state, side, existing, "hand");
       return existing;
     }
-    return core.makeCard(title);
+    const card = core.makeCard(title);
+    card.zone = ["hand"] as any;
+    return card;
   });
   core.fakeCheckpoint(state);
 }
@@ -1301,6 +1303,16 @@ export function fireAllSubsTest(
 export function beforeEach(setupFn: (state: GameState) => void): void {
   // This is a no-op helper for the test framework pattern.
   // Actual before_each is handled by Vitest's beforeEach.
+}
+
+// ============================================================
+// doGame helper - creates an empty state object and passes it
+// to the callback for game setup (mirrors Clojure's do-game macro)
+// ============================================================
+
+export function doGame(fn: (state: GameState) => void): void {
+  const state: GameState = {};
+  fn(state);
 }
 
 // ============================================================

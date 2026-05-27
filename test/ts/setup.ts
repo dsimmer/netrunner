@@ -1235,7 +1235,10 @@ const testCards: Record<string, Record<string, unknown>> = {
     title: "Kasi String", side: "Runner", type: "Hardware", cost: 2, muCost: 1, format: ["Standard"],
   },
   "Stimhack": {
-    title: "Stimhack", side: "Runner", type: "Hardware", cost: 2, muCost: 1, format: ["Standard"],
+    title: "Stimhack", side: "Runner", type: "Event", cost: 2, subtypes: ["Run"], format: ["Standard"],
+  },
+  "Contaminate": {
+    title: "Contaminate", side: "Runner", type: "Event", cost: 2, subtypes: ["Agenda"], format: ["Standard"],
   },
   "Jak Sinclair": {
     title: "Jak Sinclair", side: "Runner", type: "Resource", cost: 3, unique: true, format: ["Standard"],

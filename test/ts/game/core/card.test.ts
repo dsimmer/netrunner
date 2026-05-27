@@ -1,7 +1,6 @@
-import { describe, it, beforeEach } from "node:test";
-import assert from "node:assert";
-import { hasSubtype, hasAnySubtype, hasAllSubtypes } from "../../../../src/ts/game/core/card.ts";
-import type { Card } from "../../../../src/ts/game/core/card.ts";
+import { describe, it, beforeEach, expect } from "vitest";
+import { hasSubtype, hasAnySubtype, hasAllSubtypes } from "../../../../src/ts/game/core/card";
+import type { Card } from "../../../../src/ts/game/core/card";
 
 describe("hasSubtype", () => {
   let contaminate: Card;
@@ -15,27 +14,27 @@ describe("hasSubtype", () => {
   });
 
   it("no subtypes returns undefined", () => {
-    assert(!hasSubtype(contaminate, "Run"));
+    expect(hasSubtype(contaminate, "Run")).toBeFalsy();
   });
 
   it("one subtype matches", () => {
-    assert(hasSubtype(stimhack, "Run"));
+    expect(hasSubtype(stimhack, "Run")).toBeTruthy();
   });
 
   it("one subtype does not match different subtype", () => {
-    assert(!hasSubtype(stimhack, "Mod"));
+    expect(hasSubtype(stimhack, "Mod")).toBeFalsy();
   });
 
   it("multiple subtypes matches first", () => {
-    assert(hasSubtype(laamb, "Icebreaker"));
+    expect(hasSubtype(laamb, "Icebreaker")).toBeTruthy();
   });
 
   it("multiple subtypes matches second", () => {
-    assert(hasSubtype(laamb, "Fracter"));
+    expect(hasSubtype(laamb, "Fracter")).toBeTruthy();
   });
 
   it("multiple subtypes does not match non-existent subtype", () => {
-    assert(!hasSubtype(stimhack, "Mod"));
+    expect(hasSubtype(stimhack, "Mod")).toBeFalsy();
   });
 });
 
@@ -51,15 +50,15 @@ describe("hasAnySubtype", () => {
   });
 
   it("one is present returns true", () => {
-    assert(hasAnySubtype(stimhack, ["Test", "Two", "Run"]));
+    expect(hasAnySubtype(stimhack, ["Test", "Two", "Run"])).toBe(true);
   });
 
   it("multiple are present but not all returns true", () => {
-    assert(hasAnySubtype(laamb, ["Test", "Two", "Icebreaker", "Fracter", "False"]));
+    expect(hasAnySubtype(laamb, ["Test", "Two", "Icebreaker", "Fracter", "False"])).toBe(true);
   });
 
   it("none are present returns false", () => {
-    assert(!hasAnySubtype(contaminate, ["Test", "Two", "Icebreaker", "Fracter", "False"]));
+    expect(hasAnySubtype(contaminate, ["Test", "Two", "Icebreaker", "Fracter", "False"])).toBe(false);
   });
 });
 
@@ -75,26 +74,26 @@ describe("hasAllSubtypes", () => {
   });
 
   it("card with one subtype matches single subtype", () => {
-    assert(hasAllSubtypes(stimhack, ["Run"]));
+    expect(hasAllSubtypes(stimhack, ["Run"])).toBe(true);
   });
 
   it("card with one subtype does not match multiple subtypes", () => {
-    assert(!hasAllSubtypes(stimhack, ["Test", "Two", "Run"]));
+    expect(hasAllSubtypes(stimhack, ["Test", "Two", "Run"])).toBe(false);
   });
 
   it("card with two subtypes matches both subtypes", () => {
-    assert(hasAllSubtypes(laamb, ["Icebreaker", "Fracter"]));
+    expect(hasAllSubtypes(laamb, ["Icebreaker", "Fracter"])).toBe(true);
   });
 
   it("card with two subtypes matches single subtype", () => {
-    assert(hasAllSubtypes(laamb, ["Icebreaker"]));
+    expect(hasAllSubtypes(laamb, ["Icebreaker"])).toBe(true);
   });
 
   it("card with two subtypes does not match three subtypes", () => {
-    assert(!hasAllSubtypes(laamb, ["Icebreaker", "Fracter", "Test"]));
+    expect(hasAllSubtypes(laamb, ["Icebreaker", "Fracter", "Test"])).toBe(false);
   });
 
   it("card with no subtypes does not match any subtypes", () => {
-    assert(!hasAllSubtypes(contaminate, ["Test", "Two", "Icebreaker", "Fracter", "False"]));
+    expect(hasAllSubtypes(contaminate, ["Test", "Two", "Icebreaker", "Fracter", "False"])).toBe(false);
   });
 });

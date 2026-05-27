@@ -452,13 +452,17 @@ function addStealthToLabel(
  * args: Additional options (:label, :additional-ability, :req).
  */
 export function breakSub(
-  cost: number | any[],
+  cost: number | any[] | null,
   n: number | NumberFn,
   subtypes?: string | string[] | null,
   args?: Record<string, unknown>,
 ): Ability {
   const costData =
-    typeof cost === "number" ? [toC("credit", cost)] : (cost as any[]);
+    cost == null
+      ? []
+      : typeof cost === "number"
+        ? [toC("credit", cost)]
+        : (cost as any[]);
   const subtypeSet: Set<string> = (() => {
     if (typeof subtypes === "string") return new Set([subtypes]);
     if (Array.isArray(subtypes)) return new Set(subtypes);

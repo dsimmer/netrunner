@@ -262,7 +262,7 @@ export const padFactory: CardDef = {
           (s: State, _: any, c: Card) => {
             if (
               (c as any).cid === tgtcid &&
-              coreCard.getAdvancementRequirement(c) <=
+              (coreCard.getAdvancementRequirement(c) ?? Infinity) <=
                 coreCard.getCounters(c, ":advancement")
             ) {
               coreToasts.toast(
@@ -531,7 +531,7 @@ export const planB: CardDef = {
         const t = targets[0];
         return (
           coreCard.agenda(t) &&
-          coreCard.getAdvancementRequirement(t) <=
+          (coreCard.getAdvancementRequirement(t) ?? Infinity) <=
             coreCard.getCounters(
               coreCard.getCard(state, card),
               ":advancement",
@@ -586,7 +586,7 @@ export const plutus: CardDef = (() => {
             !(c as any).seen ||
             (coreCard.operation(c) &&
               coreCard.hasSubtype(c, "Transaction") &&
-              coreActions.canPlayInstant(state, side, eid, c, null)),
+              coreActions.canPlayInstant(state, side, eid, c)),
         );
       }),
     },
@@ -602,7 +602,7 @@ export const plutus: CardDef = (() => {
         return (
           coreCard.operation(t) &&
           coreCard.hasSubtype(t, "Transaction") &&
-          coreActions.canPlayInstant(state, side, eid, t, null)
+          coreActions.canPlayInstant(state, side, eid, t)
         );
       }),
     },
@@ -1161,7 +1161,7 @@ export const publicSupport: CardDef = {
         eid: EID,
         card: Card,
       ): Generator<any, any, any> {
-        coreMoving.asAgenda(state, card, 1);
+        coreMoving.asAgenda(state, side, card, 1);
       }),
     },
   ],

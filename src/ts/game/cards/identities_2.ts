@@ -225,7 +225,7 @@ export const card_MeliesU_OnlyTheBrightest: CardDef = {
           "R&D": "Subsurface Labs: Méliès U",
           Archives: "Disposal Grounds: Méliès U",
         };
-        return faces[c["melies-target"]] || "this shouldn't occur";
+        return faces[c["melies-target"] as string] || "this shouldn't occur";
       }),
       async: true,
       effect: effect(function* (
@@ -340,8 +340,6 @@ export const card_Mercury_ChromeLibertador: CardDef = {
         card: Card,
         targets: any[],
       ): Generator<any, any, any> {
-        const context = (targets as any)[0]?.context || {};
-        const breachedServer = context.server;
         continue_ability(
           state,
           side,
@@ -360,13 +358,7 @@ export const card_Mercury_ChromeLibertador: CardDef = {
                   card: Card,
                   targets: any[],
                 ): Generator<any, any, any> {
-                  coreAccess.accessBonus(
-                    state,
-                    side,
-                    breachedServer,
-                    1,
-                    "end-of-access",
-                  );
+                  coreAccess.accessBonus(state, side, 1, "end-of-access");
                   return coreEid.effectCompleted(state, side, eid);
                 }),
               },
@@ -1647,7 +1639,7 @@ export const card_Null_Whistleblower: CardDef = {
               }),
               value: -2,
             });
-            coreIce.updateAllIce();
+            coreIce.updateAllIce(state, side);
             coreMoving.trash(eid, targets[0], { unpreventable: true });
           }),
         },
@@ -1995,6 +1987,8 @@ export const card_ObSuperheavyLogistics_ExtractExportExcel: CardDef = {
                           corePayment.canPay(
                             state,
                             side,
+                            coreEid.makeEid(state),
+                            null,
                             coreCard.getTitle(instTarget) || "",
                             addCosts,
                           )

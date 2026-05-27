@@ -572,14 +572,21 @@ export function cardImplemented(card: Card): string | null {
 
 /**
  * Makes or remakes (with current cid) a proper card from a server card.
+ * Accepts a card title string or a card data record.
  * Mirrors: make-card
  */
 export function makeCard(
-  cardData: Record<string, unknown>,
+  cardData: string | Record<string, unknown>,
   cid?: string,
 ): Card {
+  // If a string title is passed, look up the card data from the server
+  const resolvedData: Record<string, unknown> =
+    typeof cardData === "string"
+      ? (serverCard(cardData, false) ?? { title: cardData })
+      : cardData;
+
   const cardCid = cid ?? makeCID();
-  const cdef = cardDef({ ...cardData, cid: cardCid } as Card);
+  const cdef = cardDef({ ...resolvedData, cid: cardCid } as Card);
 
   // Remove unwanted keys from source data
   const removeKeys = [
@@ -597,7 +604,7 @@ export function makeCard(
     "format",
     "quantity",
   ];
-  const cleaned: Record<string, unknown> = { ...cardData };
+  const cleaned: Record<string, unknown> = { ...resolvedData };
   for (const k of removeKeys) {
     delete cleaned[k];
   }
@@ -606,14 +613,14 @@ export function makeCard(
     ...cleaned,
     cid: cardCid,
     implementation:
-      cardImplemented({ ...cardData, cid: cardCid } as Card) ?? undefined,
-    subroutines: subroutinesInit({ ...cardData, cid: cardCid } as Card, cdef),
+      cardImplemented({ ...resolvedData, cid: cardCid } as Card) ?? undefined,
+    subroutines: subroutinesInit({ ...resolvedData, cid: cardCid } as Card, cdef),
     abilities: abilityInit(cdef),
     xFn: cdef.xFn,
     timestamp: makeTimestamp(),
     poison: cdef.poison,
     highlightInDiscard: cdef.highlightInDiscard,
-    printedTitle: cardData.title as string | undefined,
+    printedTitle: resolvedData.title as string | undefined,
   };
 
   return newCard;

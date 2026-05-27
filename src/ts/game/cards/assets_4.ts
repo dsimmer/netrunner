@@ -64,14 +64,14 @@ export const humanoidResources: CardDef = (() => {
       const playable = hand.filter((c: Card) => {
         if (!coreCard.operation(c)) return false;
         const def = coreCardDefs.cardDef(c);
-        const playCost = coreCostFns.playCost(state, side, c, null);
+        const playCost = coreCostFns.playCost(state, side, c);
         return (
           coreEngine.shouldTrigger(
             state,
             ":corp",
             { ...eid, source: c, sourceType: ":play" },
             c,
-            null,
+            [],
             def?.["on-play"] || {},
           ) &&
           corePayment.canPay(
@@ -842,7 +842,7 @@ export const itDepartment: CardDef = {
         targets: any[],
       ): Generator<any, any, any> {
         const itTarget = targets[0];
-        coreEffects.registerLingeringEffect(state, card, {
+        coreEffects.registerLingeringEffect(state, side, card, {
           type: ":ice-strength",
           duration: ":end-of-turn",
           req: req(function* (
@@ -863,7 +863,7 @@ export const itDepartment: CardDef = {
             return 1 + coreCard.getCounters(c, ":power");
           }),
         });
-        coreIce.updateIceStrength(state, itTarget);
+        coreIce.updateIceStrength(state, side, itTarget);
       }),
     },
   ],
@@ -1401,7 +1401,7 @@ export const lakshmiSmartfabrics: CardDef = {
         eid: EID,
         card: Card,
       ): Generator<any, any, any> {
-        const paidAmt = corePayment.costValue(eid, ":x-power");
+        const paidAmt = corePayment.costValue(eid, ":x-power") as number;
         yield wait_for(
           state,
           [
@@ -1768,7 +1768,7 @@ export const ltTodachine2: CardDef = {
                   e: EID,
                   c: Card,
                 ): Generator<any, any, any> {
-                  coreAccess.accessBonus(s, ":runner", ctx.server, -1);
+                  coreAccess.accessBonus(s, ":runner", -1);
                 }),
               },
               card,
