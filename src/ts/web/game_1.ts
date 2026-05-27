@@ -40,6 +40,7 @@ import {
   type PublicDiffs,
   type MessageDiffs,
 } from "../game/core/diffs";
+import type { GameState } from "../game/core/state";
 import { makeSystemMessage } from "../game/core/say";
 import { findLatest } from "../game/core/finding";
 import * as main from "../game/main";
@@ -130,7 +131,13 @@ export function updateAndSendDiffs<T extends any[]>(
   const corpSpectators = (lobby["corp-spectators"] ?? []).length > 0;
   const runnerSpectators = (lobby["runner-spectators"] ?? []).length > 0;
 
-  const diffs = publicDiffs(oldState, state as any, spectators, corpSpectators, runnerSpectators);
+  const diffs = publicDiffs(
+    oldState as unknown as GameState,
+    state as unknown as GameState,
+    spectators,
+    corpSpectators,
+    runnerSpectators,
+  );
 
   // Append hist-diff to history
   if (!(state as any).history) (state as any).history = [];
@@ -176,7 +183,10 @@ export function handleMessageAndSendDiffs(
       : (main.handleNotification as any);
     const oldState = { ...state };
     f(state as any, side ?? null, user ?? null, normalizedMessage);
-    const diffs = messageDiffs(oldState, state as any);
+    const diffs = messageDiffs(
+      oldState as unknown as GameState,
+      state as unknown as GameState,
+    );
 
     if (!(state as any).history) (state as any).history = [];
     (state as any).history.push(diffs["hist-diff"]);

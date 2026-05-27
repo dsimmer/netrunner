@@ -168,7 +168,9 @@ function getEffectValueInternal(
   e: Effect,
 ): unknown {
   if (!e.value) return null;
-  return e.value(state, side, eid, e.card, targets);
+  return typeof e.value === "function"
+    ? e.value(state, side, eid, e.card, targets)
+    : e.value;
 }
 
 function floatingPreventionAbilities(

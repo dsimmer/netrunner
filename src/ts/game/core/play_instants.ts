@@ -662,7 +662,7 @@ export function playInstant(...rawArgs: any[]): void {
                 _card: Card,
                 _targets: Card[],
               ) {
-                // TODO - use reveal-explicit later?
+                // Matches the Clojure reveal path; reveal-explicit is not a core helper.
                 reveal(s, side, makeEID(s), card);
               },
               msg: msg(
@@ -689,7 +689,7 @@ export function playInstant(...rawArgs: any[]): void {
         msg: msg("reveal that they are unable to play " + getTitle(card)),
         cost: args.baseCost ? ([args.baseCost] as any) : undefined,
         async: true,
-        // TODO - use reveal-explicit later?
+        // Matches the Clojure reveal path; reveal-explicit is not a core helper.
         effect: function (
           s: GameState,
           _sid: string,

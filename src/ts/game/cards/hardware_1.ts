@@ -1,3 +1,4 @@
+//
 /**
  * Hardware Cards
  * Ported from Clojure cards/hardware.clj to TypeScript
@@ -5,56 +6,56 @@
  * Contains all Runner hardware card definitions with their abilities and events.
  */
 
-import type { Card, CardDef, EID, Side, State } from '../../types';
-import * as coreAccess from '../core/access';
-import * as coreActions from '../core/actions';
-import * as coreBoard from '../core/board';
-import * as coreCard from '../core/card';
-import * as coreCostFns from '../core/cost_fns';
-import * as coreDamage from '../core/damage';
-import * as coreDefHelpers from '../core/def_helpers';
-import * as coreDrawing from '../core/drawing';
-import * as coreEffects from '../core/effects';
-import * as coreEid from '../core/eid';
-import * as coreEngine from '../core/engine';
-import * as coreEvents from '../core/events';
-import * as coreExpose from '../core/expose';
-import * as coreFinding from '../core/finding';
-import * as coreFlags from '../core/flags';
-import * as coreGaining from '../core/gaining';
-import * as coreHandSize from '../core/hand_size';
-import * as coreHosting from '../core/hosting';
-import * as coreIce from '../core/ice';
-import * as coreInstalling from '../core/installing';
-import * as coreLink from '../core/link';
-import * as coreMemory from '../core/memory';
-import * as coreMoving from '../core/moving';
-import * as coreOptional from '../core/optional';
-import * as corePayment from '../core/payment';
-import * as corePlayInstants from '../core/play_instants';
-import * as corePrevention from '../core/prevention';
-import * as corePrompts from '../core/prompts';
-import * as coreProps from '../core/props';
-import * as coreRevealing from '../core/revealing';
-import * as coreRezzing from '../core/rezzing';
-import * as coreRuns from '../core/runs';
-import * as coreSay from '../core/say';
-import * as coreServers from '../core/servers';
-import * as coreSetAside from '../core/set_aside';
-import * as coreShuffling from '../core/shuffling';
-import * as coreTags from '../core/tags';
-import * as coreToString from '../core/to_string';
-import * as coreToasts from '../core/toasts';
-import * as coreUpdate from '../core/update';
-import * as coreVirus from '../core/virus';
-import * as coreWinning from '../core/winning';
-import * as coreSetAsideModule from '../core/set_aside';
-import * as coreSabotage from '../core/sabotage';
-import * as coreMark from '../core/mark';
-import * as utils from '../utils';
-import * as jintekiUtils from '../../jinteki/utils';
-import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
-import { coreThreat } from './_helpers';
+import type { Card, CardDef, EID, Side, State } from "../../types";
+import * as coreAccess from "../core/access";
+import * as coreActions from "../core/actions";
+import * as coreBoard from "../core/board";
+import * as coreCard from "../core/card";
+import * as coreCostFns from "../core/cost_fns";
+import * as coreDamage from "../core/damage";
+import * as coreDefHelpers from "../core/def_helpers";
+import * as coreDrawing from "../core/drawing";
+import * as coreEffects from "../core/effects";
+import * as coreEid from "../core/eid";
+import * as coreEngine from "../core/engine";
+import * as coreEvents from "../core/events";
+import * as coreExpose from "../core/expose";
+import * as coreFinding from "../core/finding";
+import * as coreFlags from "../core/flags";
+import * as coreGaining from "../core/gaining";
+import * as coreHandSize from "../core/hand_size";
+import * as coreHosting from "../core/hosting";
+import * as coreIce from "../core/ice";
+import * as coreInstalling from "../core/installing";
+import * as coreLink from "../core/link";
+import * as coreMemory from "../core/memory";
+import * as coreMoving from "../core/moving";
+import * as coreOptional from "../core/optional";
+import * as corePayment from "../core/payment";
+import * as corePlayInstants from "../core/play_instants";
+import * as corePrevention from "../core/prevention";
+import * as corePrompts from "../core/prompts";
+import * as coreProps from "../core/props";
+import * as coreRevealing from "../core/revealing";
+import * as coreRezzing from "../core/rezzing";
+import * as coreRuns from "../core/runs";
+import * as coreSay from "../core/say";
+import * as coreServers from "../core/servers";
+import * as coreSetAside from "../core/set_aside";
+import * as coreShuffling from "../core/shuffling";
+import * as coreTags from "../core/tags";
+import * as coreToString from "../core/to_string";
+import * as coreToasts from "../core/toasts";
+import * as coreUpdate from "../core/update";
+import * as coreVirus from "../core/virus";
+import * as coreWinning from "../core/winning";
+import * as coreSetAsideModule from "../core/set_aside";
+import * as coreSabotage from "../core/sabotage";
+import * as coreMark from "../core/mark";
+import * as utils from "../utils";
+import * as jintekiUtils from "../../jinteki/utils";
+import { req, effect, msg, wait_for, continue_ability, forms } from "../macros";
+import { coreThreat } from "./_helpers";
 // Helper for toC
 export function toC(...args: any[]): any {
   return (corePayment.toC as any)?.(...args);
@@ -177,12 +178,14 @@ export function sabotageAbility(...args: any[]): any {
 
 // Helper for identify-mark-ability
 export function identifyMarkAbility(...args: any[]): any {
-  return (coreMark.identifyMarkAbility as any)?.(...args);
+  const ability = coreMark.identifyMarkAbility;
+  return typeof ability === "function" ? ability(...args) : ability;
 }
 
 // Helper for mark-changed-event
 export function markChangedEvent(...args: any[]): any {
-  return (coreMark.markChangedEvent as any)?.(...args);
+  const ability = coreMark.markChangedEvent;
+  return typeof ability === "function" ? ability(...args) : ability;
 }
 
 // Helper for set-aside
@@ -241,7 +244,12 @@ export function rezFn(...args: any[]): void {
 }
 
 // Helper for can-pay-to-rez?
-export function canPayToRezFn(state: State, side: Side, eid: EID, card: Card): boolean {
+export function canPayToRezFn(
+  state: State,
+  side: Side,
+  eid: EID,
+  card: Card,
+): boolean {
   return coreRezzing.canPayToRez?.(state, side, eid, card) ?? false;
 }
 
@@ -251,7 +259,11 @@ export function rezCostFn(state: State, side: Side, card: Card): number {
 }
 
 // Helper for rez-additional-cost-bonus
-export function rezAdditionalCostBonusFn(state: State, side: Side, card: Card): any[] {
+export function rezAdditionalCostBonusFn(
+  state: State,
+  side: Side,
+  card: Card,
+): any[] {
   return coreCostFns.rezAdditionalCostBonus?.(state, side, card) || [];
 }
 
@@ -261,7 +273,11 @@ export function buildCostString(...args: any[]): string {
 }
 
 // Helper for trash-cost
-export function trashCostFn(state: State, side: Side, card: Card): number | null {
+export function trashCostFn(
+  state: State,
+  side: Side,
+  card: Card,
+): number | null {
   return coreCostFns.trashCost?.(state, side, card) ?? null;
 }
 
@@ -327,14 +343,18 @@ export function inHandStarFn(state: State, card: Card): boolean {
 
 // Helper for all-cards-in-hand*
 export function allCardsInHandStarFn(state: State, side: Side): Card[] {
-  return coreCard.allCardsInHandStar?.(state, side) || ((state as any)[side]?.hand || []);
+  return (
+    coreCard.allCardsInHandStar?.(state, side) ||
+    (state as any)[side]?.hand ||
+    []
+  );
 }
 
 // Helper for same-card?
 export function sameCard(a: any, b: any): boolean {
   if (!a || !b) return false;
   if (a === b) return true;
-  if (typeof a === 'object' && typeof b === 'object') {
+  if (typeof a === "object" && typeof b === "object") {
     return a.uuid === b.uuid;
   }
   return a === b;
@@ -375,12 +395,26 @@ export function notUsedOnceFn(state: State, opts: any, card: Card): boolean {
 }
 
 // Helper for can-trigger?
-export function canTriggerFn(state: State, side: Side, eid: EID, ability: any, card: Card, targets: any[]): boolean {
-  return coreEngine.canTrigger?.(state, side, eid, ability, card, targets) ?? true;
+export function canTriggerFn(
+  state: State,
+  side: Side,
+  eid: EID,
+  ability: any,
+  card: Card,
+  targets: any[],
+): boolean {
+  return (
+    coreEngine.canTrigger?.(state, side, eid, ability, card, targets) ?? true
+  );
 }
 
 // Helper for register-once
-export function registerOnceFn(state: State, side: Side, ability: any, card: Card): void {
+export function registerOnceFn(
+  state: State,
+  side: Side,
+  ability: any,
+  card: Card,
+): void {
   coreEngine.registerOnce?.(state, side, ability, card);
 }
 
@@ -395,7 +429,11 @@ export function unregisterFloatingEventsFn(...args: any[]): void {
 }
 
 // Helper for unregister-suppress-by-uuid
-function unregisterSuppressByUuidFn(state: State, side: Side, uuid: string): void {
+function unregisterSuppressByUuidFn(
+  state: State,
+  side: Side,
+  uuid: string,
+): void {
   coreEngine.unregisterSuppressByUuid?.(state, side, uuid);
 }
 
@@ -405,7 +443,11 @@ export function triggerEventFn(...args: any[]): void {
 }
 
 // Helper for unregister-effects-for-card
-function unregisterEffectsForCardFn(state: State, side: Side, card: Card): void {
+function unregisterEffectsForCardFn(
+  state: State,
+  side: Side,
+  card: Card,
+): void {
   coreEffects.unregisterEffectsForCard?.(state, side, card);
 }
 
@@ -415,13 +457,22 @@ export function unregisterLingeringEffectsFn(...args: any[]): void {
 }
 
 // Helper for any-effects
-export function anyEffectsFn(state: State, side: Side, effectType: string, value: any, card: Card, opts: any): any[] {
-  return coreEffects.anyEffects?.(state, side, effectType, value, card, opts) || [];
+export function anyEffectsFn(
+  state: State,
+  side: Side,
+  effectType: string,
+  value: any,
+  card: Card,
+  opts: any,
+): any[] {
+  return (
+    coreEffects.anyEffects?.(state, side, effectType, value, card, opts) || []
+  );
 }
 
 // Helper for register-lingering-effect
 export function registerLingeringEffectFn(...args: any[]): string {
-  return (coreEffects.registerLingeringEffect as any)?.(...args) || '';
+  return (coreEffects.registerLingeringEffect as any)?.(...args) || "";
 }
 
 // Helper for unregister-effect-by-uuid
@@ -575,7 +626,11 @@ function preventEncounterFn2(...args: any[]): void {
 }
 
 // Helper for zone-locked?
-export function zoneLockedFn(state: State, side: string, zone: string): boolean {
+export function zoneLockedFn(
+  state: State,
+  side: string,
+  zone: string,
+): boolean {
   return coreFlags.zoneLocked?.(state, side, zone) ?? false;
 }
 
@@ -826,7 +881,7 @@ export function agendaFn(...args: any[]): boolean {
 
 export function corpFn(arg: any): any {
   // Polymorphic: when called with a Card, return predicate; when called with state, return corp state.
-  if (arg && typeof arg === 'object' && 'corp' in arg && 'runner' in arg) {
+  if (arg && typeof arg === "object" && "corp" in arg && "runner" in arg) {
     return (arg as any).corp;
   }
   return (coreCard.corp as any)?.(arg);
@@ -854,7 +909,7 @@ export function resourceFn(...args: any[]): boolean {
 
 export function runnerFn(arg: any): any {
   // Polymorphic: when called with a Card, return predicate; when called with state, return runner state.
-  if (arg && typeof arg === 'object' && 'runner' in arg && 'corp' in arg) {
+  if (arg && typeof arg === "object" && "runner" in arg && "corp" in arg) {
     return (arg as any).runner;
   }
   return coreCard.runner(arg as Card);
@@ -880,7 +935,12 @@ function firstTrashFn(state: State, side: Side): boolean {
 }
 
 // Helper for no-event?
-export function noEventFn(state: State, side: Side | null, event: string, pred?: any): boolean {
+export function noEventFn(
+  state: State,
+  side: Side | null,
+  event: string,
+  pred?: any,
+): boolean {
   return coreEvents.noEvent?.(state, side, event, pred) ?? true;
 }
 
@@ -896,7 +956,7 @@ export function runEventsFn(state: State, side: Side, event: string): any[] {
 
 // Helper for tagged
 export function isTaggedFn(state: State): boolean {
-  return !!((state as any).tagged);
+  return !!(state as any).tagged;
 }
 
 // Helper for remove-once

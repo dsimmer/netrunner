@@ -1341,7 +1341,7 @@ function registerSuccessfulRun(
   eid: EID,
   server: string[],
 ): void {
-  // TODO: :pre-successful-run exists merely for Omar Keung and Sneakdoor Beta
+  // :pre-successful-run exists for Omar Keung and Sneakdoor Beta compatibility.
   queueEvent(state, "pre-successful-run", {
     server: state.run?.server,
     "run-id": state.run?.runId,

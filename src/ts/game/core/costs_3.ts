@@ -831,7 +831,7 @@ handlerDispatch.set("virus", (c, state, side, eid, card) => {
 valueDispatch.set("host-bad-pub", (c) => c.amount);
 labelDispatch.set("host-bad-pub", (c) => `host ${value(c)} bad publicity`);
 payableDispatch.set("host-bad-pub", (c, state) => {
-  return (state.corp?.["bad-publicity"]?.base ?? 0) - value(c) >= 0;
+  return (state.corp?.badPublicity.base ?? 0) - value(c) >= 0;
 });
 handlerDispatch.set("host-bad-pub", (c, state, side, eid, card) => {
   waitFor(

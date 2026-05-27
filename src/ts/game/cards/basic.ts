@@ -1,3 +1,4 @@
+//
 /**
  * Basic Action Cards - Corp and Runner basic actions
  * Ported from Clojure cards/basic.clj to TypeScript
@@ -314,9 +315,11 @@ export const corpBasicActionCard = {
         const targetCard = context.card
           ? coreCard.getCard(state, context.card)
           : null;
-        coreAgendas.updateAdvancementRequirement(targetCard);
+        if (targetCard) {
+          coreAgendas.updateAdvancementRequirement(state, targetCard);
+          coreProps.addProp(state, side, eid, targetCard, ":advance-counter", 1);
+        }
         coreSay.playSfx("click-advance");
-        coreProps.addProp(eid, targetCard, ":advance-counter", 1);
       }),
     },
     // Trash 1 resource if the Runner is tagged
@@ -712,7 +715,7 @@ export const runnerBasicActionCard = {
         targets: any[],
       ): Generator<any, any, any> {
         const context = targets[0] || {};
-        coreRuns.makeRun(eid, context.server, null, { clickRun: true });
+        coreRuns.makeRun(state, side, eid, context.server, null, { clickRun: true });
       }),
     },
     // Remove 1 tag

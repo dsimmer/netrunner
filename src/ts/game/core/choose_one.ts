@@ -23,6 +23,7 @@ export interface ChoiceOption {
   ability?: Ability;
   card?: Card;
   player?: string;
+  [key: string]: unknown;
 }
 
 /** Arguments passed to choose-one-helper. */
@@ -36,16 +37,19 @@ export interface ChooseOneArgs {
   requireMeaningfulChoice?: boolean;
   action?: string;
   player?: string;
+  side?: string;
   once?: string;
   unregisterOnceResolved?: boolean;
   event?: string;
   label?: string;
   changeInGameState?: boolean;
+  onChangeGameState?: unknown;
   location?: string | string[] | string[][];
   additionalCost?: unknown[];
   duration?: string;
   waitingPrompt?: boolean;
   req?: ReqFn;
+  [key: string]: unknown;
 }
 
 // ---------------------------------------------------------------------------
@@ -285,7 +289,7 @@ function buildChooseOne(args: ChooseOneArgs, xs: ChoiceOption[]): Ability {
     // Prompt will be computed at runtime in the effect
     fullPrompt = "Choose one";
   } else {
-    fullPrompt = args.prompt || "Choose one";
+    fullPrompt = typeof args.prompt === "string" ? args.prompt : "Choose one";
   }
 
   // Add count indicator if applicable

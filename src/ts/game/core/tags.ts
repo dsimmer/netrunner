@@ -195,8 +195,14 @@ export function loseTags(...rawArgs: any[]): void {
 
   // Update lose stats
   const stats = state.stats;
-  if (stats?.runner?.lose) {
-    stats.runner.lose.tag = (stats.runner.lose.tag ?? 0) + actualN;
+  const runnerStats = stats?.runner;
+  const loseStats =
+    runnerStats && typeof runnerStats === "object"
+      ? runnerStats.lose
+      : undefined;
+  if (loseStats && typeof loseStats === "object") {
+    const loseRecord = loseStats as Record<string, number | undefined>;
+    loseRecord.tag = (loseRecord.tag ?? 0) + actualN;
   }
 
   deduct(state, RUNNER_SIDE, "tag", { base: actualN });

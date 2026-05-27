@@ -911,6 +911,14 @@ interface CallbackAbility {
   ): void;
 }
 
+function promptTargetValue(targets: unknown[]): unknown {
+  const target = targets[0];
+  if (target && typeof target === "object" && "value" in target) {
+    return (target as { value: unknown }).value;
+  }
+  return target;
+}
+
 /**
  * Display a card-selection prompt. The user picks one card from `cards`;
  * `opts.onChoose` (if provided) is invoked with the chosen card.
@@ -931,19 +939,18 @@ export function showChooseCardsPrompt(
     faceup?: boolean;
     onChoose?: (card: Card) => void;
     onChange?: (card: Card) => void;
-    [key: string]: any;
+    [key: string]: unknown;
   },
 ): void {
   if (!cards || cards.length === 0) return;
   const handler: CallbackAbility = (_s, _sd, _e, _c, targets) => {
-    const t = (targets as unknown[])[0] as any;
-    const choice = (t && (t.value ?? t)) as Card | undefined;
+    const choice = promptTargetValue(targets) as Card | undefined;
     if (choice) {
       if (opts?.onChoose) opts.onChoose(choice);
       else if (opts?.onChange) opts.onChange(choice);
     }
   };
-  showPrompt(state, side, null, title, cards as unknown[], handler as any);
+  showPrompt(state, side, null, title, cards as unknown[], handler as AbilityFn);
 }
 
 /**
@@ -959,28 +966,23 @@ export function showYesNoPrompt(
   } | null,
 ): void {
   const handler: CallbackAbility = (s, sd, e, c, targets) => {
-    const t = (targets as unknown[])[0] as any;
-    const choice = (t && (t.value ?? t)) as string | undefined;
+    const choice = promptTargetValue(targets) as string | undefined;
     const cb = choice === "Yes" ? opts?.onYes : opts?.onNo;
     if (typeof cb === "function") {
       // Tolerate both zero-arg and ability-shaped callbacks
-      if ((cb as any).length >= 1) {
+      if (cb.length >= 1) {
         (cb as CallbackAbility)(s, sd, e, c, targets);
       } else {
         (cb as () => void)();
       }
     }
   };
-  showPrompt(state, side, null, prompt, ["Yes", "No"], handler as any);
+  showPrompt(state, side, null, prompt, ["Yes", "No"], handler as AbilityFn);
 }
 
 /**
- * Display a reorder-cards prompt. Full reorder UI is not yet implemented in
- * the TS client — for now we preserve the given order and immediately invoke
- * `opts.onChange` with the unchanged list, matching the no-op contract.
- *
- * TODO: wire up a proper reorder prompt-type with drag UI when the client
- * supports it. Until then, behavior is "user accepts default order".
+ * Display a reorder-cards prompt. The player repeatedly chooses the next card
+ * in order; choosing Done accepts the remaining cards in their current order.
  */
 export function showReorderCardsPrompt(
   state: GameState,
@@ -990,9 +992,45 @@ export function showReorderCardsPrompt(
   opts?: { onChange?: (ordered: Card[]) => void } | null,
 ): void {
   if (!cards) return;
-  const handler: CallbackAbility = () => {
-    if (opts?.onChange) opts.onChange(cards.slice());
+
+  const ordered: Card[] = [];
+  const remaining = cards.slice();
+
+  const finish = (): void => {
+    opts?.onChange?.([...ordered, ...remaining]);
   };
-  // Single-button prompt — clicking 'Done' accepts default order.
-  showPrompt(state, side, null, prompt, ["Done"], handler as any);
+
+  const chooseNext = (): void => {
+    if (remaining.length === 0) {
+      finish();
+      return;
+    }
+
+    const handler: CallbackAbility = (_s, _sd, _e, _c, targets) => {
+      const choice = promptTargetValue(targets);
+      if (choice === "Done") {
+        finish();
+        return;
+      }
+
+      const card = choice as Card;
+      const idx = remaining.findIndex((c) => c.cid === card.cid);
+      if (idx >= 0) {
+        const [selected] = remaining.splice(idx, 1);
+        ordered.push(selected);
+      }
+      chooseNext();
+    };
+
+    showPrompt(
+      state,
+      side,
+      null,
+      prompt,
+      [...remaining, "Done"],
+      handler as AbilityFn,
+    );
+  };
+
+  chooseNext();
 }

@@ -427,7 +427,7 @@ export function pumpAllIcebreakers(
 function addStealthToLabel(
   cost: Record<string, unknown>[] | undefined,
 ): string | null {
-  if (!cost) return null;
+  if (!Array.isArray(cost)) return null;
   const flat = cost.flat();
   const creditCost = flat.find((c: any) => (c as any)?.type === "credit");
   if (!creditCost) return null;

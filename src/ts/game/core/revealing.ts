@@ -4,20 +4,30 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import { effectCompleted } from "./eid";
+import { effectCompleted, makeEID } from "./eid";
 import { queueEvent } from "./engine";
 import { checkpoint } from "./checkpoint";
+import { flipFacedown, flipFaceup } from "./moving";
 import { systemMsg } from "./say";
 import { nameZone } from "./servers";
 import { enumerateCards, enumerateStr } from "../utils";
 import { otherSide } from "../../jinteki/utils";
+
+function isEID(value: unknown): value is EID {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "id" in value &&
+    !("title" in value)
+  );
+}
 
 /**
  * Reveal a side's hand to the opponent and spectators.
  * Mirrors reveal-hand.
  */
 export function revealHand(state: GameState, side: string): void {
-  (state as any)[side].openhand = true;
+  state[side as "corp" | "runner"].openhand = true;
 }
 
 /**
@@ -25,7 +35,7 @@ export function revealHand(state: GameState, side: string): void {
  * Mirrors conceal-hand.
  */
 export function concealHand(state: GameState, side: string): void {
-  delete (state as any)[side].openhand;
+  delete state[side as "corp" | "runner"].openhand;
 }
 
 /**
@@ -83,11 +93,11 @@ export function reveal(
 ): void {
   let eid: EID;
   let targets: (Card | Card[])[];
-  if (eidOrCard && typeof eidOrCard === "object" && "id" in (eidOrCard as any) && !("title" in (eidOrCard as any))) {
-    eid = eidOrCard as EID;
+  if (isEID(eidOrCard)) {
+    eid = eidOrCard;
     targets = rest;
   } else {
-    eid = (require("./eid") as typeof import("./eid")).makeEID(state);
+    eid = makeEID(state);
     targets = [eidOrCard as Card | Card[], ...rest];
   }
   revealAndQueueEvent(state, side, ...targets);
@@ -100,7 +110,7 @@ interface RevealLoudArgs {
   "and-then"?: string;
   noEvent?: boolean;
   "no-event"?: boolean;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
@@ -113,26 +123,28 @@ export function revealLoud(
   state: GameState,
   side: string,
   eidOrCard: EID | Card,
-  cardOrArgs: Card | RevealLoudArgs,
-  argsOrTarget?: RevealLoudArgs | Card | Card[],
+  cardOrArgs: Card | RevealLoudArgs | string | null,
+  argsOrTarget?: RevealLoudArgs | string | null | Card | Card[],
   ...rest: (Card | Card[])[]
 ): void {
   let eid: EID, card: Card, args: RevealLoudArgs, targets: (Card | Card[])[];
   // Detect EID by presence of `id` numeric field (Card has cid string)
-  if (eidOrCard && typeof eidOrCard === "object" && "id" in (eidOrCard as any) && !("title" in (eidOrCard as any))) {
-    eid = eidOrCard as EID;
+  if (isEID(eidOrCard)) {
+    eid = eidOrCard;
     card = cardOrArgs as Card;
     const a = argsOrTarget;
     args = typeof a === "string" ? { andThen: a } : ((a as RevealLoudArgs) ?? {});
     targets = rest;
   } else {
-    eid = (require("./eid") as typeof import("./eid")).makeEID(state);
+    eid = makeEID(state);
     card = eidOrCard as Card;
     const a = cardOrArgs;
     args = typeof a === "string" ? { andThen: a } : ((a as RevealLoudArgs) ?? {});
     targets = argsOrTarget !== undefined ? [argsOrTarget as Card | Card[], ...rest] : rest;
   }
-  const { forced, andThen, noEvent } = args;
+  const forced = args.forced ?? false;
+  const andThen = args.andThen ?? args["and-then"];
+  const noEvent = args.noEvent ?? args["no-event"] ?? false;
   const flatCards = flattenCards(targets);
 
   // Group cards by { side, zone }
@@ -188,11 +200,24 @@ export function revealLoud(
 }
 
 /** Reveal a single card. Convenience wrapper around `reveal`. */
-export function revealCard(state: GameState, side: string, eid: any, card: any): void {
+export function revealCard(state: GameState, side: string, eid: EID, card: Card): void {
   reveal(state, side, eid, card);
 }
 
-/** Stub for flipCards. */
-export function flipCards(_state: GameState, _side: string, _cards: any[]): void {}
+/** Flip runner cards faceup or facedown. */
+export function flipCards(
+  state: GameState,
+  side: string,
+  cards: Card[],
+  faceup = true,
+): void {
+  for (const card of cards) {
+    if (faceup) {
+      flipFaceup(state, side, card);
+    } else {
+      flipFacedown(state, side, card);
+    }
+  }
+}
 
 export { withRevealedHand } from "./def_helpers_2";

@@ -20,6 +20,22 @@ export type GainAmount =
   | number
   | { base?: number; mod?: number; used?: number };
 
+/**
+ * Returns an updater that safely increments a nullable value by n.
+ * Mirrors: safe-inc-n.
+ */
+export function safeIncN(n: number): (value: number | null | undefined) => number {
+  return (value: number | null | undefined) => (value ?? 0) + n;
+}
+
+/**
+ * Returns an updater that subtracts n, clamped at 0.
+ * Mirrors: sub->0.
+ */
+export function subTo0(n: number): (value: number | null | undefined) => number {
+  return (value: number | null | undefined) => Math.max(0, (value ?? 0) - n);
+}
+
 // ---------------------------------------------------------------------------
 // Stats helpers
 // ---------------------------------------------------------------------------

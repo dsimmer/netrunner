@@ -102,8 +102,10 @@ export function registerEIDCallback(
   eid: EID,
   callback: AbilityFn,
 ): void {
-  if (state.eidCallbacks.has(eid.id)) return; // skip duplicate (mirrors Clojure throw)
-  state.eidCallbacks.set(eid.id, callback);
+  const eidId = eid.id;
+  if (eidId === undefined) return;
+  if (state.eidCallbacks.has(eidId)) return; // skip duplicate (mirrors Clojure throw)
+  state.eidCallbacks.set(eidId, callback);
 }
 
 // Alias for compatibility with card effect code

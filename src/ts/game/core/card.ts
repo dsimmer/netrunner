@@ -120,13 +120,13 @@ export function getSide(card: Card | null): string | undefined {
 // ---------------------------------------------------------------------------
 
 /** Recursively searches upward to find the 'root' card of a hosting chain. */
-export function getNestedHost(card: Card | null): Card | null {
+export function getNestedHost(card: Card | null | undefined): Card | null {
   if (!card) return null;
   return card.host ? getNestedHost(card.host) : card;
 }
 
 /** Returns the zone of the 'root' card of a hosting chain. */
-export function getZone(card: Card | null): Zone {
+export function getZone(card: Card | null | undefined): Zone {
   const root = getNestedHost(card);
   return root?.zone ?? [];
 }
@@ -525,7 +525,7 @@ export function canBeAdvanced(
  * Get number of counters of specified type.
  * "advancement" returns advanceCounter + extraAdvanceCounter.
  */
-export function getCounters(card: Card | null, counter: string): number {
+export function getCounters(card: Card | null | undefined, counter: string): number {
   if (!card) return 0;
   if (counter === "advancement") {
     return (card.advanceCounter ?? 0) + (card.extraAdvanceCounter ?? 0);

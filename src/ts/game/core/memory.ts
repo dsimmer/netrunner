@@ -222,7 +222,10 @@ function readEffectValue(
   targets: Card[],
   eff: Effect,
 ): number {
-  const v = eff.value ? eff.value(state, "runner", eid, eff.card, targets) : 0;
+  const v =
+    typeof eff.value === "function"
+      ? eff.value(state, "runner", eid, eff.card, targets)
+      : (eff.value ?? 0);
   return typeof v === "number" ? v : 0;
 }
 

@@ -4,7 +4,8 @@
  */
 
 import * as core from './core';
-import * as toasts from './toasts';
+import * as toasts from './core/toasts';
+import { concede } from './core/winning';
 import type { Side, State } from '../types';
 /**
  * Creates a unique action id for each server response - used in client lock
@@ -18,7 +19,7 @@ export function setActionId(state: State, side: Side): void {
 /**
  * Ensures the user is allowed to do command they are trying to do
  */
-export function handleAction(state: State, side: Side, command: string, args: any[]): boolean {
+export function handleAction(state: State, side: Side, command: string, args: Record<string, unknown>): boolean {
   if (core.processAction(command, state, side, args)) {
     setActionId(state, side);
     return true;
@@ -31,7 +32,7 @@ export function handleAction(state: State, side: Side, command: string, args: an
  */
 export function handleConcede(state: State, side: Side): void {
   if (state && side) {
-    core.concede(state, side);
+    concede(state, side);
   }
 }
 
@@ -60,7 +61,7 @@ export function handleNotification(state: State, ...args: any[]): void {
   // Overload resolution: last argument is always text
   const text = args[args.length - 1];
   if (state) {
-    core.systemSay(state, null, text);
+    core.systemSay(state, '', text);
   }
 }
 

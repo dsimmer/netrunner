@@ -93,7 +93,9 @@ function getEffectValue(
   e: Effect,
 ): unknown {
   if (!e.value) return null;
-  return e.value(state, side, eid, e.card, targets);
+  return typeof e.value === "function"
+    ? e.value(state, side, eid, e.card, targets)
+    : e.value;
 }
 
 /**
@@ -256,7 +258,7 @@ export function registerStaticAbilities(
       uuid: randomUUID(),
       type: sa.type,
       req: sa.req,
-      value: sa.value,
+      value: sa.value as Effect["value"],
       duration: "while-active",
       static: true,
       card,
@@ -318,7 +320,7 @@ export function registerLingeringEffect(...args: any[]): Effect {
   let effectType: string;
   let duration: string;
   let req: ReqFn | null = null;
-  let value: ValueFn;
+  let value: Effect["value"];
   if (args.length === 2) {
     // (card, spec)
     card = args[0];
@@ -326,7 +328,7 @@ export function registerLingeringEffect(...args: any[]): Effect {
     effectType = spec.type;
     duration = spec.duration ?? "true";
     req = (spec.req ?? null) as ReqFn | null;
-    value = spec.value as ValueFn;
+    value = spec.value as Effect["value"];
   } else if (args.length === 4) {
     // (state, side, card, spec)
     state = args[0];
@@ -335,7 +337,7 @@ export function registerLingeringEffect(...args: any[]): Effect {
     effectType = spec.type;
     duration = spec.duration ?? "true";
     req = (spec.req ?? null) as ReqFn | null;
-    value = spec.value as ValueFn;
+    value = spec.value as Effect["value"];
   } else {
     // legacy positional (state, side, card, type, duration, req, value)
     state = args[0];
@@ -343,7 +345,7 @@ export function registerLingeringEffect(...args: any[]): Effect {
     effectType = args[3];
     duration = args[4];
     req = args[5];
-    value = args[6];
+    value = args[6] as Effect["value"];
   }
   const e: Effect = {
     uuid: randomUUID(),

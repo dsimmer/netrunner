@@ -13,7 +13,7 @@ import { zoneLocked } from "./flags";
 import { move as moveCard, moveZone } from "./moving";
 import { systemMsg, playSfx } from "./say";
 import { nameZone } from "./servers";
-import { req, msg, continue_ability } from "../macros";
+import { req, continue_ability } from "../macros";
 import { enumerateStr, enumerateCards, quantify } from "../utils";
 import { getCard } from "./finding";
 
@@ -27,6 +27,25 @@ import { getCard } from "./finding";
  */
 function kw(s: string): string {
   return s.replace(/^:/, "");
+}
+
+type MessagePart =
+  | string
+  | ((state: GameState, side: string, eid: EID, card: Card, targets: Card[]) => unknown);
+
+function message(...parts: MessagePart[]) {
+  return (
+    state: GameState,
+    side: string,
+    eid: EID,
+    card: Card,
+    targets: Card[],
+  ): string => parts.map((part) => {
+    if (typeof part === "function") {
+      return String(part(state, side, eid, card, targets));
+    }
+    return part;
+  }).join("");
 }
 
 // ---------------------------------------------------------------------------
@@ -314,7 +333,7 @@ export function shuffleIntoDeck(
  * Mirrors shuffle-my-deck! in shuffling.clj.
  */
 export const shuffleMyDeck: Ability = {
-  msg: msg("shuffle ", (state: GameState, side: string) =>
+  msg: message("shuffle ", (state: GameState, side: string) =>
     side === RUNNER_SIDE ? "the stack" : "R&D",
   ),
   effect: req((state: GameState, side: string) => {
@@ -332,7 +351,7 @@ export const shuffleMyDeck: Ability = {
  * Mirrors fail-to-find! in shuffling.clj.
  */
 export const failToFind: Ability = {
-  msg: msg("shuffle ", (state: GameState, side: string) =>
+  msg: message("shuffle ", (state: GameState, side: string) =>
     side === RUNNER_SIDE ? "the stack" : "R&D",
   ),
   effect: req((state: GameState, side: string) => {
@@ -372,7 +391,7 @@ export function shuffleIntoRdEffect(
         all,
       },
       msg: {
-        public: msg(
+        public: message(
           "shuffle ",
           (
             _s: GameState,
@@ -393,7 +412,7 @@ export function shuffleIntoRdEffect(
           },
           " into R&D",
         ),
-        corp: msg(
+        corp: message(
           "shuffle ",
           (
             _s: GameState,

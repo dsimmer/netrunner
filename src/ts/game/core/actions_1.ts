@@ -14,6 +14,7 @@ import type { EID } from "./eid";
 import { makeEID, makeEIDFrom, effectCompleted } from "./eid";
 import type { Ability } from "./types.ts";
 import type { CostData } from "./payment";
+import type { RuntimeSubroutine } from "./ice";
 import {
   updateAdvancementRequirement,
   updateAllAdvancementRequirements,
@@ -659,7 +660,7 @@ export function resolveBadPubChoice(
 /**
  * Resolves a prompt by invoking its effect function with the selected target.
  * Mirrors `resolve-prompt`. Note: resolve-prompt does some evil things with
- * eids, per the Clojure TODO from nbk 2025.
+ * eids, matching the Clojure note from nbk 2025.
  */
 export function resolvePrompt(
   state: GameState,
@@ -1003,7 +1004,7 @@ export function playHeapBreakerAutoPumpAndBreakImpl(
       const subsToBreak = subGroupsToBreak[0];
       const rest = subGroupsToBreak.slice(1);
       for (const sub of subsToBreak) {
-        breakSubroutine(getCard(s, currentIce) as Card, sub, card);
+        breakSubroutine(getCard(s, currentIce) as Card, sub as RuntimeSubroutine, card);
       }
       const ice = getCard(s, currentIce);
       const onBreakSubs = ice

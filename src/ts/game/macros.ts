@@ -4,7 +4,7 @@
  */
 
 // Import type definitions
-import type { Ability, Card, EID, Effect, Side, State, Targets } from './core/types.ts';
+import type { Ability, Card, EID, Side, State } from './core/types.ts';
 import * as coreIce from './core/ice';
 import * as coreBoard from './core/board';
 import * as coreCard from './core/card';
@@ -36,7 +36,7 @@ const _forms: Record<string, (state: State, card?: Card, targets?: any[], side?:
     return [];
   },
   runPosition: (state) => (state as any).run?.position,
-  currentIce: (state, card) => {
+  currentIce: (state, _card) => {
     // current-ice: (game.core.ice/get-current-ice state)
     return coreIce.getCurrentIce(state);
   },
@@ -44,21 +44,21 @@ const _forms: Record<string, (state: State, card?: Card, targets?: any[], side?:
   corpRegLastTurn: (state) => (state as any).corp?.registerLastTurn,
   runnerReg: (state) => (state as any).runner?.register,
   runnerRegLastTurn: (state) => (state as any).runner?.registerLastTurn,
-  target: (state, card, targets) => {
+  target: (_state, _card, targets) => {
     const t = targets?.[0];
     if (t && typeof t === 'object' && 'uuid' in t && 'value' in t) {
       return (t as any).value;
     }
     return t;
   },
-  context: (state, card, targets) => {
+  context: (_state, _card, targets) => {
     const t = targets?.[0];
     if (t && typeof t === 'object' && 'uuid' in t && 'value' in t) {
       return (t as any).value;
     }
     return t;
   },
-  installed: (state, card) => {
+  installed: (_state, card) => {
     if (!card) return false;
     const zone = coreCard.getZone(card);
     return zone ? ['rig', 'servers'].includes(zone[0]) : false;
@@ -74,25 +74,25 @@ const _forms: Record<string, (state: State, card?: Card, targets?: any[], side?:
     }
     return false;
   },
-  runnableServers: (state, card, targets, side) => {
+  runnableServers: (state, card, _targets, side) => {
     return coreServers.zonesToSortedNames(
       coreRuns.getRunnableZones(state, side!, undefined, card as any, null)
     );
   },
-  hqRunnable: (state, card, targets, side) => {
+  hqRunnable: (state, _card, _targets, side) => {
     return (coreRuns.getRunnableZones(state, side!) as any[]).includes('hq');
   },
-  rdRunnable: (state, card, targets, side) => {
+  rdRunnable: (state, _card, _targets, side) => {
     return (coreRuns.getRunnableZones(state, side!) as any[]).includes('rd');
   },
-  archivesRunnable: (state, card, targets, side) => {
+  archivesRunnable: (state, _card, _targets, side) => {
     return (coreRuns.getRunnableZones(state, side!) as any[]).includes('archives');
   },
   tagged: (state) => {
     // jinteki.utils/is-tagged? state
     return utils.isTagged?.(state) ?? false;
   },
-  thisCardRun: (state, card, targets) => {
+  thisCardRun: (_state, card, targets) => {
     const runId = (card as any)?.special?.runId;
     if (runId) {
       const firstTarget = targets?.[0];
@@ -108,7 +108,7 @@ const _forms: Record<string, (state: State, card?: Card, targets?: any[], side?:
     return false;
   },
   thisServer: (state, card) => {
-    const cardZone = coreCard.getZone(card);
+    const cardZone = coreCard.getZone(card ?? null);
     const server = (state as any).run?.server;
     if (cardZone && server) {
       return (cardZone as string[])[1] === (server as string[])[0];
@@ -205,6 +205,9 @@ export function emitOnly(neededLocals: Set<string>): any[][] {
 // Adjust handler parameters based on symbol type
 export function effectStateHandler(expr: any[][]): any[][] {
   return expr.map((body: any[]) => {
+    if (!Array.isArray(body)) {
+      return body;
+    }
     if (body[1] === ':runner' || body[1] === ':corp') {
       return [body[0], 'state', body[1], ...body.slice(2)];
     }
@@ -212,40 +215,53 @@ export function effectStateHandler(expr: any[][]): any[][] {
   });
 }
 
+export type EffectFn = (
+  state: State,
+  side: Side,
+  eid: EID,
+  card: Card,
+  targets: any[],
+) => any;
+
+type ReqBodyFn = (
+  state: State,
+  side: Side,
+  eid: EID,
+  card: Card,
+  targets: any[],
+) => any | Generator<any, any, any>;
+
 /**
  * req macro - Creates an effect function with common parameters
  * Usage: (req [& expr]) => creates a function(state, side, eid, card, targets)
+ *
+ * The first overload preserves param type inference for the (extremely common)
+ * single-lambda call shape `req(function*(state, side, eid, card, targets) { ... })`.
+ * The rest-args overload covers everything else (multi-body, value-spread, etc.).
  */
-export function req(fn: (state: State, side: Side, eid: EID, card: Card, targets: any[]) => any): (state: State, side: Side, eid: EID, card: Card, targets: any[]) => any;
-export function req(fn: (state: State, side: Side, eid: EID, card: Card, targets: any[]) => Generator<any, any, any>): (state: State, side: Side, eid: EID, card: Card, targets: any[]) => any;
-export function req(...expr: any[]): (state: State, side: Side, eid: EID, card: Card, targets: any[]) => any;
-export function req(...expr: any[]): (state: State, side: Side, eid: EID, card: Card, targets: any[]) => any {
-  const fn = function (state: State, side: Side, eid: EID, card: Card, targets: any[]): any {
-    // Assert that :source should be a card
+export function req(fn: ReqBodyFn): EffectFn;
+export function req(...expr: any[]): EffectFn;
+export function req(...expr: any[]): EffectFn {
+  return function (state: State, side: Side, eid: EID, card: Card, targets: any[]): any {
     if (eid.source && !eid.source.cid) {
       console.warn(`:source should be a card, received: ${JSON.stringify(eid.source)}`);
     }
-    
-    // Execute the expression
-    return expr.reduce((acc: any, e: any) => {
+    return expr.reduce<any>((acc, e) => {
       if (typeof e === 'function') {
         return e(state, side, eid, card, targets, acc);
       }
       return e;
     }, undefined);
   };
-  
-  return fn as any;
 }
 
 /**
  * effect macro - Variant of req that handles :runner/:corp specially
  * Usage: (effect [& expr]) => wraps with effect-state-handler
  */
-export function effect(fn: (state: State, side: Side, eid: EID, card: Card, targets: any[]) => any): (state: State, side: Side, eid: EID, card: Card, targets: any[]) => any;
-export function effect(fn: (state: State, side: Side, eid: EID, card: Card, targets: any[]) => Generator<any, any, any>): (state: State, side: Side, eid: EID, card: Card, targets: any[]) => any;
-export function effect(...expr: any[]): (state: State, side: Side, eid: EID, card: Card, targets: any[]) => any;
-export function effect(...expr: any[]): (state: State, side: Side, eid: EID, card: Card, targets: any[]) => any {
+export function effect(fn: ReqBodyFn): EffectFn;
+export function effect(...expr: any[]): EffectFn;
+export function effect(...expr: any[]): EffectFn {
   const handled = effectStateHandler(expr as any[][]);
   return req(...(handled as any[]));
 }
@@ -286,8 +302,7 @@ export function wait_for(
   const expr = body.slice(Array.isArray(firstBody) ? 2 : 1);
   const abnormal = ['handler', 'payable?'].includes(actionFn[0]);
   const toTake = abnormal ? 4 : 3;
-  const fnName = `waitHandler${Math.random().toString(36).substr(2, 9)}`;
-  
+
   let eidParam: any;
   if (abnormal) {
     // abnormal: [handler, cost, state, side, eid, card] -> eid at index 4
@@ -354,23 +369,33 @@ export function wait_for(
 
 /**
  * continue-ability macro - Continues an ability with current eid
+ *
+ * Two call shapes are supported (both used by ported card files):
+ *   continue_ability(state, side, ability, card, targets?)  — state-first
+ *   continue_ability(ability, card, targets?)              — legacy short form
  */
-export function continue_ability(state: State, side: Side, ability: Ability | null, card: Card | null, targets?: any[] | null): void;
-export function continue_ability(side: Side, ability: Ability | null, card: Card | null, targets?: any[] | null): void;
-export function continue_ability(ability: Ability | null, card: Card | null, targets?: any[] | null): void;
 export function continue_ability(...rawArgs: any[]): void {
-  let state: State, side: Side, ability: Ability, card: Card;
-  let targets: any[] | null = null;
+  let state: State;
+  let side: Side;
+  let ability: Ability | null;
+  let card: Card | null;
+  let targets: any[] | null;
   if (rawArgs.length >= 4) {
-    [state, side, ability, card] = rawArgs as any;
+    state = rawArgs[0];
+    side = rawArgs[1];
+    ability = rawArgs[2];
+    card = rawArgs[3];
     targets = rawArgs[4] ?? null;
   } else {
-    // (ability, card, targets) — legacy short form
-    ability = rawArgs[0]; card = rawArgs[1]; targets = rawArgs[2] ?? null;
-    state = {} as State; side = "corp";
+    ability = rawArgs[0];
+    card = rawArgs[1];
+    targets = rawArgs[2] ?? null;
+    state = {} as State;
+    side = "corp";
   }
+  if (!ability) return;
   const abilityWithEid = ability.eid ? ability : { ...ability, eid: { source: card } };
-  coreEngine.resolveAbility(state, side, abilityWithEid, card, targets ?? []);
+  coreEngine.resolveAbility(state, side, abilityWithEid, card as Card, targets ?? []);
 }
 
 // Utility to get form value at runtime

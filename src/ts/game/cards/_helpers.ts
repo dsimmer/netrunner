@@ -3,7 +3,8 @@
 // match the surface shape used by clj cards, so the TS port compiles
 // while individual helper bodies are being filled in.
 
-import type { CardDef } from "../core/types";
+import type { Card, CardDef } from "../core/types";
+import { chooseOneHelper } from "../core/choose_one";
 type AnyArgs = unknown[];
 
 export function installAbility(..._args: AnyArgs): CardDef {
@@ -40,15 +41,19 @@ export function autoIcebreakerFn(..._args: AnyArgs): Partial<CardDef> {
 
 export type CardFn = (...args: AnyArgs) => unknown;
 
-export function preventUpToNDamageFn(..._args: AnyArgs): unknown {
-  return undefined;
+export function preventUpToNDamageFn(..._args: AnyArgs): Record<string, unknown> {
+  return {};
 }
 
-export function coreChooseOneMod(..._args: AnyArgs): unknown {
-  return undefined;
+export const coreChooseOneMod = {
+  chooseOneHelper,
+};
+
+export function coreChooseOneModFn(..._args: AnyArgs): unknown {
+  return coreChooseOneMod;
 }
 
-export function sabotageAbility(..._args: AnyArgs): unknown {
+export function sabotageAbility(..._args: AnyArgs): Record<string, unknown> {
   return {};
 }
 
@@ -56,7 +61,7 @@ export function mHelper(..._args: AnyArgs): unknown {
   return undefined;
 }
 
-export function getHosted(..._args: AnyArgs): unknown[] {
+export function getHosted(..._args: AnyArgs): Card[] {
   return [];
 }
 

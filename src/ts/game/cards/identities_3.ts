@@ -1,3 +1,4 @@
+//
 import type { Card, CardDef, EID, Side, State } from "../../types";
 import * as coreAccess from "../core/access";
 import * as coreBadPublicity from "../core/bad_publicity";
@@ -1745,7 +1746,7 @@ export const card_TheZwickyGroup_InvisibleHands: CardDef = {
         card: Card,
         targets: any[],
       ): Generator<any, any, any> {
-        coreDrawing.maybeDraw(eid, card, 1);
+        coreDrawing.maybeDraw(state, side, eid, card, 1);
       }),
     },
   ],
@@ -1947,8 +1948,8 @@ export const card_ThunderboltArmaments_PeaceThroughPower: CardDef = {
           }),
           value: { subroutines: [thunderboltSub] },
         });
-        coreIce.pumpIce(t, 1, "end-of-run");
-        return coreEid.effectCompleted(eid);
+        if (t) coreIce.pumpIce(t, 1, "end-of-run");
+        return coreEid.effectCompleted(state, side, eid);
       }),
     },
   ],
@@ -2051,7 +2052,7 @@ export const card_Topan_OrmasLeader: CardDef = {
           ],
           [],
         );
-        coreEngine.unregisterEventByUuid(state, side, evs[0].uuid);
+        coreEngine.unregisterEventByUuid(state, evs[0].uuid);
         return coreEid.effectCompleted(state, side, eid);
       }),
     },
@@ -2156,7 +2157,7 @@ export const card_WeylandConsortium_BecauseWeBuiltIt: CardDef = {
         card: Card,
         targets: any[],
       ): Generator<any, any, any> {
-        const abTarget = coreEid.getAbilityTargets(eid);
+        const abTarget = coreEid.getAbilityTargets(eid) as Card | null;
         return (
           coreCard.ice(abTarget) &&
           (coreEid.sourceType(eid) === "advance" ||

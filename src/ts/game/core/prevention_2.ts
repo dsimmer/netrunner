@@ -582,7 +582,7 @@ export function preventBadPublicity(
   state: GameState,
   side: string,
   eid: EID,
-  n: number,
+  n: number | "all",
 ): void {
   preventNumeric(state, side, eid, "bad-publicity", n);
 }

@@ -546,7 +546,7 @@ export function updateAllCardLabels(state: GameState): boolean {
  * Checks if the card is implemented. Looks for a valid return from `cardDef`.
  * If implemented also looks for `:implementation` key which may contain special notes.
  * Returns:
- *   null - not implemented
+ *   null - no card definition found
  *   "full" - implemented fully
  *   string - with implementation notes
  * Mirrors: card-implemented

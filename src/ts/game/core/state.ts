@@ -122,7 +122,7 @@ export interface Prompt {
   card?: Card | null;
   message?: string;
   promptType?: string;
-  choices?: string[] | "*" | "credit" | "counter" | ChoicesMap;
+  choices?: string[] | "*" | "credit" | "counter" | ChoicesMap | number;
   effect?: AbilityFn;
   cancel?: AbilityFn;
   priority?: number;
@@ -182,13 +182,20 @@ export interface Effect {
   type: string;
   card: Card;
   req?: ReqFn;
-  value?: (
-    state: GameState,
-    side: string,
-    eid: EID,
-    card: Card | null,
-    targets: Card[],
-  ) => unknown;
+  value?:
+    | ((
+        state: GameState,
+        side: string,
+        eid: EID,
+        card: Card | null,
+        targets: Card[],
+      ) => unknown)
+    | number
+    | boolean
+    | string
+    | Record<string, unknown>
+    | unknown[]
+    | null;
   duration?: string;
   static?: boolean;
   lingering?: boolean;
@@ -260,6 +267,7 @@ export interface TraceState {
   unsuccessful?: Ability;
   card?: Card | null;
   eid?: EID;
+  forceBase?: number;
 }
 
 export interface GameStats {
@@ -312,6 +320,7 @@ export interface Corp {
   turnStarted?: boolean;
   undoTurn?: unknown;
   promptState?: Prompt | null;
+  openhand?: boolean;
 }
 
 export interface Runner {
@@ -357,6 +366,7 @@ export interface Runner {
   turnStarted?: boolean;
   undoTurn?: unknown;
   promptState?: Prompt | null;
+  openhand?: boolean;
 }
 
 // ---------------------------------------------------------------------------

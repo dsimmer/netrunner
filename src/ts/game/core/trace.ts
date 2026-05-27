@@ -357,7 +357,16 @@ function resetTraceModifications(state: GameState): void {
  * Mirrors: force-base in trace.clj
  */
 export function forceBase(state: GameState, value: number): void {
-  if (!state.trace) state.trace = {};
+  if (!state.trace) {
+    state.trace = {
+      base: 0,
+      boost: 0,
+      strength: 0,
+      corpBoost: 0,
+      runnerBoost: 0,
+      bonuses: 0,
+    };
+  }
   state.trace.forceBase = value;
 }
 
