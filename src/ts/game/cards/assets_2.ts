@@ -48,10 +48,7 @@ import * as coreUpdate from '../core/update';
 import * as coreWinning from '../core/winning';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
-import { executiveTrashEffect, gainPowerCounter } from './assets_1';
-
-// Stub helpers (to be ported from clj cards/*.clj)
-function advanceAmbush(_args?: any, _ability?: any): any { return {}; }
+import { advanceAmbush, executiveTrashEffect, gainPowerCounter } from './assets_1';
 
 // Calvin B4L3Y
 export const calvinB4L3Y: CardDef = {

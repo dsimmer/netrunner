@@ -662,8 +662,8 @@ export const creditCrash: CardDef = {
 };
 
 // Credit Kiting
-// Credit Kiting
 export const creditKiting: CardDef = {
+  title: 'Credit Kiting',
   onPlay: {
     req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> {
       const reg = (state as any).runner?.register;

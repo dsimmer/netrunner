@@ -617,7 +617,7 @@ export const blackmail: CardDef = {
 
 // Blueberry! Diesel
 export const blueberryDiesel: CardDef = {
-  title: 'Blueberry! Diesel',
+  title: 'Blueberry!™ Diesel',
   onPlay: {
     async: true,
     onChangeGameState: { req: req(function*(state: State, side: Side, eid: EID, card: Card, targets: any[]): Generator<any, any, any> { return (state as any).runner?.deck?.length > 0; }) },

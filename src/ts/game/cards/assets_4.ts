@@ -48,7 +48,7 @@ import * as coreUpdate from '../core/update';
 import * as coreWinning from '../core/winning';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
-import { campaign } from './_helpers';
+import { campaign } from './assets_1';
 // Humanoid Resources
 export const humanoidResources: CardDef = (() => {
   const playAnInstant: any = {

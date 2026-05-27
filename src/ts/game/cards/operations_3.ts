@@ -306,6 +306,52 @@ export const mitosis: CardDef = {
 };
 
 
+// Mushin No Shin
+export const mushinNoShin: CardDef = {
+  title: 'Mushin No Shin',
+  onPlay: {
+    prompt: 'Choose a card to install from HQ',
+    onChangeGameState: {
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => ((state as any).corp?.hand?.length || 0) > 0),
+    },
+    choices: { card: (c: Card) => !coreCard.operation(c) && coreCard.corp(c) && coreCard.inHandStar(state, c) },
+    async: true,
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
+      const installedCard = coreInstalling.corpInstall(state, side, eid, targets[0], 'New remote', {
+        counters: { advanceCounter: 3 },
+        msgKeys: { installSource: card, displayOrigin: true },
+      }) as any;
+      if (installedCard) {
+        coreFlags.registerPersistentFlag(state, side, installedCard, 'can-rez', (s: State, _sd: Side, c: Card) => {
+          if (utils.sameCard(c, installedCard)) {
+            coreToasts.toast(s, 'corp', 'Cannot rez due to Mushin No Shin.');
+            return false;
+          }
+          return true;
+        });
+        coreFlags.registerTurnFlag(state, side, installedCard, 'can-score', (s: State, _sd: Side, c: Card) => {
+          if (utils.sameCard(c, installedCard)) {
+            coreToasts.toast(s, 'corp', 'Cannot score due to Mushin No Shin.');
+            return false;
+          }
+          return true;
+        });
+        coreEvents.registerEvents(state, side, installedCard, [{
+          event: 'corp-turn-begins',
+          duration: 'until-corp-turn-begins',
+          unregisterOnceResolved: true,
+          async: true,
+          effect: effect((s: State, sd: Side, e: EID, c: Card, _t: any[]) => {
+            coreFlags.clearPersistentFlag(s, 'corp', installedCard, 'can-rez');
+            coreEid.effectCompleted(s, sd, e);
+          }),
+        }]);
+      }
+      coreEid.effectCompleted(state, side, eid);
+    }),
+  },
+};
+
 // Mutate - simplified
 export const mutate: CardDef = {
   title: 'Mutate',
@@ -355,6 +401,7 @@ export const nanomanagement: CardDef = {
 
 // NAPD Cordon
 export const napdCordon: CardDef = lockdown({
+  title: 'NAPD Cordon',
   staticAbilities: [{
     type: 'steal-additional-cost',
     value: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => corePayment.toC('credit', 4 + 2 * (targets[0]?.counters?.advancement || 0))),
@@ -397,6 +444,7 @@ export const neurospike: CardDef = {
 
 // NEXT Activation Command
 export const nextActivationCommand: CardDef = lockdown({
+  title: 'NEXT Activation Command',
   staticAbilities: [
     { type: 'ice-strength', value: 2 },
     {
@@ -441,10 +489,13 @@ export const o2Shortage: CardDef = {
 };
 
 // Observe and Destroy
-export const observeAndDestroy: CardDef = trashType('installed', coreCard.installed, true, 1, true, {
-  additionalCost: [corePayment.toC('tag', 1)],
-  req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).runner?.credit < 6),
-});
+export const observeAndDestroy: CardDef = {
+  title: 'Observe and Destroy',
+  onPlay: trashType('installed', coreCard.installed, true, 1, true, {
+    additionalCost: [corePayment.toC('tag', 1)],
+    req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => (state as any).runner?.credit < 6),
+  }),
+};
 
 // Oppo Research
 export const oppoResearch: CardDef = {
@@ -607,9 +658,9 @@ export const powerShutdown: CardDef = {
   },
 };
 
-// Precognation
+// Precognition
 export const precognition: CardDef = {
-  title: 'Precognation',
+  title: 'Precognition',
   onPlay: {
     msg: 'rearrange the top 5 cards of R&D',
     onChangeGameState: {

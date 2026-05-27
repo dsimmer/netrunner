@@ -754,6 +754,7 @@ export const hunterSeeker: CardDef = {
 
 // Hyoubu Precog Manifold
 export const hyoubuPrecogManifold: CardDef = lockdown({
+  title: 'Hyoubu Precog Manifold',
   onPlay: {
     prompt: 'Choose a server',
     choices: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreServers.zonesToSortedNames(coreBoard.getZones(state))),
@@ -821,6 +822,59 @@ export const invasionOfPrivacy: CardDef = {
     },
   },
 };
+
+// IP Enforcement
+export const ipEnforcement: CardDef = (() => {
+  const validAgenda = (c: Card, x: number): boolean => {
+    const zone = (c as any).zone;
+    const inScored = Array.isArray(zone) ? zone[0] === 'scored' : zone === 'scored';
+    return coreCard.agenda(c)
+      && inScored
+      && (c as any).scoredSide === 'runner'
+      && !!c.title
+      && ((c as any).agendapoints === x);
+  };
+  const resolveFixedCostAbi = (state: State, side: Side, eid: EID, card: Card, x: number): any => {
+    const runnerScored = (state as any).runner?.scored || [];
+    const hasMatch = runnerScored.some((c: Card) => validAgenda(c, x));
+    const abi: any = hasMatch
+      ? {
+          cost: [corePayment.toC('tag', x), corePayment.toC('credit', x)],
+          prompt: `Choose an agenda with ${x} printed agenda points`,
+          choices: { req: req((s: State, _side: Side, _eid: EID, _card: Card, t: any[]) => validAgenda(t[0], x)) },
+          async: true,
+          effect: effect((s: State, sd: Side, e: EID, c: Card, t: any[]) => {
+            const target = t[0];
+            coreUpdate.update(s, sd, { ...target, counter: {} });
+            coreInstalling.corpInstall(s, sd, e, target, null, {
+              msgKeys: { installSource: c, known: true, includeCostFromEid: e, setZone: 'the Runner score area', displayOrigin: true },
+              counters: { advanceCounter: utils.isTagged(s) ? 1 : 0 },
+            });
+          }),
+        }
+      : {
+          cost: [corePayment.toC('tag', x), corePayment.toC('credit', x)],
+          onChangeGameState: { req: req(() => false) },
+        };
+    return continue_ability(state, side, abi, card, null);
+  };
+  return {
+    title: 'IP Enforcement',
+    onPlay: {
+      prompt: 'Remove how many tags?',
+      choices: {
+        number: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => Math.min(coreTags.countTags(state), coreCosts.totalAvailableCredits(state, side, { ...eid, sourceType: 'play' }, card))),
+        default: req(() => 0),
+      },
+      async: true,
+      effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => resolveFixedCostAbi(state, side, eid, card, targets[0])),
+      cancel: {
+        async: true,
+        effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => resolveFixedCostAbi(state, side, eid, card, 0)),
+      },
+    },
+  };
+})();
 
 // IPO
 export const ipo: CardDef = {

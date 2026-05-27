@@ -560,6 +560,50 @@ export const success: CardDef = {
   },
 };
 
+// Sudden Commandment
+export const suddenCommandment: CardDef = (() => {
+  const playInstantSecond: any = {
+    optional: {
+      prompt: 'Pay 3 [Credits] to gain [Click]?',
+      waitingPrompt: true,
+      req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreThreat.threatLevel(3, state)),
+      yesAbility: {
+        cost: [corePayment.toC('credit', 3)],
+        msg: 'gain [Click]',
+        effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreGaining.gainClicks(state, side, 1); }),
+      },
+    },
+  };
+  const playInstantFirst: any = {
+    prompt: 'Choose a non-terminal operation',
+    choices: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
+      const hand = (state as any).corp?.hand || [];
+      const ops = hand.filter((c: Card) => coreCard.operation(c) && !coreCard.hasSubtype(c, 'Terminal'));
+      return [...ops, 'Done'];
+    }),
+    async: true,
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
+      const isFirstMandate = coreEvents.firstEvent(state, side, 'play-operation', (t: any[]) => coreCard.hasSubtype(t[0]?.card, 'Mandate'));
+      if (targets[0] === 'Done') {
+        return continue_ability(state, side, isFirstMandate ? playInstantSecond : null, card, null);
+      }
+      corePlayInstants.playInstant(state, side, coreEid.makeEid(state, eid), targets[0], null);
+      return continue_ability(state, side, isFirstMandate ? playInstantSecond : null, card, null);
+    }),
+  };
+  return {
+    title: 'Sudden Commandment',
+    onPlay: {
+      msg: 'draw 2 cards',
+      async: true,
+      effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
+        coreDrawing.draw(state, side, coreEid.makeEid(state, eid), 2);
+        return continue_ability(state, side, playInstantFirst, card, null);
+      }),
+    },
+  };
+})();
+
 // Successful Demonstration
 export const successfulDemonstration: CardDef = {
   title: 'Successful Demonstration',
@@ -602,6 +646,7 @@ export const sweepsWeek: CardDef = {
 
 // SYNC Rerouting
 export const syncRerouting: CardDef = lockdown({
+  title: 'SYNC Rerouting',
   events: [coreChooseOne.chooseOneHelper(
     { event: 'run', player: 'runner' },
     [

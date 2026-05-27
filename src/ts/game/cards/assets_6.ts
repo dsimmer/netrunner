@@ -49,10 +49,7 @@ import * as coreWinning from '../core/winning';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 import { expose } from './assets_3';
-
-// Stub helpers (to be ported from clj cards/*.clj)
-function advanceAmbush(_args?: any, _ability?: any): any { return {}; }
-function credsOnRoundStart(_n?: number, _opts?: any): any { return {}; }
+import { advanceAmbush, credsOnRoundStart } from './assets_1';
 
 export const openForum: CardDef = {
   title: 'Open Forum',

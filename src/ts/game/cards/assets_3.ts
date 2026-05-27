@@ -48,9 +48,7 @@ import * as coreUpdate from '../core/update';
 import * as coreWinning from '../core/winning';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
-import { campaign } from './_helpers';
-// Stub helpers (to be ported from clj cards/*.clj)
-function advanceAmbush(_args?: any, _ability?: any): any { return {}; }
+import { advanceAmbush, campaign } from './assets_1';
 // Echo Chamber
 export const echoChamber: CardDef = {
   title: 'Echo Chamber',

@@ -298,6 +298,7 @@ export const archivedMemories: CardDef = {
 
 // Argus Crackdown
 export const argusCrackdown: CardDef = lockdown({
+  title: 'Argus Crackdown',
   events: [{
     event: 'successful-run',
     automatic: 'corp-damage',
@@ -804,6 +805,28 @@ export const commercialization: CardDef = {
   },
 };
 
+// Complete Image
+export const completeImage: CardDef = {
+  title: 'Complete Image',
+  implementation: "Doesn't work with Chronos Protocol: Selective Mind-mapping",
+  onPlay: {
+    async: true,
+    req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) =>
+      !!(state as any).runner?.register?.lastTurn?.successfulRun
+      && ((state as any).runner?.agendaPoint || 0) >= 3),
+    effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
+      const nameACard: any = {
+        async: true,
+        prompt: 'Name a Runner card',
+        choices: { cardTitle: req((s: State, _side: Side, _eid: EID, _card: Card, t: any[]) => coreCard.runner(t[0]) && !coreCard.identity(t[0])) },
+        msg: msg('name ', (_s: State, _side: Side, _eid: EID, _card: Card, t: any[]) => t[0]),
+        effect: effect((s: State, sd: Side, e: EID, c: Card, t: any[]) => { coreDamage.damage(s, sd, e, 'net', 1, { card: c }); }),
+      };
+      return continue_ability(state, side, nameACard, card, null);
+    }),
+  },
+};
+
 // Consulting Visit
 export const consultingVisit: CardDef = {
   title: 'Consulting Visit',
@@ -849,6 +872,35 @@ export const cyberdexTrial: CardDef = {
     effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { corePurging.purge(eid); }),
   },
 };
+
+// Death and Taxes
+export const deathAndTaxes: CardDef = (() => {
+  const maybeGainCredit: any = {
+    prompt: 'Gain 1 [Credits]?',
+    waitingPrompt: true,
+    autoresolve: coreDefHelpers.getAutoresolve(':auto-fire'),
+    yesAbility: {
+      msg: 'gain 1 [Credits]',
+      async: true,
+      effect: effect((state: State, side: Side, eid: EID, card: Card, targets: any[]) => { coreGaining.gainCredits(state, 'corp', eid, 1); }),
+    },
+  };
+  return {
+    title: 'Death and Taxes',
+    special: { autoFire: 'always' },
+    abilities: [coreDefHelpers.setAutoresolve(':auto-fire', 'Death and Taxes')],
+    events: [
+      { event: 'runner-install', optional: maybeGainCredit },
+      {
+        event: 'runner-trash',
+        optional: {
+          ...maybeGainCredit,
+          req: req((state: State, side: Side, eid: EID, card: Card, targets: any[]) => coreCard.installed(targets[0]?.card)),
+        },
+      },
+    ],
+  };
+})();
 
 // Dedication Ceremony
 export const dedicationCeremony: CardDef = {

@@ -52,7 +52,7 @@ import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
 // Helper functions
 // ============================================================================
 
-function advanceAmbush(cost: number, ability: any, prompt?: string): any {
+export function advanceAmbush(cost: number, ability: any, prompt?: string): any {
   const base = coreDefHelpers.installedAccessTrigger(cost, ability, prompt);
   return { ...base, advanceable: ':always' };
 }
@@ -76,7 +76,7 @@ export function takeNCreditsStartOfTurn(n: number, counterType: string = ':credi
   };
 }
 
-function campaign(counters: number, perTurn: number, counterType: string = ':credit'): any {
+export function campaign(counters: number, perTurn: number, counterType: string = ':credit'): any {
   const ability = takeNCreditsStartOfTurn(perTurn, counterType);
   return {
     data: { counter: { [counterType.replace(':', '')]: counters } },
@@ -89,7 +89,7 @@ function campaign(counters: number, perTurn: number, counterType: string = ':cre
   };
 }
 
-function credsOnRoundStart(perTurn: number): any {
+export function credsOnRoundStart(perTurn: number): any {
   const ability: any = {
     msg: `gain ${perTurn} [Credits]`,
     label: `Gain ${perTurn} [Credits] (start of turn)`,

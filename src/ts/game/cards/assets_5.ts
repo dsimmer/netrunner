@@ -48,11 +48,7 @@ import * as coreUpdate from '../core/update';
 import * as coreWinning from '../core/winning';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
-import { takeNCreditsStartOfTurn } from './assets_1';
-
-// Stub helpers (to be ported from clj cards/*.clj)
-function advanceAmbush(_args?: any, _ability?: any): any { return {}; }
-function credsOnRoundStart(_n?: number, _opts?: any): any { return {}; }
+import { advanceAmbush, credsOnRoundStart, takeNCreditsStartOfTurn } from './assets_1';
 
 // Luana Campos
 export const luanaCampos: CardDef = {

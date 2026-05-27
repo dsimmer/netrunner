@@ -48,8 +48,8 @@ import * as coreUpdate from '../core/update';
 import * as coreWinning from '../core/winning';
 import * as utils from '../utils';
 import { req, effect, msg, wait_for, continue_ability, forms } from '../macros';
-// Stub helpers (to be ported from clj cards/*.clj)
-function advanceAmbush(_args?: any, _ability?: any): any { return {}; }
+import { advanceAmbush } from './assets_1';
+
 export const ronaldFive: CardDef = (() => {
   const ability: any = {
     event: ':runner-trash',
