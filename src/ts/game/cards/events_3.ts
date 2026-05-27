@@ -628,7 +628,7 @@ export const divideAndConquer: CardDef = {
           state,
           [
             { asyncResult: "result" },
-            coreAccess.breachServer(state, side, ["hq"], { noRoot: true }),
+            coreAccess.breachServer(state, side, eid, ["hq"], { noRoot: true }),
           ],
           [],
         );
@@ -1430,7 +1430,7 @@ export const executiveWiretaps: CardDef = {
     async: true,
     effect: effect(
       (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
-        coreRevealing.reveal(eid, (state as any).corp?.hand || []);
+        coreRevealing.reveal(state, side, eid, (state as any).corp?.hand || []);
       },
     ),
   },
@@ -1819,7 +1819,7 @@ export const fearTheMasses: CardDef = {
           );
           const n =
             (state as any).runner?.hand?.filter((c: Card) =>
-              utils.sameCard("title", card, c),
+              utils.sameCard((x: Card) => x.title, card, c),
             ).length || 0;
           yield continue_ability(
             state,
@@ -1839,7 +1839,7 @@ export const fearTheMasses: CardDef = {
               ),
               choices: {
                 card: (c: Card) =>
-                  coreCard.inHand(c) && utils.sameCard("title", card, c),
+                  coreCard.inHand(c) && utils.sameCard((x: Card) => x.title, card, c),
                 max: n,
               },
               msg: msg(
@@ -1913,7 +1913,7 @@ export const feint: CardDef = {
         card: Card,
         targets: any[],
       ): Generator<any, any, any> {
-        const count = coreCard.getCard(state, card)?.special?.bypassCount || 0;
+        const count = ((coreCard.getCard(state, card)?.special as any)?.bypassCount as number) || 0;
         return count < 2;
       }),
       msg: msg(

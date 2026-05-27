@@ -366,7 +366,7 @@ export const alarmClock: CardDef = {
                   card: Card,
                   targets: any[],
                 ): Generator<any, any, any> {
-                  return (getCardFn(state, card)?.runner?.click ?? 0) >= 2;
+                  return (state.runner.click ?? 0) >= 2;
                 }),
                 msg: (
                   state: State,
@@ -1075,7 +1075,7 @@ export const bling: CardDef = {
         return !!cardObj?.hosted?.length;
       }),
       msg: (state: State, side: Side, eid: EID, card: Card, targets: any[]) =>
-        enumerateCards(hostedFn(state, card), ":sorted"),
+        enumerateCards(getCardFn(state, card)?.hosted || [], ":sorted"),
       async: true,
       effect: req(function* (
         state: State,
@@ -1117,7 +1117,7 @@ export const bmiBuffer: CardDef = {
             runnerFn(latestCard) &&
             programFn(latestCard) &&
             inDiscardFn(latestCard) &&
-            (latestCard["previous-zone"] || [])[0] === "hand"
+            (latestCard.previousZone || [])[0] === "hand"
           ) {
             hostFn(state, side, cardObj, latestCard);
           }
@@ -1144,7 +1144,7 @@ export const bmiBuffer: CardDef = {
             runnerFn(latestCard) &&
             programFn(latestCard) &&
             inDiscardFn(latestCard) &&
-            (latestCard["previous-zone"] || [])[0] === "hand"
+            (latestCard.previousZone || [])[0] === "hand"
           ) {
             hostFn(state, side, cardObj, latestCard);
           }
@@ -1198,7 +1198,7 @@ export const bmiBuffer: CardDef = {
 // BMI Buffer 2
 export const bmiBuffer2: CardDef = {
   title: "BMI Buffer 2",
-  events: bmiBuffer.events.map((e: any) => ({ ...e, event: e.event })),
+  events: (bmiBuffer.events || []).map((e: any) => ({ ...e, event: e.event })),
   abilities: [
     {
       action: true,

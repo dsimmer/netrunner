@@ -52,10 +52,10 @@ import * as coreWinning from "../core/winning";
 import * as coreSetAsideModule from "../core/set_aside";
 import * as coreSabotage from "../core/sabotage";
 import * as coreMark from "../core/mark";
+import * as coreThreat from "../core/threat";
 import * as utils from "../utils";
 import * as jintekiUtils from "../../jinteki/utils";
 import { req, effect, msg, wait_for, continue_ability, forms } from "../macros";
-import { coreThreat } from "./_helpers";
 // Helper for toC
 export function toC(...args: any[]): any {
   return (corePayment.toC as any)?.(...args);
@@ -177,15 +177,13 @@ export function sabotageAbility(...args: any[]): any {
 }
 
 // Helper for identify-mark-ability
-export function identifyMarkAbility(...args: any[]): any {
-  const ability = coreMark.identifyMarkAbility;
-  return typeof ability === "function" ? ability(...args) : ability;
+export function identifyMarkAbility(..._args: any[]): any {
+  return coreMark.identifyMarkAbility;
 }
 
 // Helper for mark-changed-event
-export function markChangedEvent(...args: any[]): any {
-  const ability = coreMark.markChangedEvent;
-  return typeof ability === "function" ? ability(...args) : ability;
+export function markChangedEvent(..._args: any[]): any {
+  return coreMark.markChangedEvent;
 }
 
 // Helper for set-aside
@@ -464,10 +462,8 @@ export function anyEffectsFn(
   value: any,
   card: Card,
   opts: any,
-): any[] {
-  return (
-    coreEffects.anyEffects?.(state, side, effectType, value, card, opts) || []
-  );
+): boolean {
+  return coreEffects.anyEffects?.(state, side, effectType, value, card, opts) ?? false;
 }
 
 // Helper for register-lingering-effect
@@ -486,8 +482,8 @@ export function getAutoresolveFn(...args: any[]): any {
 }
 
 // Helper for never?
-export function neverFn(): boolean {
-  return coreOptional.never?.() ?? false;
+export function neverFn(x: unknown): boolean {
+  return coreOptional.never?.(x) ?? false;
 }
 
 // Helper for set-autoresolve
@@ -531,8 +527,8 @@ export function turnArchivesFaceupFn(...args: any[]): void {
 }
 
 // Helper for get-only-card-to-access
-export function getOnlyCardToAccessFn(state: State): boolean {
-  return coreAccess.getOnlyCardToAccess?.(state) ?? false;
+export function getOnlyCardToAccessFn(state: State): Card | null {
+  return coreAccess.getOnlyCardToAccess?.(state) ?? null;
 }
 
 // Helper for total-cards-accessed
@@ -760,8 +756,8 @@ export function allInstalledFn(...args: any[]): Card[] {
 }
 
 // Helper for runnable-servers
-export function runnableServersFn(state: State, card: Card): string[] {
-  return coreBoard.runnableServers?.(state, card) || [];
+export function runnableServersFn(state: State, side?: string, eid?: any, card?: any): string[] {
+  return coreBoard.runnableServers?.(state, side, eid, card) || [];
 }
 
 // Helper for is-central?
@@ -930,8 +926,8 @@ function firstRunEventFn(...args: any[]): boolean {
 }
 
 // Helper for first-trash?
-function firstTrashFn(state: State, side: Side): boolean {
-  return coreEvents.firstTrash?.(state, side) ?? false;
+function firstTrashFn(state: State, pred?: (entry: any) => unknown): boolean {
+  return coreEvents.firstTrash?.(state, pred) ?? false;
 }
 
 // Helper for no-event?

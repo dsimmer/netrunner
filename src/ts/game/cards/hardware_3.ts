@@ -1398,7 +1398,7 @@ export const doppelganger: CardDef = {
             card: Card,
             targets: any[],
           ): Generator<any, any, any> {
-            return runnableServersFn(state, card);
+            return runnableServersFn(state, side, eid, card);
           }),
           msg: (
             state: State,

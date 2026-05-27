@@ -63,25 +63,7 @@ import { req, effect, msg, wait_for, continue_ability, forms } from "../macros";
 import { defcard } from "../core/def_helpers";
 // Helper functions used across cards
 
-export function drainCredits(
-  runnerSide: Side,
-  corpSide: Side,
-  amount: number,
-  min: number,
-  max: number,
-): any {
-  return {
-    msg: "force the corp to lose credits",
-    async: true,
-    effect: effect(
-      (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
-        const qty = Math.min(max, Math.max(min, Math.floor(amount / 2)));
-        (coreGaining.lose as any)(state, corpSide, "credit", qty);
-        (coreGaining.gain as any)(state, runnerSide, "credit", qty);
-      },
-    ),
-  };
-}
+export const drainCredits = coreDefHelpers.drainCredits;
 
 function breachAccessBonus(...args: any[]): any {
   return (coreDefHelpers.breachAccessBonus as any)?.(...args);

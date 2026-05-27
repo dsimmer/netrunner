@@ -513,7 +513,7 @@ export const seamlessLaunch: CardDef = {
       null,
       2,
       "an installed card",
-      (c: Card) => coreCard.installed(c) !== "this-turn",
+      (c: Card) => coreCard.installed(c),
     );
     return {
       ...abi,
@@ -524,9 +524,7 @@ export const seamlessLaunch: CardDef = {
               .allInstalled(state, "corp")
               .some(
                 (c: Card) =>
-                  coreCard.corp(c) &&
-                  coreCard.installed(c) &&
-                  coreCard.installed(c) !== "this-turn",
+                  coreCard.corp(c) && coreCard.installed(c),
               ),
         ),
       },
@@ -987,13 +985,16 @@ export const subBoost: CardDef = {
     async: true,
     effect: effect(
       (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
-        coreInstalling.installAsConditionCounter(
-          state,
-          side,
-          eid,
-          card,
-          coreCard.getCard(state, targets[0]),
-        );
+        const target = coreCard.getCard(state, targets[0]);
+        if (target) {
+          coreInstalling.installAsConditionCounter(
+            state,
+            side,
+            eid,
+            card,
+            target,
+          );
+        }
       },
     ),
   },
@@ -1489,7 +1490,7 @@ export const transparencyInitiative: CardDef = {
     async: true,
     effect: effect(
       (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
-        coreInstalling.installAsConditionCounter(state, side, card, targets[0]);
+        coreInstalling.installAsConditionCounter(state, side, eid, card, targets[0]);
       },
     ),
   },
@@ -1800,13 +1801,16 @@ export const wetworkRefit: CardDef = {
     },
     effect: effect(
       (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
-        coreInstalling.installAsConditionCounter(
-          state,
-          side,
-          eid,
-          card,
-          coreCard.getCard(state, targets[0]),
-        );
+        const target = coreCard.getCard(state, targets[0]);
+        if (target) {
+          coreInstalling.installAsConditionCounter(
+            state,
+            side,
+            eid,
+            card,
+            target,
+          );
+        }
       },
     ),
   },

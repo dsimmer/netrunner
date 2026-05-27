@@ -33,6 +33,7 @@ import * as coreHosting from "../core/hosting";
 import * as coreIce from "../core/ice";
 import * as coreIdentities from "../core/identities";
 import * as coreInstalling from "../core/installing";
+import * as coreInitializing from "../core/initializing";
 import * as coreLink from "../core/link";
 import * as coreMark from "../core/mark";
 import * as coreMemory from "../core/memory";
@@ -1826,12 +1827,13 @@ export const questCompleted: CardDef = {
     choices: { card: (c: Card) => coreCard.installed(c) },
     msg: msg(
       "access ",
-      (state: State, side: Side, eid: EID, card: Card, targets: any[]) => msg,
+      (state: State, side: Side, eid: EID, card: Card, targets: any[]) =>
+        (targets?.[0] as Card)?.title || "",
     ),
     async: true,
     effect: effect(
       (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
-        coreAccess.accessCard(eid, msg);
+        coreAccess.accessCard(state, side, eid, targets?.[0] ?? null);
       },
     ),
   },
@@ -1953,9 +1955,9 @@ export const rebirth: CardDef = {
         !isDraftId(c) &&
         runnerIdentity?.title !== c.title &&
         (["casual", "quick-draft", "preconstructed"].includes(format) ||
-          jintekiValidator.legal(format, "legal", c));
-      const swappableIds = (serverCards() || []).filter((c: Card) =>
-        isSwappable(c),
+          jintekiValidator.legal(format, "legal", c as unknown as jintekiValidator.CardData));
+      const swappableIds = ((serverCards() || []) as unknown as Card[]).filter(
+        (c: Card) => isSwappable(c),
       );
       return swappableIds.sort((a: Card, b: Card) =>
         (a.title || "").localeCompare(b.title || ""),
@@ -2039,7 +2041,9 @@ export const reboot: CardDef = {
           (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
             rebootInstallCards(
               targets || [],
-              targets?.map((c: Card) => c.title) || [],
+              (targets || [])
+                .map((c: Card) => c.title)
+                .filter((t: string | undefined): t is string => !!t),
             );
           },
         ),

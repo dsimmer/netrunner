@@ -652,7 +652,7 @@ function ripDealAddCardsFromHeap(): any {
           targets: any[],
         ): Generator<any, any, any> {
           const randomAccessLimit =
-            coreAccess.numCardsToAccess(state, side, "hq", null)
+            coreAccess.numCardsToAccess(state, side, ["hq"], null)
               ?.randomAccessLimit || 0;
           const cardsToMove = Math.min(
             (state as any).corp?.hand?.length,
@@ -775,7 +775,7 @@ export const rumorMill: CardDef = {
 };
 
 function rumorMillEligible(card: Card): boolean {
-  return (
+  return !!(
     card.uniqueness &&
     (coreCard.asset(card) || coreCard.upgrade(card)) &&
     !coreCard.hasSubtype(card, "Region")
@@ -848,12 +848,14 @@ export const runAmok: CardDef = {
           runAmokGetRezzedCids(coreBoard.allInstalled(state, "corp")),
         );
         const oldCids = new Set(
-          coreCard.getCard(state, card)?.special?.runAmok || [],
+          ((coreCard.getCard(state, card)?.special as any)?.runAmok as string[]) || [],
         );
         const diff = [...newCids].filter((c: string) => !oldCids.has(c));
-        const diffCards = diff.map((cid: string) =>
-          coreFinding.findCid(cid, coreBoard.allInstalled(state, "corp")),
-        );
+        const diffCards = diff
+          .map((cid: string) =>
+            coreFinding.findCid(cid, coreBoard.allInstalled(state, "corp")),
+          )
+          .filter((c: Card | null): c is Card => !!c);
         yield continue_ability(
           state,
           "runner",
@@ -1443,18 +1445,15 @@ export const shred: CardDef = {
                     (ctx.runServer || {}).content?.length || 0;
                   if (cardsInServer > 0) {
                     return coreChooseOne.chooseOneHelper({ player: "corp" }, [
-                      {
-                        option: "Reveal and randomly trash cards",
-                        ability: coreChooseOne.costOption(
-                          [
-                            corePayment.toC(
-                              "reveal-and-randomly-trash-from-hand",
-                              cardsInServer,
-                            ),
-                          ],
-                          "corp",
-                        ),
-                      },
+                      coreChooseOne.costOption(
+                        [
+                          corePayment.toC(
+                            "reveal-and-randomly-trash-from-hand",
+                            cardsInServer,
+                          ),
+                        ],
+                        "corp",
+                      ),
                       {
                         option: "The run does not end",
                         ability: {

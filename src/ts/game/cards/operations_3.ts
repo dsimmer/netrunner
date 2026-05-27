@@ -7,6 +7,7 @@
  */
 
 import type { Card, CardDef, EID, Side, State } from "../../types";
+import type { ServerZone } from "../core/state";
 import * as coreAccess from "../core/access";
 import * as coreActions from "../core/actions";
 import * as coreBadPublicity from "../core/bad_publicity";
@@ -195,13 +196,13 @@ export const killSwitch: CardDef = {
 export const lagTime: CardDef = {
   title: "Lag Time",
   onPlay: {
-    effect: effect((state: State) => {
-      coreIce.updateAllIce(state);
+    effect: effect((state: State, side: Side) => {
+      coreIce.updateAllIce(state, side);
     }),
   },
   staticAbilities: [{ type: "ice-strength", value: 1 }],
-  leavePlay: effect((state: State) => {
-    coreIce.updateAllIce(state);
+  leavePlay: effect((state: State, side: Side) => {
+    coreIce.updateAllIce(state, side);
   }),
 };
 
@@ -331,10 +332,8 @@ export const marketForces: CardDef = {
     const abi = coreDefHelpers.drainCredits(
       "corp",
       "runner",
-      req(
-        (state: State, side: Side, eid: EID, card: Card, targets: any[]) =>
-          utils.countTags(state) * 3,
-      ),
+      (state: State, side: Side, eid: EID, card: Card | null, targets: any[]) =>
+        utils.countTags(state) * 3,
       0,
       99,
     );
@@ -1108,7 +1107,7 @@ export const peakEfficiency: CardDef = {
         let count = 0;
         for (const server of Object.values(
           (state as any).corp?.servers || {},
-        )) {
+        ) as ServerZone[]) {
           count += (server?.ices || []).filter(
             (ice: Card) => ice.rezzed,
           ).length;
@@ -1130,7 +1129,7 @@ export const peakEfficiency: CardDef = {
         let count = 0;
         for (const server of Object.values(
           (state as any).corp?.servers || {},
-        )) {
+        ) as ServerZone[]) {
           count += (server?.ices || []).filter(
             (ice: Card) => ice.rezzed,
           ).length;
@@ -1329,7 +1328,7 @@ export const preemptiveAction: CardDef = {
     async: true,
     effect: effect(
       (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
-        coreShuffling.shuffleIntoRdEffect(eid, card, 3, true);
+        coreShuffling.shuffleIntoRdEffect(state, side, eid, card, 3, true);
       },
     ),
   },
@@ -1425,7 +1424,7 @@ export const psychographics: CardDef = {
         maximum: req(
           (state: State, side: Side, eid: EID, card: Card, targets: any[]) =>
             utils.countTags(state),
-        ),
+        ) as unknown as number,
       }),
     ],
     choices: {

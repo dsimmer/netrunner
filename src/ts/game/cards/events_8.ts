@@ -229,6 +229,12 @@ export const sureGamble: CardDef = {
 };
 
 // Surge
+const surgePlacedVirusCards = (state: State): Card[] =>
+  ((coreEvents.turnEvents(state, "runner", "counter-added") || []) as any[])
+    .filter((e: any) => e[0]?.[0]?.counterType === "virus")
+    .map((e: any) => coreCard.getCard(state, e[0]?.[0]?.card))
+    .filter((c: Card | null): c is Card => !!c);
+
 export const surge: CardDef = {
   title: "Surge",
   onPlay: {
@@ -239,10 +245,7 @@ export const surge: CardDef = {
       card: Card,
       targets: any[],
     ): Generator<any, any, any> {
-      return (coreEvents.turnEvents(state, "runner", "counter-added") || [])
-        .filter((e: any) => e[0]?.[0]?.counterType === "virus")
-        .map((e: any) => e[0]?.card)
-        .some((cid: string) => utils.sameCard(cid, msg));
+      return surgePlacedVirusCards(state).length > 0;
     }),
     choices: {
       req: req(function* (
@@ -252,20 +255,20 @@ export const surge: CardDef = {
         card: Card,
         targets: any[],
       ): Generator<any, any, any> {
-        return (coreEvents.turnEvents(state, "runner", "counter-added") || [])
-          .filter((e: any) => e[0]?.[0]?.counterType === "virus")
-          .map((e: any) => e[0]?.card)
-          .some((cid: string) => utils.sameCard(cid, msg));
+        return surgePlacedVirusCards(state).some((c: Card) =>
+          utils.sameCard(c, targets?.[0]),
+        );
       }),
     },
     msg: msg(
       "place 2 virus counters on ",
-      (state: State, side: Side, eid: EID, card: Card, targets: any[]) => msg,
+      (state: State, side: Side, eid: EID, card: Card, targets: any[]) =>
+        (targets?.[0] as Card)?.title || "",
     ),
     async: true,
     effect: effect(
       (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
-        coreProps.addCounter("runner", eid, msg, "virus", 2, null);
+        coreProps.addCounter("runner", eid, targets?.[0], "virus", 2, null);
       },
     ),
   },
@@ -392,7 +395,7 @@ export const systemSeizure: CardDef = {
           !coreCard.getCard(state, card)?.special?.ssTarget ||
           utils.sameCard(
             ctx.card,
-            coreCard.getCard(state, card)?.special?.ssTarget,
+            (coreCard.getCard(state, card)?.special as any)?.ssTarget as Card | null,
           )
         );
       }),
@@ -786,7 +789,7 @@ export const theNoblePath: CardDef = {
             ctx.remaining,
           " ",
           (state: State, side: Side, eid: EID, card: Card, targets: any[]) =>
-            coreDamage.damageName(state),
+            corePrevention.damageName(state),
           " damage",
         ),
         effect: effect(
@@ -1346,7 +1349,7 @@ export const trickShot: CardDef = {
         return (
           ctx.server === "rd" &&
           forms.thisCardRun &&
-          c?.special?.runEid?.eid === (state as any).run?.eid?.eid
+          (c?.special as any)?.runEid?.eid === (state as any).run?.eid?.eid
         );
       }),
       msg: "place 2 [Credits] on itself and access 1 additional card from R&D",
@@ -1512,7 +1515,7 @@ export const vamp: CardDef = {
             card: Card,
             targets: any[],
           ): Generator<any, any, any> {
-            return corePayment.costValue(eid, "x-credits") > 0;
+            return (corePayment.costValue(eid, "x-credits") as number) > 0;
           }),
         },
         msg: msg(
@@ -1746,7 +1749,7 @@ function watchTheWorldBurnRfgCardEvent(burnedCard: Card): any[] {
       ): Generator<any, any, any> {
         const ctx: any =
           ((targets as any[])?.[0] as any)?.context ?? (targets as any[])?.[0];
-        return utils.sameCard("title", burnedCard, ctx.accessedCard);
+        return utils.sameCard((x: Card) => x.title, burnedCard, ctx.accessedCard);
       }),
       msg: msg(
         "remove ",

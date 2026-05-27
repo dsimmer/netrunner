@@ -375,7 +375,8 @@ export const katorgaBreakout: CardDef = {
       event: "successful-run",
       automatic: "draw-cards",
       req: req(function* (
-        state: Side,
+        state: State,
+        side: Side,
         eid: EID,
         card: Card,
         targets: any[],
@@ -451,7 +452,7 @@ export const khusyuk: CardDef = {
           if (revealed.length > 0 && !coreAccess.getOnlyCardToAccess(state)) {
             yield wait_for(
               state,
-              [{ asyncResult: "result" }, coreRevealing.reveal(eid, revealed)],
+              [{ asyncResult: "result" }, coreRevealing.reveal(state, side, eid, revealed)],
               [],
             );
             yield wait_for(
@@ -518,7 +519,8 @@ function khusyukAccessRevealed(revealed: Card[]): any {
     }),
     effect: effect(
       (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
-        coreAccess.accessCard(eid, msg);
+        const target = revealed.find((c: Card) => c.title === targets?.[0]);
+        coreAccess.accessCard(state, side, eid, target ?? null);
       },
     ),
   };
@@ -1058,8 +1060,9 @@ export const leaveNoTrace: CardDef = {
         card: Card,
         targets: any[],
       ): Generator<any, any, any> {
-        const rezzedIce = (coreEvents.runEvents(msg, "rez") || [])
-          .map((e: [any, any]) => {
+        const rezzedIce = (coreEvents.runEvents(targets[0], "rez") || [])
+          .map((entry: unknown) => {
+            const e = entry as [any, any];
             const cardData = e[0]?.card;
             return cardData && coreCard.ice(cardData)
               ? coreCard.getCard(state, cardData)
@@ -1198,7 +1201,7 @@ export const leverage: CardDef = {
                     eid: EID,
                     card: Card,
                     targets: any[],
-                  ) => coreDamage.damageName(state, "damage"),
+                  ) => coreDamage.damageName("damage"),
                   " damage",
                 ),
                 effect: effect(
@@ -1209,13 +1212,7 @@ export const leverage: CardDef = {
                     card: Card,
                     targets: any[],
                   ) => {
-                    corePrevention.preventDamage(
-                      state,
-                      side,
-                      eid,
-                      "damage",
-                      "all",
-                    );
+                    corePrevention.preventDamage(state, side, eid, "all");
                   },
                 ),
               },
@@ -2122,7 +2119,7 @@ export const mobius: CardDef = {
     ): Generator<any, any, any> {
       yield wait_for(
         state,
-        [{ asyncResult: "result" }, coreRuns.makeRun(state, side, "rd", card)],
+        [{ asyncResult: "result" }, coreRuns.makeRun(state, side, eid, "rd", card)],
         [],
       );
       const c = coreCard.getCard(state, card);

@@ -382,8 +382,8 @@ export const anOfferYouCantRefuse: CardDef = {
               noAbility: {
                 msg: "add itself to [their] score area as an agenda worth 1 agenda point",
                 effect: effect(
-                  corePrompts.clearWaitPrompt("corp"),
-                  coreMoving.asAgenda("corp", card, 1),
+                  corePrompts.clearWaitPrompt(state, "corp"),
+                  coreMoving.asAgenda(state, "corp", card, 1),
                 ),
               },
             },
@@ -678,7 +678,7 @@ export const badTimes: CardDef = {
         coreEffects.registerLingeringEffect(state, "corp", card, {
           ...coreMemory.muPlus(-2),
           duration: "end-of-turn",
-        });
+        } as any);
         coreMemory.updateMu(state);
       },
     ),
@@ -722,7 +722,7 @@ export const bestDefense: CardDef = {
                 coreCard.runner(c) &&
                 coreCard.installed(c) &&
                 !coreCard.facedown(c) &&
-                c.cost <= utils.countTags(state),
+                (c.cost ?? 0) <= utils.countTags(state),
             ),
       ),
     },
@@ -820,13 +820,11 @@ export const bigDeal: CardDef = {
             side,
             {
               optional: {
-                req: req((st: State) =>
-                  coreFlags.canScore(
-                    st,
-                    side,
-                    coreCard.getCard(st, cardToScore),
-                  ),
-                ),
+                req: req((st: State) => {
+                  const c = coreCard.getCard(st, cardToScore);
+                  if (!c) return false;
+                  return coreFlags.canScore(st, side, c);
+                }),
                 prompt: `Score ${cardToScore.title}?`,
                 yesAbility: {
                   async: true,
@@ -1452,7 +1450,7 @@ export const consultingVisit: CardDef = {
         return corePrompts.cancellable(
           deck.filter(
             (c: Card) =>
-              coreCard.operation(c) && c.cost <= (state as any).corp?.credit,
+              coreCard.operation(c) && (c.cost ?? 0) <= (state as any).corp?.credit,
           ),
           { sorted: true },
         );
