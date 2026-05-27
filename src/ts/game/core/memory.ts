@@ -3,7 +3,7 @@
 
 import type { GameState, Effect, MemoryBucket } from "./state";
 import type { Card } from "./card";
-import type { EID, ReqFn, Side, State, StaticAbility, ValueFn } from "./types.ts";
+import type { EID, ReqFn, Side, State, StaticAbility, ValueFn } from "./types";
 import { hasSubtype, isProgram } from "./card";
 import { cardDef } from "./card_defs";
 import { makeEID } from "./eid";

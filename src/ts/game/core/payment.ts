@@ -4,7 +4,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { Ability, Cost } from "./types.ts";
+import type { Ability, Cost } from "./types";
 import { isICE } from "./card";
 import { makeEID } from "./eid";
 import { anyEffects } from "./effects";

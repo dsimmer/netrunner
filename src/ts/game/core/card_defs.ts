@@ -2,8 +2,8 @@
 // Mirrors: src/clj/game/core/card_defs.clj
 
 import type { Card } from "./card";
-import type { CardDef } from "./types.ts";
-import { cardDefRegistry } from "./types.ts";
+import type { CardDef } from "./types";
+import { cardDefRegistry } from "./types";
 
 export type { CardDef };
 

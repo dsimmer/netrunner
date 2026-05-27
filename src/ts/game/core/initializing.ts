@@ -5,7 +5,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { Ability, AbilityFn, CardDef, Server, Subroutine } from "./types.ts";
+import type { Ability, AbilityFn, CardDef, Server, Subroutine } from "./types";
 import {
   isRunner,
   isProgram,

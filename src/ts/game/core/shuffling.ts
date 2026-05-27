@@ -5,7 +5,7 @@ import { randomBytes } from "crypto";
 import type { GameState } from "./state";
 import type { EID } from "./eid";
 import type { Card, Zone } from "./card";
-import type { Ability } from "./types.ts";
+import type { Ability } from "./types";
 import { CORP_SIDE, RUNNER_SIDE } from "./state";
 import { corp, inDiscard, getTitle, getZone } from "./card";
 import { triggerEvent } from "./engine";

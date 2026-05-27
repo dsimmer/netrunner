@@ -493,4 +493,4 @@ export {
   type ValueFn,
   getCardDef,
   registerCard,
-} from "./core/types.ts";
+} from "./core/types";

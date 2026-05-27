@@ -4,7 +4,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { Ability, PsiAbility, Side } from "./types.ts";
+import type { Ability, PsiAbility, Side } from "./types";
 import { corp } from "./card";
 import { totalAvailableCredits } from "./costs";
 import { makeEIDFrom, effectCompleted, registerEIDCallback } from "./eid";

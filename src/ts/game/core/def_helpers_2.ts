@@ -4,7 +4,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { Ability } from "./types.ts";
+import type { Ability } from "./types";
 import {
   isCorp,
   isRunner,
@@ -522,7 +522,7 @@ export function tutorAbi(
 
 export const cardDefsCache = new Map<string, any>();
 
-import { cardDefRegistry } from "./types.ts";
+import { cardDefRegistry } from "./types";
 
 /**
  * Define a card to be returned from card-def. Mirrors `defcard` macro.

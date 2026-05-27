@@ -3,7 +3,7 @@
 
 import type { Card, Zone } from "./card";
 import type { EID } from "./eid";
-import type { Ability, AbilityFn, ReqFn, Side } from "./types.ts";
+import type { Ability, AbilityFn, ReqFn, Side } from "./types";
 // ---------------------------------------------------------------------------
 // Side constants
 // ---------------------------------------------------------------------------

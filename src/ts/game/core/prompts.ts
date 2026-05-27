@@ -7,7 +7,7 @@ import { CORP_SIDE, RUNNER_SIDE, getSidePrompt } from "./state";
 import type { Card, Zone } from "./card";
 import type { EID } from "./eid";
 import { makeEID } from "./eid";
-import type { AbilityFn, MsgFn } from "./types.ts";
+import type { AbilityFn, MsgFn } from "./types";
 import { getAllCards } from "./board";
 import { addToPromptQueue, removeFromPromptQueue } from "./prompt_state";
 import { toast } from "./toasts";

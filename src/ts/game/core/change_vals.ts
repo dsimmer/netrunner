@@ -4,7 +4,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { ReqFn, ValueFn } from "./types.ts";
+import type { ReqFn, ValueFn } from "./types";
 import { RUNNER_SIDE, CORP_SIDE } from "./state";
 import { updateAllAgendaPoints } from "./agendas";
 import { registerLingeringEffect } from "./effects";

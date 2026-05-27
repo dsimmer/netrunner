@@ -11,7 +11,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { Ability, NumberFn } from "./types.ts";
+import type { Ability, NumberFn } from "./types";
 import {
   badPublicityAvailable,
   gainBadPublicity,
@@ -40,7 +40,7 @@ import {
   isRunner,
   active as isActive,
 } from "./card";
-import { getCardDef } from "./types.ts";
+import { getCardDef } from "./types";
 import { damage } from "./damage";
 import {
   completeWithResult,

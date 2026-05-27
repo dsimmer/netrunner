@@ -4,7 +4,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { Ability } from "./types.ts";
+import type { Ability } from "./types";
 import { effectCompleted } from "./eid";
 import { req, continue_ability } from "../macros";
 

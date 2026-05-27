@@ -4,7 +4,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { ReqFn, StaticAbility, ValueFn } from "./types.ts";
+import type { ReqFn, StaticAbility, ValueFn } from "./types";
 import { RUNNER_SIDE } from "./state";
 import { sumEffects } from "./effects";
 

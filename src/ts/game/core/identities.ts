@@ -18,7 +18,7 @@ import {
 } from "./card";
 import { getPlayer } from "./state";
 import type { Corp, Runner } from "./state";
-import { getCardDef } from "./types.ts";
+import { getCardDef } from "./types";
 import { registerStaticAbilities, unregisterStaticAbilities } from "./effects";
 import { makeEID } from "./eid";
 import {

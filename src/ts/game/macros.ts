@@ -4,7 +4,7 @@
  */
 
 // Import type definitions
-import type { Ability, Card, EID, Side, State } from './core/types.ts';
+import type { Ability, Card, EID, Side, State } from './core/types';
 import * as coreIce from './core/ice';
 import * as coreBoard from './core/board';
 import * as coreCard from './core/card';

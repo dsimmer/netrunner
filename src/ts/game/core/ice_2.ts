@@ -4,10 +4,10 @@
 import type { GameState, ServerZone, Encounter } from "./state";
 import type { Card, Zone } from "./card";
 import type { EID } from "./eid";
-import type { Ability, AbilityFn, CardDef, NumberFn, ReqFn, Side, State, Subroutine, ValueFn } from "./types.ts";
+import type { Ability, AbilityFn, CardDef, NumberFn, ReqFn, Side, State, Subroutine, ValueFn } from "./types";
 import { CORP_SIDE, RUNNER_SIDE } from "./state";
 import { isICE, isInstalled, isRezzed, hasSubtype, getTitle } from "./card";
-import { getCardDef } from "./types.ts";
+import { getCardDef } from "./types";
 import { breakSubAbilityCost, cardAbilityCost } from "./cost_fns";
 import {
   makeEID,

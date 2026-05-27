@@ -4,7 +4,7 @@ export * from './prevention_2';
 import { req as reqFn, wait_for } from "../macros";
 import { sameCard } from "./card";
 import { canPay } from "./payment";
-import type { Card, EID, Side, State } from './types.ts';
+import type { Card, EID, Side, State } from './types';
 
 
 /**

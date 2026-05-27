@@ -10,7 +10,7 @@ import { makeEID } from "./eid";
 import { mergeCosts } from "./payment";
 import type { CostData } from "./payment";
 import type { EID } from "./eid";
-import type { Ability, State } from "./types.ts";
+import type { Ability, State } from "./types";
 export type { CostData } from "./payment";
 
 // ---------------------------------------------------------------------------

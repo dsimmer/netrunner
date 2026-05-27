@@ -6,7 +6,7 @@ import { randomUUID } from "crypto";
 import type { GameState, Prompt } from "./state";
 import type { Card, Zone } from "./card";
 import type { EID } from "./eid";
-import type { Ability, AbilityFn, ChoicesSpec, Cost, Counter, MsgFn, NumberFn, ReqFn } from "./types.ts";
+import type { Ability, AbilityFn, ChoicesSpec, Cost, Counter, MsgFn, NumberFn, ReqFn } from "./types";
 import type { Effect, RegisteredEvent } from "./state";
 import { CORP_SIDE, RUNNER_SIDE, getPlayer } from "./state";
 import {
@@ -38,7 +38,7 @@ import {
   inZone,
   printedTitle,
 } from "./card";
-import { getCardDef } from "./types.ts";
+import { getCardDef } from "./types";
 import {
   getEffectMaps,
   unregisterLingeringEffects,

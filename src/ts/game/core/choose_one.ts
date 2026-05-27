@@ -6,7 +6,7 @@
 import type { GameState } from "./state";
 import type { EID } from "./eid";
 import type { Card } from "./card";
-import type { Ability, MsgFn, NumberFn, ReqFn } from "./types.ts";
+import type { Ability, MsgFn, NumberFn, ReqFn } from "./types";
 import { continue_ability } from "../macros";
 import { buildCostString, canPay } from "./payment";
 import { effectCompleted, makeEID, registerEIDCallback } from "./eid";

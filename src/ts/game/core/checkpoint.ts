@@ -39,7 +39,7 @@ import {
 } from "./agendas";
 import { updateAllCardLabels } from "./initializing";
 import { updateMu } from "./memory";
-import { updateAllSubtypes } from "./subtypes.ts";
+import { updateAllSubtypes } from "./subtypes";
 import { updateTagStatus } from "./tags";
 import { updateHandSize } from "./hand_size";
 import { updateLink } from "./link";

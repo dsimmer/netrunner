@@ -4,7 +4,7 @@
 import type { GameState } from "./state";
 import type { Card, Zone } from "./card";
 import type { EID } from "./eid";
-import type { Ability, Counter, ReqFn } from "./types.ts";
+import type { Ability, Counter, ReqFn } from "./types";
 import {
   isAgenda,
   isAsset,
@@ -23,7 +23,7 @@ import {
   TYPE_AGENDA,
   TYPE_COUNTER,
 } from "./card";
-import { getCardDef } from "./types.ts";
+import { getCardDef } from "./types";
 import { updateAllAgendaPoints } from "./agendas";
 import { allActiveInstalled } from "./board";
 import {

@@ -4,7 +4,7 @@
 import type { GameState, ServerZone } from "./state";
 import type { Card, Zone } from "./card";
 import type { EID } from "./eid";
-import type { Ability, Counter } from "./types.ts";
+import type { Ability, Counter } from "./types";
 import {
   isAgenda,
   isAsset,
@@ -22,7 +22,7 @@ import {
   getType,
   hasSubtype,
 } from "./card";
-import { getCardDef } from "./types.ts";
+import { getCardDef } from "./types";
 const cardDef = getCardDef;
 import {
   ignoreInstallCost,

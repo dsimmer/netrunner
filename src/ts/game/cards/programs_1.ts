@@ -75,7 +75,7 @@ export function allActiveInstalled(...args: any[]): Card[] {
 }
 
 function hasSubtype(card: Card, subtype: string): boolean {
-  return coreCard.hasSubtype?.(card, subtype) ?? false;
+  return !!coreCard.hasSubtype?.(card, subtype);
 }
 
 function getLink(state: State): number {
@@ -391,7 +391,7 @@ function getCard(state: State, target: any): Card | null {
     return (target as any).card;
   }
   if (typeof target === "string") {
-    return coreCard.findCard(state, target);
+    return coreCard.findCard(target, coreBoard.allInstalled(state, "corp"));
   }
   return null;
 }
@@ -404,8 +404,8 @@ function inHandStar(...args: any[]): boolean {
   return (coreDefHelpers.inHandStar as any)?.(...args);
 }
 
-function resolveSubroutine(ice: Card, sub: any, opts: any = {}): void {
-  coreIce.resolveSubroutine?.(ice, sub, opts);
+function resolveSubroutine(ice: Card, sub: any, _opts: any = {}): void {
+  coreIce.resolveSubroutine?.(ice, sub);
 }
 
 function getRunServer(state: State): string {
@@ -446,10 +446,6 @@ function getRunnableZones(...args: any[]): any[] {
 
 function installableServers(...args: any[]): string[] {
   return (coreBoard.installableServers as any)?.(...args);
-}
-
-function takeCredits(state: State, side: Side, amount: number): void {
-  coreDefHelpers.takeCredits?.(state, side, amount);
 }
 
 export function damage(...args: any[]): void {
@@ -599,7 +595,7 @@ function getCardsInPlay(...args: any[]): Card[] {
 }
 
 function getCardsInZone(state: State, side: Side, zone: string): Card[] {
-  return coreBoard.getZoneCards?.(state, side, zone) || [];
+  return coreBoard.getZoneCards?.(state, side, [zone]) || [];
 }
 
 function countCardsInZone(state: State, side: Side, zone: string): number {
@@ -628,7 +624,7 @@ function triggerEvent(
 }
 
 function registerEffect(card: Card, effectDef: any): string {
-  return coreEffects.registerLingeringEffect?.(card, effectDef) || "";
+  return coreEffects.registerLingeringEffect?.(card, effectDef)?.uuid || "";
 }
 
 function unregisterEffect(uuid: string): void {
@@ -667,10 +663,6 @@ function quantify(...args: any[]): string {
 
 function complement(fn: Function): Function {
   return (...args: any[]) => !fn(...args);
-}
-
-function never(): boolean {
-  return coreOptional.never?.() ?? false;
 }
 
 function getAutoresolve(...args: any[]): any {

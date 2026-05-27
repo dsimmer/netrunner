@@ -4,7 +4,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { Ability, CardDef } from "./types.ts";
+import type { Ability, CardDef } from "./types";
 import type { CostData } from "./payment";
 
 import { asset, conditionCounter, ice, rezzed, upgrade } from "./card";

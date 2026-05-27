@@ -3,7 +3,7 @@
 
 import type { GameState } from "./state";
 import type { Card } from "./card";
-import type { AbilityFn } from "./types.ts";
+import type { AbilityFn } from "./types";
 // ---------------------------------------------------------------------------
 // EID type
 // ---------------------------------------------------------------------------

@@ -3,7 +3,7 @@
 
 import type { GameState, FlagEntry } from "./state";
 import type { Card } from "./card";
-import type { ReqFn } from "./types.ts";
+import type { ReqFn } from "./types";
 import { CORP_SIDE } from "./state";
 import { isAgenda, isInstalled, isRezzed, inScored, getCounters as getCounter } from "./card";
 import { allActive, allInstalled } from "./board";

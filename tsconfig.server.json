@@ -19,5 +19,5 @@
     }
   },
   "include": ["src/ts/**/*.ts"],
-  "exclude": ["src/ts/**/*.tsx", "src/ts/nr/**", "src/ts/main.tsx"]
+  "exclude": ["src/ts/**/*.tsx", "src/ts/nr/**", "src/ts/main.tsx", "src/ts/prod/**"]
 }

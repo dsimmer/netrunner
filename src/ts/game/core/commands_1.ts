@@ -18,7 +18,7 @@ import {
 } from "./card";
 import type { EID } from "./eid";
 import { makeEID, effectCompleted } from "./eid";
-import type { Ability, AbilityFn, ReqFn, ValueFn } from "./types.ts";
+import type { Ability, AbilityFn, ReqFn, ValueFn } from "./types";
 import { resolveAbility, triggerEvent } from "./engine";
 import { allInstalled, serverToZone } from "./board";
 import { getCard } from "./finding";

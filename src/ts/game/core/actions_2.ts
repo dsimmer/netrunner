@@ -12,7 +12,7 @@ import {
 } from "./card";
 import type { EID } from "./eid";
 import { makeEID, makeEIDFrom, effectCompleted } from "./eid";
-import type { Ability } from "./types.ts";
+import type { Ability } from "./types";
 import type { CostData } from "./payment";
 import {
   updateAdvancementRequirement,

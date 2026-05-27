@@ -4,7 +4,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { Ability, AbilityFn, ReqFn } from "./types.ts";
+import type { Ability, AbilityFn, ReqFn } from "./types";
 import { corp, inHand } from "./card";
 import { effectCompleted } from "./eid";
 import { resolveAbility } from "./engine";

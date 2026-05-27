@@ -5,12 +5,12 @@ import { randomUUID } from "crypto";
 import type { GameState, Effect } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { CardDef, ReqFn, StaticAbility, ValueFn } from "./types.ts";
+import type { CardDef, ReqFn, StaticAbility, ValueFn } from "./types";
 import { CORP_SIDE, RUNNER_SIDE } from "./state";
 import { isCorp, isRunner, isFacedown } from "./card";
 import { makeEID } from "./eid";
 import { getAllCards, getCard } from "./finding";
-import { getCardDef } from "./types.ts";
+import { getCardDef } from "./types";
 import { sameCard } from "../utils";
 
 // ---------------------------------------------------------------------------

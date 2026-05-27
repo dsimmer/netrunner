@@ -1,7 +1,7 @@
 // Card type, zone helpers, and card predicate functions.
 // Mirrors: src/cljc/game/core/card.cljc
 
-import type { Ability, Subroutine } from "./types.ts";
+import type { Ability, Subroutine } from "./types";
 import type { GameState } from "./state";
 
 // ---------------------------------------------------------------------------

@@ -327,7 +327,7 @@ export const codeReplicator: CardDef = {
           if (!forms.thisServer(state, card)) return false;
           const position = forms.runPosition(state);
           if (position === undefined) return false;
-          if (position >= coreIce.getRunIces(state).length) return false;
+          if (position >= (coreIce.getRunIces(state)?.length ?? 0)) return false;
           const server = coreBoard.cardToServer(state, card);
           const ices = server?.ices;
           if (!ices) return false;
@@ -545,7 +545,7 @@ export const corporateTroubleshooter: CardDef = {
           const target: any = (targets as any[])?.[0];
           coreIce.pumpIce(
             target,
-            corePayment.costValue(eid, ":x-credits"),
+            corePayment.costValue(eid, ":x-credits") as number,
             ":end-of-turn",
           );
         },
@@ -824,7 +824,11 @@ export const daruma: CardDef = {
             },
           ),
           async: true,
-          effect: effect(coreInstalling.swapCardsAsync(eid, toSwap, target)),
+          effect: effect(
+            (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
+              coreInstalling.swapCardsAsync(state, side, eid, toSwap, targets?.[0]);
+            },
+          ),
         });
         const ability = {
           optional: {
@@ -1236,7 +1240,7 @@ export const expoGrid: CardDef = {
         (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
           const corp = (state as any).corp;
           const zone = (card as any).zone;
-          const zoneCards = zone ? coreBoard.getCardInZone(corp, zone) : [];
+          const zoneCards = (zone ? coreBoard.getCardInZone(corp, zone) : []) ?? [];
           return zoneCards.some(
             (c: Card) => coreCard.asset(c) && coreCard.rezzed(c),
           );
@@ -1260,7 +1264,7 @@ export const expoGrid: CardDef = {
         (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
           const corp = (state as any).corp;
           const zone = (card as any).zone;
-          const zoneCards = zone ? coreBoard.getCardInZone(corp, zone) : [];
+          const zoneCards = (zone ? coreBoard.getCardInZone(corp, zone) : []) ?? [];
           return zoneCards.some(
             (c: Card) => coreCard.asset(c) && coreCard.rezzed(c),
           );
