@@ -35,6 +35,8 @@ export function corpServerCards(state: GameState): Card[] {
   return out;
 }
 
+export const corpServersCards = corpServerCards;
+
 /**
  * Returns all cards in the Runner's rig.
  * Mirrors: runner-rig-cards in board.clj
@@ -252,6 +254,8 @@ export function installedByName(
 ): Card | null {
   return allActiveInstalled(state, side).find((c: any) => c.title === title) ?? null;
 }
+
+export const installedByname = installedByName;
 
 /**
  * Returns true if any active-installed card of the given side matches the title.

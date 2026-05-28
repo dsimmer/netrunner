@@ -27,6 +27,8 @@ export function makeCID(): string {
   return randomUUID();
 }
 
+export const makeCid = makeCID;
+
 /** Returns the current instant (UTC). Mirrors make-timestamp. */
 export function makeTimestamp(): Date {
   return new Date();

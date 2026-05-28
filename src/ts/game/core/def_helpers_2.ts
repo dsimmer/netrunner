@@ -15,6 +15,8 @@ import {
   getCounters,
   isOperation,
   getCard,
+  canBeAdvanced,
+  isFaceup,
 } from "./card";
 import { accessBonus } from "./access";
 import { allInstalled, getAllCards } from "./board";
@@ -251,13 +253,8 @@ export function addDefaultAbilities(title: string, ability: any): any {
 
 export function somethingCanBeAdvanced(state: GameState): boolean {
   return allInstalled(state, "corp").some(
-    (c: any) => !(c as any)?.faceup || canBeAdvanced(state, c),
+    (c: any) => !isFaceup(c) || canBeAdvanced(state, c),
   );
-}
-
-function canBeAdvanced(_state: GameState, card: any): boolean {
-  // approximation — card.advanceable or agenda type
-  return !!card?.advanceable || card?.type === "Agenda";
 }
 
 // ---------------------------------------------------------------------------

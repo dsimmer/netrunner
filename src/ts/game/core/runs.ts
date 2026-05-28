@@ -130,10 +130,12 @@ export function totalRunCost(
 // make-phase-eid (private)
 // Mirrors: make-phase-eid in runs.clj
 // ---------------------------------------------------------------------------
-function makePhaseEID(state: GameState, eid: EID | null): EID {
+export function makePhaseEID(state: GameState, eid: EID | null): EID {
   if (eid) return eid;
   return makeEIDFrom(state, state.run?.eid ?? null);
 }
+
+export const makePhaseEid = makePhaseEID;
 
 // ---------------------------------------------------------------------------
 // get-runnable-zones
@@ -260,6 +262,8 @@ export function runContinue(state: GameState, side: string, eid: EID | null): vo
       return continueDefault(state, side, eid);
   }
 }
+
+export { runContinue as continue };
 
 // ---------------------------------------------------------------------------
 // make-run

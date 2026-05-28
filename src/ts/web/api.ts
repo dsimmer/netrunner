@@ -8,7 +8,6 @@ import * as crypto from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 import type { IncomingMessage, ServerResponse } from "http";
-// @ts-expect-error - no types for 'cookie'
 import { parse as parseCookie } from "cookie";
 import { parse as parseUrl } from "url";
 

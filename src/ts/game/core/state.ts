@@ -657,6 +657,8 @@ export function newGameState(
   };
 }
 
+export const newState = newGameState;
+
 /** Returns the prompt queue for the given side. */
 export function getSidePrompt(state: GameState, side: string): Prompt[] {
   return side === CORP_SIDE ? state.corpPrompt : state.runnerPrompt;
@@ -686,3 +688,5 @@ export function makeRID(state: GameState): number {
   state.rid += 1;
   return rid;
 }
+
+export const makeRid = makeRID;

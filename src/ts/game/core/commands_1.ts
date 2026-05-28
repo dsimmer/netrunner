@@ -506,6 +506,8 @@ export function commandRezAll(state: GameState, side: string): void {
   );
 }
 
+export const commandRezall = commandRezAll;
+
 /**
  * `/roll <sides>` — Roll a die.
  * Mirrors `command-roll`.

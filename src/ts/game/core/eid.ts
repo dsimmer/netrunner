@@ -131,6 +131,8 @@ export function clearEIDWaitPrompt(
   }
 }
 
+export const clearEidWaitPrompt = clearEIDWaitPrompt;
+
 /**
  * Fires the registered callback for the given EID.
  * Mirrors effect-completed in eid.clj.

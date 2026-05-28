@@ -70,7 +70,7 @@ import {
 // Mirrors: checkpoint+clean-up in process_actions.clj
 // ---------------------------------------------------------------------------
 
-function checkpointPlusCleanup(state: GameState): void {
+export function checkpointPlusCleanup(state: GameState): void {
   fakeCheckpoint(state);
 
   // End the run if running an empty remote
@@ -79,6 +79,8 @@ function checkpointPlusCleanup(state: GameState): void {
     fakeCheckpoint(state);
   }
 }
+
+export const checkpointcleanUp = checkpointPlusCleanup;
 
 // ---------------------------------------------------------------------------
 // set-property

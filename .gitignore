@@ -75,3 +75,5 @@ data/cards-zh-hant.edn
 
 # Coding agents
 .claude/
+
+dist/*

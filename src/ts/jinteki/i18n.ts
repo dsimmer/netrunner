@@ -1,7 +1,5 @@
 // Mirrors: src/cljc/jinteki/i18n.cljc
 import { FluentBundle, FluentResource, type FluentVariable } from "@fluent/bundle";
-import * as fs from "fs";
-import * as path from "path";
 
 // List of supported language files (based on resources/public/i18n directory)
 const LANGUAGES = [
@@ -12,8 +10,12 @@ const LANGUAGES = [
  * Mirrors: load-dictionary!
  * Loads all supported .ftl language files from the given directory.
  * Returns an array of language codes that failed to load.
+ * Server-side only — uses Node.js fs/path APIs.
  */
 export function loadDictionary(dir: string): string[] {
+  // Dynamic require to avoid bundling Node.js modules in browser builds
+  const fs = require("fs");
+  const path = require("path");
   const errors: string[] = [];
   for (const lang of LANGUAGES) {
     const resPath = path.join(dir, `${lang}.ftl`);

@@ -141,6 +141,8 @@ export function zoneSortKey(zone: unknown): number {
   return num !== null ? num : 0;
 }
 
+export const zoneToSortKey = zoneSortKey;
+
 /**
  * Sorts zone keywords and maps them to human-readable names.
  * Mirrors `zones->sorted-names`.
