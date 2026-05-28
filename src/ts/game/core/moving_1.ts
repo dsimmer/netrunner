@@ -449,7 +449,7 @@ function getMovedCard(
   const cid = !isFromHub && isToHub ? makeCID() : c.cid;
   const timestamp =
     (!isFromHub && isToHub) || (!card.installed && toInstalled)
-      ? makeTimestamp().getTime()
+      ? makeTimestamp()
       : c.timestamp;
 
   let movedCard: Card = {

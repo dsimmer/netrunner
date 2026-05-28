@@ -2,8 +2,6 @@
 // Mirrors: src/clj/game/core/link.clj + src/go/game/core/link.go
 
 import type { GameState } from "./state";
-import type { Card } from "./card";
-import type { EID } from "./eid";
 import type { ReqFn, StaticAbility, ValueFn } from "./types";
 import { RUNNER_SIDE } from "./state";
 import { sumEffects } from "./effects";
@@ -13,7 +11,11 @@ import { sumEffects } from "./effects";
  * Mirrors: get-link in link.clj
  */
 export function getLink(state: GameState): number {
-  return state.runner.link;
+  return (
+    state.runner.link ||
+    state.runner.identity?.baselink ||
+    0
+  );
 }
 
 function sumLinkEffects(state: GameState): number {
@@ -22,7 +24,7 @@ function sumLinkEffects(state: GameState): number {
   return (
     baselink +
     sumEffects(state, RUNNER_SIDE, "user-link", null, []) +
-    sumEffects(state, RUNNER_SIDE, "link", null, [])
+    sumEffects(state, RUNNER_SIDE, "link", identity, [])
   );
 }
 

@@ -6,7 +6,6 @@ import type { Card, Zone } from "./card";
 import { getTitle, corp, ice, rezzed, installed, cardIndex } from "./card";
 import { getCard } from "./finding";
 import { isCentral } from "./servers";
-import type { Server } from './types';
 
 
 // ---------------------------------------------------------------------------
@@ -64,8 +63,6 @@ interface CardStrOpts {
   visible?: boolean;
   maybeVisible?: boolean;
   noIcon?: boolean;
-  'maybe-visible'?: boolean;
-  [key: string]: any;
 }
 
 /**

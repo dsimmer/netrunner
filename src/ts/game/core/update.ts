@@ -3,11 +3,8 @@
 
 import type { GameState } from "./state";
 import type { Card } from "./card";
-import { getCard } from "./finding";
-import { getScoringOwner } from "./finding";
+import { getCard, getScoringOwner } from "./finding";
 import { toKeyword } from "../utils";
-import type { State } from './types';
-
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -24,26 +21,6 @@ function getIn(obj: unknown, path: (string | symbol)[]): unknown {
     current = (current as Record<string, unknown>)[String(seg)];
   }
   return current;
-}
-
-/**
- * Navigate to the parent of the given path and set the final key to value.
- * Mirrors Clojure's assoc-in.
- */
-function setIn(
-  obj: Record<string, unknown>,
-  path: (string | symbol)[],
-  value: unknown,
-): void {
-  if (path.length < 2) return;
-  let current: unknown = obj;
-  for (let i = 0; i < path.length - 1; i++) {
-    if (current == null || typeof current !== "object") return;
-    current = (current as Record<string, unknown>)[String(path[i])];
-  }
-  if (current != null && typeof current === "object") {
-    (current as Record<string, unknown>)[String(path[path.length - 1])] = value;
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -103,30 +80,34 @@ function updateInZone(state: GameState, side: string, card: Card): void {
 /**
  * Updates the state so that its copy of the given card matches the argument given.
  *
- * Mirrors: game.core.update/update!
+ * Mirrors: game.core.update/update!. Accepts a partial card-shaped object so
+ * that callers spreading `getCard` results (which may return null) still
+ * type-check — null/undefined-cid inputs are silently ignored.
  */
-export function updateCard(state: GameState, side: string, card: Card | null | undefined): void;
-export function updateCard(state: GameState, side: string, card: any): void;
-export function updateCard(state: GameState, side: string, cardArg: any): void {
-  if (!cardArg) return;
-  const card = cardArg as Card;
-  if (card.type === "Identity") {
-    if (side === toKeyword(card.side ?? "")) {
+export function updateCard(
+  state: GameState,
+  side: string,
+  card: Partial<Card> | Card | null | undefined,
+): void {
+  if (!card || !card.cid) return;
+  const c = card as Card;
+  if (c.type === "Identity") {
+    if (side === toKeyword(c.side ?? "")) {
       if (side === "corp") {
-        state.corp.identity = card;
+        state.corp.identity = c;
       } else {
-        state.runner.identity = card;
+        state.runner.identity = c;
       }
     }
     return;
   }
 
-  if (card.host) {
-    updateHosted(state, side, card);
+  if (c.host) {
+    updateHosted(state, side, c);
     return;
   }
 
-  updateInZone(state, side, card);
+  updateInZone(state, side, c);
 }
 
 /**
@@ -135,36 +116,53 @@ export function updateCard(state: GameState, side: string, cardArg: any): void {
  */
 export const update = updateCard;
 
+type PathSeg = string | number | symbol;
+type UpdateFn = (current: unknown) => unknown;
+
 /**
  * Mirrors Clojure's `update-in`: walks the path inside `obj`, applies `fn` to the
  * value at the final key, then writes the result back. Mutates in place.
+ *
+ * Supports two call forms used by card definitions:
+ *   updateIn(obj, path, fn)                 — path as array, fn applied
+ *   updateIn(obj, key1, key2, ..., value)   — flat path, final arg is value or fn
  */
 export function updateIn(
-  ...args: any[]
-): any {
-  // Permissive signature supporting both:
-  //   updateIn(obj, path, fn)
-  //   updateIn(state, side, card, fn)  (legacy Clojure-style)
-  let obj: any;
-  let path: (string | number | symbol)[];
-  let fn: (current: any) => any;
-  if (args.length === 3) {
-    [obj, path, fn] = args;
-  } else if (args.length >= 4) {
-    obj = args[0];
-    // Best-effort: assume args[1] (side) is path root, args[2] is card or further path; treat remaining as path; last arg is fn
-    fn = args[args.length - 1];
-    path = args.slice(1, args.length - 1).flatMap((p: any) => Array.isArray(p) ? p : [p]);
+  obj: object | null | undefined,
+  ...rest: unknown[]
+): unknown {
+  if (rest.length === 0 || obj == null || typeof obj !== "object") return undefined;
+
+  let path: PathSeg[];
+  let fnOrValue: unknown;
+
+  if (rest.length === 2 && Array.isArray(rest[0])) {
+    path = rest[0] as PathSeg[];
+    fnOrValue = rest[1];
   } else {
-    return undefined;
+    fnOrValue = rest[rest.length - 1];
+    const pathArgs = rest.slice(0, -1);
+    path = pathArgs.flatMap((p) =>
+      Array.isArray(p) ? (p as PathSeg[]) : [p as PathSeg],
+    );
   }
-  if (!Array.isArray(path) || path.length === 0 || obj == null || typeof obj !== "object") return;
-  let current: any = obj;
+
+  if (path.length === 0) return undefined;
+
+  let current: Record<string, unknown> = obj as Record<string, unknown>;
   for (let i = 0; i < path.length - 1; i++) {
     const seg = String(path[i]);
-    if (current[seg] == null || typeof current[seg] !== "object") current[seg] = {};
-    current = current[seg];
+    const next = current[seg];
+    if (next == null || typeof next !== "object") {
+      current[seg] = {};
+    }
+    current = current[seg] as Record<string, unknown>;
   }
   const last = String(path[path.length - 1]);
-  current[last] = typeof fn === 'function' ? fn(current[last]) : fn;
+  const newValue =
+    typeof fnOrValue === "function"
+      ? (fnOrValue as UpdateFn)(current[last])
+      : fnOrValue;
+  current[last] = newValue;
+  return newValue;
 }

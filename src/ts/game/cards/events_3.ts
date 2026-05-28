@@ -276,7 +276,7 @@ export const deucesWild: CardDef = {
                     state,
                     [
                       { asyncResult: "result" },
-                      coreExpose.expose(state, side, [msg]),
+                      coreExpose.expose(state, side, eid, [msg]),
                     ],
                     [],
                   );
@@ -672,7 +672,7 @@ export const driveBy: CardDef = {
     ): Generator<any, any, any> {
       yield wait_for(
         state,
-        [{ asyncResult: "result" }, coreExpose.expose(state, side, [msg])],
+        [{ asyncResult: "result" }, coreExpose.expose(state, side, eid, [msg])],
         [],
       );
       const exposedCard = msg;
@@ -1760,7 +1760,7 @@ export const falsifiedCredentials: CardDef = {
                   state,
                   [
                     { asyncResult: "result" },
-                    coreExpose.expose(state, side, [msg]),
+                    coreExpose.expose(state, side, eid, [msg]),
                   ],
                   [],
                 );

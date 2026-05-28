@@ -50,7 +50,7 @@ export function resolveExpose(
   }
 
   const msg = `${args.card ? `uses ${args.card.title} to expose ` : "exposes "}${enumerateStr(
-    targets.map((t: any) => cardStr(state, t, { visible: true })),
+    targets.map((t) => cardStr(state, t, { visible: true })),
   )}`;
   systemMsg(state, side, msg);
 
@@ -68,13 +68,13 @@ export function resolveExpose(
   queueEvent(state, "expose", { cards: targets });
 
   const checkpointEid = makeEID(state);
-  registerEffectCompleted(state, checkpointEid, ((
-    _s: GameState,
-    _sd: string,
-    _e: EID,
-  ) => {
-    completeWithResult(state, side, eid, { cards: targets });
-  }) as any);
+  registerEffectCompleted(
+    state,
+    checkpointEid,
+    (_s: GameState, _sd: string, _e: EID) => {
+      completeWithResult(state, side, eid, { cards: targets });
+    },
+  );
   checkpoint(state, side, checkpointEid, { duration: "expose" });
 }
 
@@ -82,7 +82,6 @@ export function resolveExpose(
  * Exposes the given cards.
  * Mirrors: expose in expose.clj
  */
-export function expose(state: any, side?: any, eid?: any, targets?: any, args?: any): any;
 export function expose(
   state: GameState,
   side: string,
@@ -120,17 +119,19 @@ export function expose(
   // resolveExposePrevention signals completion via the inner eid; we register
   // a continuation to read the `remaining` cards and resume.
   const preventionEid = makeEID(state);
-  registerEffectCompleted(state, preventionEid, ((
-    _s: GameState,
-    _sd: string,
-    completedEid: EID,
-  ) => {
-    const result: any = (completedEid as any).result;
-    const remaining: Card[] = Array.isArray(result?.remaining)
-      ? result.remaining
-      : filtered;
-    resolveExpose(state, side, eid, remaining, a);
-  }) as any);
+  registerEffectCompleted(
+    state,
+    preventionEid,
+    (_s: GameState, _sd: string, completedEid: EID) => {
+      const result = completedEid.result as
+        | { remaining?: Card[] }
+        | undefined;
+      const remaining: Card[] = Array.isArray(result?.remaining)
+        ? result.remaining
+        : filtered;
+      resolveExpose(state, side, eid, remaining, a);
+    },
+  );
   resolveExposePrevention(state, side, preventionEid, filtered, {
     unpreventable: a.unpreventable,
     card: a.card ?? undefined,

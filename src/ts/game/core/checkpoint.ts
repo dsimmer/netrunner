@@ -6,6 +6,7 @@ import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { Effect } from "./state";
 import type { EID } from "./eid";
+import type { Ability } from "./types";
 import { effectCompleted, makeEID } from "./eid";
 import {
   allActiveInstalled,
@@ -148,7 +149,7 @@ function unregisterExpiredDurations(
  * Mirrors get-old-uniques.
  */
 function getOldUniques(state: GameState, side: string): Card[] {
-  const active = allActiveInstalled(state, side).filter((c: any) => isUnique(c));
+  const active = allActiveInstalled(state, side).filter((c) => isUnique(c));
   const byTitle = new Map<string, Card[]>();
   for (const c of active) {
     const title = getTitle(c) ?? "";
@@ -159,11 +160,12 @@ function getOldUniques(state: GameState, side: string): Card[] {
   const out: Card[] = [];
   for (const cards of byTitle.values()) {
     if (cards.length > 1) {
-      const sorted = cards.slice().sort((a: any, b: any) => {
-        const ta = (a as any).timestamp ?? 0;
-        const tb = (b as any).timestamp ?? 0;
-        return ta - tb;
-      });
+      const sorted = cards
+        .slice()
+        .sort(
+          (a, b) =>
+            (a.timestamp?.getTime() ?? 0) - (b.timestamp?.getTime() ?? 0),
+        );
       // Everything except the most recent
       out.push(...sorted.slice(0, -1));
     }
@@ -180,25 +182,25 @@ function checkUniqueAndConsoles(state: GameState, eid: EID): void {
   const corpUniques = getOldUniques(state, "corp");
   const runnerUniques = getOldUniques(state, "runner");
 
-  const allConsoles = (
-    (state as any)?.runner?.rig?.hardware ?? []
-  ).filter((c: Card) => consoleCard(c)) as Card[];
-  const extraConsoles =
+  const hardware: Card[] = state.runner?.rig?.hardware ?? [];
+  const allConsoles: Card[] = hardware.filter((c) => consoleCard(c));
+  const extraConsoles: Card[] =
     allConsoles.length > 1
-      ? allConsoles.slice().sort((a: any, b: any) => {
-          const ta = (a as any).timestamp ?? 0;
-          const tb = (b as any).timestamp ?? 0;
-          return ta - tb;
-        }).slice(0, -1)
+      ? allConsoles
+          .slice()
+          .sort(
+            (a, b) =>
+              (a.timestamp?.getTime() ?? 0) - (b.timestamp?.getTime() ?? 0),
+          )
+          .slice(0, -1)
       : [];
 
   // Distinct by cid
-  const seen = new Set<unknown>();
+  const seen = new Set<string>();
   const cardsToTrash: Card[] = [];
   for (const c of [...corpUniques, ...runnerUniques, ...extraConsoles]) {
-    const cid = (c as any).cid;
-    if (cid != null && seen.has(cid)) continue;
-    if (cid != null) seen.add(cid);
+    if (c.cid && seen.has(c.cid)) continue;
+    if (c.cid) seen.add(c.cid);
     cardsToTrash.push(c);
   }
 
@@ -224,10 +226,10 @@ function checkUniqueAndConsoles(state: GameState, eid: EID): void {
  */
 function enforceConditions(state: GameState, eid: EID): void {
   const corpInstalled = allInstalled(state, "corp");
-  const corpIdentity = (state as any)?.corp?.identity;
+  const corpIdentity: Card | null = state.corp?.identity ?? null;
   const runnerActive = allActiveInstalled(state, "runner");
 
-  const candidates = [
+  const candidates: Card[] = [
     ...corpInstalled,
     ...(corpIdentity ? [corpIdentity] : []),
     ...runnerActive,
@@ -235,7 +237,7 @@ function enforceConditions(state: GameState, eid: EID): void {
 
   for (const card of candidates) {
     const def = cardDef(card);
-    const ability = (def as any)?.["enforce-conditions"];
+    const ability = def["enforce-conditions"];
     if (!ability) continue;
     if (isDisabledReg(state, card)) continue;
     try {
@@ -260,13 +262,13 @@ function enforceConditions(state: GameState, eid: EID): void {
  */
 function checkRestrictions(state: GameState, eid: EID): void {
   updateMu(state);
-  const memory = (state as any)?.runner?.memory ?? { available: 0, used: 0 };
+  const memory = state.runner?.memory ?? { available: 0, used: 0 };
   const available = (memory.available ?? 0) - (memory.used ?? 0);
   if (available < 0) {
-    const installedPrograms = allInstalled(state, "runner").filter((c: any) =>
+    const installedPrograms = allInstalled(state, "runner").filter((c) =>
       isProgram(c),
     );
-    const ability = {
+    const ability: Ability = {
       prompt: `Insufficient MU. Trash ${-available} MU of installed programs.`,
       choices: {
         max: installedPrograms.length,
@@ -278,9 +280,9 @@ function checkRestrictions(state: GameState, eid: EID): void {
         sd: string,
         e: EID,
         _c: Card | null,
-        targets: any[],
+        targets: Card[],
       ) => {
-        const picked = (targets as Card[]) ?? [];
+        const picked: Card[] = targets ?? [];
         if (picked.length > 0) {
           trashCards(s, sd, makeEID(s, e), picked, {
             gameTrash: true,
@@ -293,7 +295,7 @@ function checkRestrictions(state: GameState, eid: EID): void {
     resolveAbility(
       state,
       "runner",
-      { ...ability, eid: makeEID(state, eid) } as any,
+      { ...ability, eid: makeEID(state, eid) },
       null,
       null,
     );

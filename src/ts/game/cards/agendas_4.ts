@@ -1258,7 +1258,7 @@ function chooseSwap(toSwap: Card): any {
         targets: any[],
       ) => {
         const target: any = (targets as any[])?.[0];
-        return `swap ${coreToString.cardStr(state, toSwap, { "maybe-visible": true })} with a card from HQ (${target.title})`;
+        return `swap ${coreToString.cardStr(state, toSwap, { maybeVisible: true })} with a card from HQ (${target.title})`;
       },
     },
     effect: effect(function* (

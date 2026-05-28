@@ -626,12 +626,15 @@ export const testRun: CardDef = {
                 ),
                 asyncResult
                   ? (() => {
+                      // FIXME: this updateIn call doesn't mark the installed card —
+                      // it sets state.<side>.test-run. Real port should assoc-in
+                      // [:special :test-run] true on the installed card.
                       const installedCard = coreUpdate.updateIn(
                         state,
                         side,
                         "test-run",
                         true,
-                      );
+                      ) as Card;
                       coreEngine.registerEvents(state, side, installedCard, [
                         {
                           event: "runner-turn-ends",

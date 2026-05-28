@@ -77,6 +77,7 @@ export interface Card {
   subtype?: string;
   subtypeTarget?: string;
   subtypes?: string[];
+  timestamp?: Date;
   title?: string;
   trash?: number;
   type?: string;

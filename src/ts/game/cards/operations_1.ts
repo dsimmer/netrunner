@@ -1507,7 +1507,7 @@ export const cyberdexTrial: CardDef = {
     async: true,
     effect: effect(
       (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
-        corePurging.purge(eid);
+        corePurging.purge(state, side, eid);
       },
     ),
   },

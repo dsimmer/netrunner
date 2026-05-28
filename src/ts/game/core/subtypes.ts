@@ -40,8 +40,8 @@ export function subtypesForCard(state: GameState, card: Card): string[] | null {
 
   const printedSubtypes: string[] =
     (serverCard(card.title)?.subtypes as string[]) ?? [];
-  const rawGained = getEffects(state, null as any, "gain-subtype", card, []);
-  const rawLost = getEffects(state, null as any, "lose-subtype", card, []);
+  const rawGained = getEffects(state, "", "gain-subtype", card, []);
+  const rawLost = getEffects(state, "", "lose-subtype", card, []);
 
   const gainedSubtypes: string[] = flatten(rawGained);
   const lostSubtypes: string[] = flatten(rawLost);

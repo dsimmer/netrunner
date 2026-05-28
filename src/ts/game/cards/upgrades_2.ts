@@ -591,7 +591,17 @@ export const cyberdexVirusSuite: CardDef = {
               {
                 msg: "purge virus counters",
                 async: true,
-                effect: effect(corePurging.purge(eid)),
+                effect: effect(
+                  (
+                    state: State,
+                    side: Side,
+                    eid: EID,
+                    _card: Card,
+                    _targets: any[],
+                  ) => {
+                    corePurging.purge(state, side, eid);
+                  },
+                ),
               },
               card,
               null,
@@ -613,7 +623,17 @@ export const cyberdexVirusSuite: CardDef = {
                   prompt: "Purge virus counters?",
                   "yes-ability": {
                     async: true,
-                    effect: effect(corePurging.purge(eid)),
+                    effect: effect(
+                      (
+                        state: State,
+                        side: Side,
+                        eid: EID,
+                        _card: Card,
+                        _targets: any[],
+                      ) => {
+                        corePurging.purge(state, side, eid);
+                      },
+                    ),
                   },
                 },
               },
@@ -634,7 +654,7 @@ export const cyberdexVirusSuite: CardDef = {
       async: true,
       effect: effect(
         (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
-          corePurging.purge(eid);
+          corePurging.purge(state, side, eid);
         },
       ),
     },
@@ -2051,7 +2071,7 @@ export const prisec: CardDef = coreDefHelpers.installedAccessTrigger(2, {
     );
   }),
 });
-(prisec as any).title = "Prisec";
+(prisec as { title?: string }).title = "Prisec";
 
 // Product Placement
 export const productPlacement: CardDef = {
@@ -2359,7 +2379,7 @@ export const mrHendrik: CardDef = coreDefHelpers.installedAccessTrigger(2, {
     );
   }),
 });
-(mrHendrik as any).title = "Mr. Hendrik";
+(mrHendrik as { title?: string }).title = "Mr. Hendrik";
 
 // Mumbad Virtual Tour
 export const mumbadVirtualTour: CardDef = {

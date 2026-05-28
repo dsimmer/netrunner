@@ -823,7 +823,7 @@ export function moveToTop(targetCard: any, actingSide: string): any {
       public: (state: GameState) =>
         `add ${cardStr(state, targetCard)} from ${nameZone(targetCard.side, targetCard.zone)} to the top of ${dest}`,
       [actingSide]: (state: GameState) =>
-        `add ${cardStr(state, targetCard, { "maybe-visible": true })} from ${nameZone(targetCard.side, targetCard.zone)} to the top of ${dest}`,
+        `add ${cardStr(state, targetCard, { maybeVisible: true })} from ${nameZone(targetCard.side, targetCard.zone)} to the top of ${dest}`,
     },
     effect: (state: GameState, side: string) =>
       move(state, side, targetCard, "deck", { front: true }),

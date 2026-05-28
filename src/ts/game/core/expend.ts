@@ -1,7 +1,7 @@
 // Expend: reveal a card from hand and trash it as a cost to gain its ability.
 // Mirrors: src/clj/game/core/expend.clj
 
-import type { Ability, Card, EID, GameState } from "./types";
+import type { Ability, Card, EID, GameState, Targets } from "./types";
 import { cardDef } from "./card_defs";
 import { checkpoint } from "./checkpoint";
 import { queueEvent, resolveAbility } from "./engine";
@@ -23,7 +23,7 @@ export function expendable(state: GameState, card: Card): boolean {
 export function expend(ex: Ability | undefined): Ability {
   const expCost = [toC("click", 1), toC("expend")];
   const mergedCost = ex?.cost
-    ? mergeCosts([...(ex.cost as any[]), ...expCost])
+    ? mergeCosts([...ex.cost, ...expCost])
     : mergeCosts(expCost);
 
   return {
@@ -33,7 +33,7 @@ export function expend(ex: Ability | undefined): Ability {
         side: string,
         eid: EID,
         card: Card,
-        targets: any[],
+        targets: Targets,
       ) => {
         const eidWithSource = { ...eid, source: card, sourceType: "ability" };
         const canPayResult = canPay(
@@ -44,9 +44,10 @@ export function expend(ex: Ability | undefined): Ability {
           null,
           mergedCost,
         );
-        const exReqOk = ex?.req
-          ? (ex.req as any)(state, side, eid, card, targets)
-          : true;
+        const exReqOk =
+          typeof ex?.req === "function"
+            ? ex.req(state, side, eid, card, targets)
+            : ex?.req ?? true;
         return !!(canPayResult && exReqOk);
       },
     ),
@@ -58,7 +59,7 @@ export function expend(ex: Ability | undefined): Ability {
         _side: string,
         eid: EID,
         card: Card,
-        _targets: any[],
+        _targets: Targets,
       ) => {
         wait_for(
           state,

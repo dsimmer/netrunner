@@ -546,7 +546,7 @@ export const riggingUp: CardDef = {
                   card: Card,
                   targets: any[],
                 ) => {
-                  coreCharge.chargeCard(eid, rigTarget);
+                  coreCharge.chargeCard(state, side, eid, rigTarget);
                 },
               ),
               msg: msg(
@@ -1893,7 +1893,7 @@ export const spotThePrey: CardDef = {
     ): Generator<any, any, any> {
       yield wait_for(
         state,
-        [{ asyncResult: "result" }, coreExpose.expose(state, side, [msg])],
+        [{ asyncResult: "result" }, coreExpose.expose(state, side, eid, [msg])],
         [],
       );
       yield continue_ability(state, side, runAnyServerAbility(), card, null);

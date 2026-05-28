@@ -78,7 +78,7 @@ export function moveToBottom(targetCard: any, actingSide: string): any {
       public: (state: GameState) =>
         `add ${cardStr(state, targetCard)} from ${nameZone(targetCard.side, targetCard.zone)} to the bottom of ${dest}`,
       [actingSide]: (state: GameState) =>
-        `add ${cardStr(state, targetCard, { "maybe-visible": true })} from ${nameZone(targetCard.side, targetCard.zone)} to the bottom of ${dest}`,
+        `add ${cardStr(state, targetCard, { maybeVisible: true })} from ${nameZone(targetCard.side, targetCard.zone)} to the bottom of ${dest}`,
     },
     effect: (state: GameState, side: string) =>
       move(state, side, targetCard, "deck"),
@@ -436,7 +436,7 @@ export function corpRecur(pred: (c: any) => boolean = () => true): any {
         targets: any[],
       ) => {
         const target = targets?.[0];
-        return `add ${cardStr(state, target, { "maybe-visible": true })} to HQ`;
+        return `add ${cardStr(state, target, { maybeVisible: true })} to HQ`;
       },
     },
     effect: (
@@ -749,7 +749,7 @@ export function placeAdvancementCounter(
         _c: Card | null,
         targets: any[],
       ) =>
-        `place ${quantify(qty, "advancement counter")} on ${cardStr(state, targets?.[0], { "maybe-visible": true })}`,
+        `place ${quantify(qty, "advancement counter")} on ${cardStr(state, targets?.[0], { maybeVisible: true })}`,
     },
     async: true,
     effect: (

@@ -49,10 +49,7 @@ export function ackToast(
 ): void {
   if (!toastId) return;
   const filter = (toasts: unknown[]): unknown[] =>
-    toasts.filter((t: any) => {
-      const entry = t as ToastEntry;
-      return entry.id !== toastId;
-    });
+    toasts.filter((t) => (t as ToastEntry).id !== toastId);
   if (side === CORP_SIDE) {
     state.corp.toast = filter(state.corp.toast);
   } else if (side === RUNNER_SIDE) {

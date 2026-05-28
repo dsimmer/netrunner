@@ -1,8 +1,11 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
+import type { Side } from "./types";
+import type { EID } from "./eid";
 import { allActiveInstalled, getAllInstalled, allInstalled } from "./board";
 import { virusProgram, getCounters } from "./card";
 import { RUNNER_SIDE } from "./state";
+import { addCounter } from "./props";
 
 /**
  * Calculate the number of virus counters on the given card, taking Hivemind into account.
@@ -13,8 +16,8 @@ export function getVirusCounters(state: GameState, card: Card): number {
         (c) => c.title === "Hivemind",
       )
     : [];
-  const cards = [card, ...hiveminds];
-  return cards.reduce((sum: any, c: any) => sum + getCounters(c, "virus"), 0);
+  const cards: Card[] = [card, ...hiveminds];
+  return cards.reduce((sum, c) => sum + getCounters(c, "virus"), 0);
 }
 
 /**
@@ -44,20 +47,24 @@ export function numberOfRunnerVirusCounters(state: GameState): number {
   );
 }
 
-import { addCounter } from "./props";
-
-/** Add n virus counters to a card. */
-export function addVirusCounter(state: any, side: any, eid: any, card: any, n: number): void {
-  addCounter(state, side, eid, card, ":virus", n);
+/** Add n virus counters to a card. Thin wrapper used by card definitions. */
+export function addVirusCounter(
+  state: GameState,
+  side: Side,
+  eid: EID,
+  card: Card,
+  n: number,
+): void {
+  addCounter(state, side, eid, card, "virus", n);
 }
 
-/** Count virus counters on a card. */
-export function countVirusCounter(card: Card): number;
-export function countVirusCounter(state: GameState, card: Card): number;
-export function countVirusCounter(...args: any[]): number {
-  if (args.length === 1) {
-    // shorthand: just count counters directly on the card (no Hivemind lookup)
-    return getCounters(args[0] as Card, "virus") ?? 0;
+/** Count virus counters on a card directly (no Hivemind expansion). */
+export function countVirusCounter(
+  cardOrState: Card | GameState,
+  maybeCard?: Card,
+): number {
+  if (maybeCard === undefined) {
+    return getCounters(cardOrState as Card, "virus") ?? 0;
   }
-  return getVirusCounters(args[0] as GameState, args[1] as Card);
+  return getVirusCounters(cardOrState as GameState, maybeCard);
 }

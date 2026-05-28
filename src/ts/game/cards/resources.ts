@@ -809,6 +809,7 @@ function shardConstructor(
   effectFn: any,
 ): any {
   return {
+    title,
     events: [
       Object.assign(
         {},
@@ -3917,6 +3918,7 @@ export const edenShard: CardDef = shardConstructor(
   (state: State, side: Side, eid: EID, card: Card) =>
     drawCards(state, "corp", eid, 2),
 );
+(edenShard as { title?: string }).title = "Eden Shard";
 
 /** Emptied Mind */
 export const emptiedMind: CardDef = {
@@ -4199,6 +4201,7 @@ export const fencerFueno: CardDef = companionBuilder(
     }),
   },
 );
+(fencerFueno as { title?: string }).title = "Fencer Fueno";
 
 /** Fester */
 export const fester: CardDef = {
@@ -4775,6 +4778,7 @@ export const hadesShard: CardDef = shardConstructor(
   (state: State, side: Side, eid: EID) =>
     breachServer(state, "runner", eid, [":archives"], { "no-root": true }),
 );
+(hadesShard as { title?: string }).title = "Hades Shard";
 
 /** Hannah "Wheels" Pilintra */
 export const hannahWheelsPilintra: CardDef = {
@@ -5215,6 +5219,86 @@ export const investigatorInezDelgado: CardDef = {
     },
   ],
 };
+
+function investigatorInezReveal(
+  title: string,
+  revealSetMsg: string | null,
+  cardsToReveal: (state: State) => Card[],
+): CardDef {
+  return {
+    title,
+    abilities: [
+      {
+        msg: msg("add itself to score area as an agenda worth 0 agenda points"),
+        label: "Add to score area and reveal the top 3 cards of R&D",
+        async: true,
+        req: req(function* (state: State): Generator<any, any, any> {
+          return !!(state as any).runner?.register?.["stole-agenda"];
+        }),
+        effect: effect(function* (
+          state: State,
+          side: Side,
+          eid: EID,
+          card: Card,
+        ): Generator<any, any, any> {
+          const movedCard = asAgenda(state, "runner", card, 0);
+          if (revealSetMsg) {
+            registerEvents(state, side, movedCard, [
+              {
+                event: ":win",
+                req: req(function* (
+                  state: State,
+                  side: Side,
+                  eid: EID,
+                  card: Card,
+                  targets: any[],
+                ): Generator<any, any, any> {
+                  const context = targets[0];
+                  return context?.winner === ":runner";
+                }),
+                "unregister-once-resolved": true,
+                msg: revealSetMsg,
+              },
+            ]);
+          }
+          const cards = cardsToReveal(state).filter(Boolean);
+          if (cards.length > 0) {
+            revealLoud(state, side, eid, card, null, cards);
+          } else {
+            effectCompleted(state, side, eid);
+          }
+        }),
+      },
+    ],
+  };
+}
+
+export const investigatorInezDelgado2: CardDef = investigatorInezReveal(
+  "Investigator Inez Delgado 2",
+  "reveal set 5",
+  (state: State) => ((state as any).corp?.deck ?? []).slice(0, 3),
+);
+(investigatorInezDelgado2 as { title?: string }).title =
+  "Investigator Inez Delgado 2";
+
+export const investigatorInezDelgado3: CardDef = investigatorInezReveal(
+  "Investigator Inez Delgado 3",
+  "reveal set 8",
+  (state: State) => (state as any).corp?.hand ?? [],
+);
+(investigatorInezDelgado3 as { title?: string }).title =
+  "Investigator Inez Delgado 3";
+
+export const investigatorInezDelgado4: CardDef = investigatorInezReveal(
+  "Investigator Inez Delgado 4",
+  null,
+  (state: State) => [
+    ...((state as any).corp?.hand ?? []),
+    (state as any).corp?.deck?.[0],
+  ],
+);
+(investigatorInezDelgado4 as { title?: string }).title =
+  "Investigator Inez Delgado 4";
 
 /** Jackpot! */
 export const jackpot: CardDef = {
@@ -6472,6 +6556,7 @@ export const mysticMaemi: CardDef = companionBuilder(
     }),
   },
 );
+(mysticMaemi as { title?: string }).title = "Mystic Maemi";
 
 /** Net Mercur */
 export const netMercur: CardDef = {
@@ -7152,6 +7237,7 @@ export const paladinPoemu: CardDef = companionBuilder(
     }),
   },
 );
+(paladinPoemu as { title?: string }).title = "Paladin Poemu";
 
 /** Paparazzi */
 export const paparazzi: CardDef = {
@@ -8360,6 +8446,83 @@ export const starlightCrusadeFunding: CardDef = {
   ],
 };
 
+/** Stick and Poke */
+export const stickAndPoke: CardDef = {
+  title: "Stick and Poke",
+  events: [
+    {
+      event: ":encounter-ice",
+      req: req(function* (
+        state: State,
+        side: Side,
+      ): Generator<any, any, any> {
+        return firstEvent(state, side, ":encounter-ice");
+      }),
+      interactive: req(function* (): Generator<any, any, any> {
+        return true;
+      }),
+      effect: effect(function* (
+        state: State,
+        side: Side,
+        eid: EID,
+        card: Card,
+        targets: any[],
+      ): Generator<any, any, any> {
+        const ice = targets[0]?.ice ?? coreIce.getCurrentIce(state);
+        registerLingeringEffect(state, side, card, {
+          duration: ":end-of-encounter",
+          type: ":additional-subroutines",
+          req: req(function* (
+            state: State,
+            side: Side,
+            eid: EID,
+            card: Card,
+            targets: any[],
+          ): Generator<any, any, any> {
+            const target = targets[0];
+            return coreCard.rezzed(target) && sameCard(target, ice);
+          }),
+          value: {
+            position: ":front",
+            subroutines: [
+              {
+                label: "[Stick] Do 1 net damage. The Runner draws 1 card.",
+                msg: "Do 1 net damage",
+                async: true,
+                effect: effect(function* (
+                  state: State,
+                  side: Side,
+                  eid: EID,
+                  card: Card,
+                ): Generator<any, any, any> {
+                  yield wait_for(
+                    state,
+                    [
+                      { asyncResult: "result" },
+                      damage(state, side, eid, ":net", 1),
+                    ],
+                    [
+                      () =>
+                        coreDefHelpers.drawLoud(
+                          state,
+                          "runner",
+                          eid,
+                          card,
+                          1,
+                        ),
+                    ],
+                  );
+                }),
+              },
+            ],
+          },
+        });
+        effectCompleted(state, side, eid);
+      }),
+    },
+  ],
+};
+
 /** Stim Dealer */
 export const stimDealer: CardDef = {
   title: "Stim Dealer",
@@ -8431,6 +8594,92 @@ export const stoneshipChartRoom: CardDef = {
     },
   ],
 };
+
+/** Street Magic */
+export const streetMagic: CardDef = (() => {
+  const runnerBreak = (unbrokenSubs: string[]): CardDef => ({
+    prompt: "Choose a subroutine to resolve",
+    choices: unbrokenSubs,
+    async: true,
+    effect: effect(function* (
+      state: State,
+      side: Side,
+      eid: EID,
+      card: Card,
+      targets: any[],
+    ): Generator<any, any, any> {
+      const currentIce = coreIce.getCurrentIce(state) as any;
+      const target = targets[0];
+      const sub = (currentIce?.subroutines ?? []).find(
+        (s: any) => !s.broken && (s.label ?? s.subEffect?.label) === target,
+      );
+      yield wait_for(
+        state,
+        [
+          { asyncResult: "result" },
+          () =>
+            coreEngine.resolveAbility(
+              state,
+              "corp",
+              coreEid.makeEID(state, {
+                source: currentIce,
+                sourceType: ":subroutine",
+              }),
+              sub?.subEffect ?? sub?.ability ?? sub,
+              currentIce,
+              null,
+            ),
+        ],
+        [
+          () => {
+            const remaining = unbrokenSubs.filter((s) => s !== target);
+            if ((state as any).run && !(state as any).endRun?.ended && remaining.length > 0) {
+              continue_ability(state, side, runnerBreak(remaining), card, null);
+            } else {
+              effectCompleted(state, side, eid);
+            }
+          },
+        ],
+      );
+    }),
+  });
+
+  return {
+    title: "Street Magic",
+    abilities: [
+      {
+        implementation: "Effect is manually triggered",
+        label: "Choose subroutine order",
+        req: req(function* (state: State): Generator<any, any, any> {
+          const currentIce = coreIce.getCurrentIce(state) as any;
+          return (
+            (currentIce?.subroutines ?? []).filter((s: any) => !s.broken)
+              .length > 0
+          );
+        }),
+        async: true,
+        msg: msg((state: State) => {
+          const currentIce = coreIce.getCurrentIce(state) as any;
+          return `choose the order the unbroken subroutines on ${currentIce?.title} resolve`;
+        }),
+        effect: effect(function* (
+          state: State,
+          side: Side,
+          eid: EID,
+          card: Card,
+        ): Generator<any, any, any> {
+          continue_ability(
+            state,
+            side,
+            runnerBreak(unbrokenSubroutinesChoice(coreIce.getCurrentIce(state))),
+            card,
+            null,
+          );
+        }),
+      },
+    ],
+  };
+})();
 
 /** Street Peddler */
 export const streetPeddler: CardDef = {
@@ -9637,6 +9886,7 @@ export const tricksterTaka: CardDef = companionBuilder(
     }),
   },
 );
+(tricksterTaka as { title?: string }).title = "Trickster Taka";
 
 /** Tsakhia "Bankhar" Gantulga */
 export const tsakhiaBankharGantulga: CardDef = {
@@ -9905,6 +10155,7 @@ export const utopiaShard: CardDef = shardConstructor(
     });
   },
 );
+(utopiaShard as { title?: string }).title = "Utopia Shard";
 
 /** Valentina Ferreira Carvalho */
 export const valentinaFerreiraCarvalho: CardDef = {

@@ -499,7 +499,7 @@ export const card_Silhouette_StealthOperative: CardDef = {
         card: Card,
         targets: any[],
       ): Generator<any, any, any> {
-        coreExpose.expose(eid, [targets[0]]);
+        coreExpose.expose(state, side, eid, [targets[0]]);
       }),
     },
   ],

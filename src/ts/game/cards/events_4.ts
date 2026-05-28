@@ -1523,7 +1523,7 @@ export const infiltration: CardDef = {
         async: true,
         effect: effect(
           (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
-            coreExpose.expose(eid, [msg]);
+            coreExpose.expose(state, side, eid, [msg]);
           },
         ),
       },

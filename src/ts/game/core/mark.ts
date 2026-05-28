@@ -3,13 +3,13 @@
 
 import type { GameState } from "./state";
 import type { Card } from "./card";
-import type { Ability } from "./types";
+import type { Ability, EID } from "./types";
 import { RUNNER_SIDE } from "./state";
 import { getCard } from "./finding";
 import { registerEvents, triggerEvent } from "./engine";
 import { systemMsg } from "./say";
 import { centralToName } from "./servers";
-import { update } from "./update";
+import { updateCard } from "./update";
 
 const CENTRAL_SERVERS = ["hq", "rd", "archives"] as const;
 
@@ -34,7 +34,7 @@ export function identifyMark(state: GameState): void {
 }
 
 export const identifyMarkAbility: Ability = {
-  effect: (state: any) => {
+  effect: (state: GameState) => {
     if (state.mark == null) identifyMark(state);
   },
 };
@@ -43,37 +43,25 @@ export const markChangedEvent: Ability = {
   event: "mark-changed",
   silent: true,
   interactive: () => false,
-  effect: (state: any, side: any, _eid: any, card: any) => {
+  effect: (state: GameState, side: string, _eid: EID, card: Card) => {
     if (!card) return;
-    (update as any)(
-      state,
-      RUNNER_SIDE,
-      (c: Card) => {
-        (c as any).cardTarget = centralToName(state.mark);
-        return c;
-      },
-      card,
-    );
+    updateCard(state, RUNNER_SIDE, {
+      ...card,
+      cardTarget: centralToName(state.mark ?? "") ?? "",
+    });
     registerEvents(state, side, card, [
       {
         event: "post-runner-turn-ends",
         silent: true,
         unregisterOnceResolved: true,
-        effect: (state2: any) => {
+        effect: (state2: GameState) => {
           const fresh = getCard(state2, card);
           if (fresh) {
-            (update as any)(
-              state2,
-              RUNNER_SIDE,
-              (c: Card) => {
-                delete (c as any).cardTarget;
-                return c;
-              },
-              fresh,
-            );
+            const { cardTarget: _drop, ...rest } = fresh;
+            updateCard(state2, RUNNER_SIDE, rest as Card);
           }
         },
       } as Ability,
     ]);
   },
-} as Ability;
+};

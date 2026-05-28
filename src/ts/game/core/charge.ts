@@ -1,12 +1,13 @@
 // Charge ability: place power counters on cards that have at least one power counter.
 // Mirrors: src/clj/game/core/charge.clj
 
-import type { Ability, Card, EID, GameState } from "./types";
+import type { Ability, Card, EID, GameState, Targets } from "./types";
 import { allInstalled } from "./board";
 import { getCard } from "./finding";
 import { effectCompleted } from "./eid";
 import { req, msg } from "../macros";
-import { queueEvent } from "./engine";
+import { addCounter } from "./props";
+import { getCounters } from "./card";
 
 /**
  * Check if a card can be charged (has at least one power counter).
@@ -25,55 +26,24 @@ export function canCharge(
 ): boolean {
   if (card) {
     const c = getCard(state, card);
-    return (c?.counter?.power || 0) > 0;
+    return c ? getCounters(c, "power") > 0 : false;
   }
-  const cards = allInstalled(state, side);
-  return cards.some((c: any) => canCharge(state, side, c));
+  return allInstalled(state, side).some((c) => canCharge(state, side, c));
 }
 
 /**
  * Charge a card: place power counters on it (only if it already has at least one).
  * Mirrors: charge-card in charge.clj
  */
-export function chargeCard(eid: EID, target: Card): void;
 export function chargeCard(
   state: GameState,
   side: string,
   eid: EID,
   target: Card,
-): void;
-/**
- * Charge a card with a specific count of power counters.
- * Mirrors: charge-card (multi-arity with count) in charge.clj
- */
-export function chargeCard(
-  state: GameState,
-  side: string,
-  eid: EID,
-  target: Card,
-  count: number,
-): void;
-export function chargeCard(...rawArgs: any[]): void {
-  // shorthand (eid, target): no state — no-op
-  if (rawArgs.length === 2) return;
-  const state = rawArgs[0] as GameState;
-  const side = rawArgs[1] as string;
-  const eid = rawArgs[2] as EID;
-  const target = rawArgs[3] as Card;
-  const count = rawArgs[4] as number | undefined;
-  const c = count || 1;
+  count = 1,
+): void {
   if (canCharge(state, side, target)) {
-    const card = getCard(state, target);
-    if (card) {
-      if (!card.counter) card.counter = {};
-      card.counter.power = (card.counter.power || 0) + c;
-      queueEvent(state, ":counter-added", {
-        card: getCard(state, card),
-        "counter-type": "power",
-        amount: c,
-        placed: true,
-      });
-    }
+    addCounter(state, side, eid, target, "power", count, { placed: true });
   } else {
     effectCompleted(state, side, eid);
   }
@@ -86,9 +56,8 @@ export function chargeCard(...rawArgs: any[]): void {
 export function chargeAbility(
   state: GameState,
   side: string,
-  n?: number,
+  n = 1,
 ): Ability | null {
-  const num = n || 1;
   if (!canCharge(state, side)) {
     return null;
   }
@@ -102,31 +71,24 @@ export function chargeAbility(
     msg: msg(
       "charge ",
       (
-        state: GameState,
-        _side: string,
-        _eid: EID,
-        card: Card,
-        _targets: Card[],
-      ) => card?.title || "",
-      (
         _state: GameState,
         _side: string,
         _eid: EID,
         _card: Card,
-        _targets: Card[],
-      ) => {
-        return num > 1 ? `${num} times` : "";
-      },
+        targets: Targets,
+      ) => (targets?.[0] as Card | undefined)?.title ?? "",
+      n > 1 ? ` ${n} times` : "",
     ),
     effect: req(
       (
-        state: GameState,
-        side: string,
-        eid: EID,
-        card: Card,
-        targets: Card[],
+        s: GameState,
+        sd: string,
+        e: EID,
+        _card: Card,
+        targets: Targets,
       ) => {
-        chargeCard(state, side, eid, card, num);
+        const target = targets?.[0] as Card | undefined;
+        if (target) chargeCard(s, sd, e, target, n);
       },
     ),
   };
