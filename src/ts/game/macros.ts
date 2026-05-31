@@ -15,46 +15,48 @@ import * as coreEid from './core/eid';
 import * as utils from './utils';
 
 // Shorthand references commonly used in effect functions
-const _forms: Record<string, (state: State, card?: Card, targets?: any[], side?: Side) => any> = {
-  runner: (state) => (state as any).corp === undefined ? state : (state as any).runner,
-  corp: (state) => (state as any).corp,
-  run: (state) => (state as any).run,
+const _forms: Record<string, (state: State, card?: Card, targets?: unknown[], side?: Side) => unknown> = {
+  runner: (state) => state.corp === undefined ? state : state.runner,
+  corp: (state) => state.corp,
+  run: (state) => state.run,
   runServer: (state) => {
-    const run = (state as any).run;
+    const run = state.run;
     const server = run?.server;
     if (server) {
-      return (state as any).corp?.servers?.[server as any];
+      const srvs = state.corp?.servers as unknown as Record<string, unknown> | undefined;
+      return srvs?.[server as unknown as string];
     }
     return undefined;
   },
   runIces: (state) => {
-    const run = (state as any).run;
+    const run = state.run;
     const server = run?.server;
     if (server) {
-      return (state as any).corp?.servers?.[server as any]?.ices;
+      const srvs = state.corp?.servers as unknown as Record<string, { ices?: unknown[] }> | undefined;
+      return srvs?.[server as unknown as string]?.ices;
     }
     return [];
   },
-  runPosition: (state) => (state as any).run?.position,
+  runPosition: (state) => state.run?.position,
   currentIce: (state, _card) => {
     // current-ice: (game.core.ice/get-current-ice state)
     return coreIce.getCurrentIce(state);
   },
-  corpReg: (state) => (state as any).corp?.register,
-  corpRegLastTurn: (state) => (state as any).corp?.registerLastTurn,
-  runnerReg: (state) => (state as any).runner?.register,
-  runnerRegLastTurn: (state) => (state as any).runner?.registerLastTurn,
+  corpReg: (state) => state.corp?.register,
+  corpRegLastTurn: (state) => state.corp?.registerLastTurn,
+  runnerReg: (state) => state.runner?.register,
+  runnerRegLastTurn: (state) => state.runner?.registerLastTurn,
   target: (_state, _card, targets) => {
     const t = targets?.[0];
     if (t && typeof t === 'object' && 'uuid' in t && 'value' in t) {
-      return (t as any).value;
+      return (t as { value: unknown }).value;
     }
     return t;
   },
   context: (_state, _card, targets) => {
     const t = targets?.[0];
     if (t && typeof t === 'object' && 'uuid' in t && 'value' in t) {
-      return (t as any).value;
+      return (t as { value: unknown }).value;
     }
     return t;
   },
@@ -69,59 +71,60 @@ const _forms: Record<string, (state: State, card?: Card, targets?: any[], side?:
     if (!card) return false;
     const server = (coreCard.getZone(card) as string[])?.[1];
     if (server) {
-      const ices = (state as any).corp?.servers?.[server]?.ices;
+      const srvs = state.corp?.servers as unknown as Record<string, { ices?: unknown[] }> | undefined;
+      const ices = srvs?.[server]?.ices;
       return !ices || ices.length === 0;
     }
     return false;
   },
   runnableServers: (state, card, _targets, side) => {
     return coreServers.zonesToSortedNames(
-      coreRuns.getRunnableZones(state, side!, undefined, card as any, null)
+      coreRuns.getRunnableZones(state, side!, undefined, card, null)
     );
   },
   hqRunnable: (state, _card, _targets, side) => {
-    return (coreRuns.getRunnableZones(state, side!) as any[]).includes('hq');
+    return (coreRuns.getRunnableZones(state, side!) as readonly string[]).includes('hq');
   },
   rdRunnable: (state, _card, _targets, side) => {
-    return (coreRuns.getRunnableZones(state, side!) as any[]).includes('rd');
+    return (coreRuns.getRunnableZones(state, side!) as readonly string[]).includes('rd');
   },
   archivesRunnable: (state, _card, _targets, side) => {
-    return (coreRuns.getRunnableZones(state, side!) as any[]).includes('archives');
+    return (coreRuns.getRunnableZones(state, side!) as readonly string[]).includes('archives');
   },
   tagged: (state) => {
     // jinteki.utils/is-tagged? state
     return utils.isTagged?.(state) ?? false;
   },
   thisCardRun: (_state, card, targets) => {
-    const runId = (card as any)?.special?.runId;
+    const runId = card?.special?.runId;
     if (runId) {
-      const firstTarget = targets?.[0];
+      const firstTarget = targets?.[0] as { runId?: unknown } | undefined;
       const targetRunId = firstTarget?.runId;
       return runId === targetRunId;
     }
     return false;
   },
   thisCardIsRunSource: (state, card) => {
-    if ((state as any).run) {
-      return ((state as any).run as any)?.sourceCard?.cid === card?.cid;
+    if (state.run) {
+      return (state.run as { sourceCard?: { cid?: string } } | null | undefined)?.sourceCard?.cid === card?.cid;
     }
     return false;
   },
   thisServer: (state, card) => {
     const cardZone = coreCard.getZone(card ?? null);
-    const server = (state as any).run?.server;
+    const server = state.run?.server;
     if (cardZone && server) {
       return (cardZone as string[])[1] === (server as string[])[0];
     }
     return false;
   },
   corpCurrentlyDrawing: (state) => {
-    const currentlyDrawing = (state as any).corp?.register?.currentlyDrawing;
-    return currentlyDrawing && currentlyDrawing.length > 0;
+    const currentlyDrawing = state.corp?.register?.currentlyDrawing as unknown[] | undefined;
+    return Boolean(currentlyDrawing && currentlyDrawing.length > 0);
   },
   runnerCurrentlyDrawing: (state) => {
-    const currentlyDrawing = (state as any).runner?.register?.currentlyDrawing;
-    return currentlyDrawing && currentlyDrawing.length > 0;
+    const currentlyDrawing = state.runner?.register?.currentlyDrawing as unknown[] | undefined;
+    return Boolean(currentlyDrawing && currentlyDrawing.length > 0);
   },
 };
 

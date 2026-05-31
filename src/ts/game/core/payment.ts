@@ -4,7 +4,8 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { Ability, Cost } from "./types";
+import type { Ability } from "./types";
+import type { Cost } from "./costs_1";
 import { isICE } from "./card";
 import { makeEID } from "./eid";
 import { anyEffects } from "./effects";
@@ -182,15 +183,15 @@ export function mergeCosts(
   const additionalGroups = groupCosts(additional);
 
   const merged = [...realGroups, ...additionalGroups]
-    .map((group: any) => group.reduce(mergeCostImpl, null as CostData | null))
+    .map((group: CostData[]) => group.reduce(mergeCostImpl, null as CostData | null))
     .filter((c): c is CostData => c != null)
-    .filter((c: any) => {
+    .filter((c: CostData) => {
       if (removeZeroCreditCost && c.type === "credit" && (c.amount ?? 0) === 0)
         return false;
       return true;
     });
 
-  return merged.sort((a: any, b: any) => implCostRank(a) - implCostRank(b));
+  return merged.sort((a: CostData, b: CostData) => implCostRank(a) - implCostRank(b));
 }
 
 // ---------------------------------------------------------------------------
@@ -207,7 +208,8 @@ function anyEffectStopsPay(
 }
 
 function isCorpInstallSource(eid: EID | null): boolean {
-  const t = (eid as any)?.sourceType ?? (eid as any)?.["source-type"];
+  const e = eid as (EID & { sourceType?: string; "source-type"?: string }) | null;
+  const t = e?.sourceType ?? e?.["source-type"];
   return t === "corp-install" || t === ":corp-install";
 }
 
@@ -226,14 +228,14 @@ export function canPay(
 ): CostData[] | null {
   const removeZeroCreditCost = isCorpInstallSource(eid) && !isICE(card);
   const costs = mergeCosts(
-    args.filter((c: any) => c != null),
+    args.filter((c): c is CostData | CostData[] => c != null),
     removeZeroCreditCost,
   );
 
   const ok = costs.every(
     (c) =>
       !anyEffectStopsPay(state, side, c) &&
-      payable(c as any, state, side, eid, card),
+      payable(c as unknown as Cost, state, side, eid, card),
   );
 
   if (ok) return costs;
@@ -245,8 +247,16 @@ export function canPay(
 // cost-paid accessors
 // ---------------------------------------------------------------------------
 
-function costPaidEntry(eid: EID | null, costType: string): any {
-  return (eid as any)?.["cost-paid"]?.[costType];
+interface CostPaidRecord {
+  "paid/value"?: number;
+  "paid/x-value"?: number;
+  "paid/targets"?: unknown[];
+  [key: string]: unknown;
+}
+
+function costPaidEntry(eid: EID | null, costType: string): CostPaidRecord | undefined {
+  const e = eid as (EID & { "cost-paid"?: Record<string, CostPaidRecord> }) | null;
+  return e?.["cost-paid"]?.[costType];
 }
 
 export function costTargets(eid: EID | null, costType: string): unknown[] {
@@ -277,8 +287,8 @@ export function buildCostLabel(
 ): string | null {
   const parts = mergeCosts(costs)
     .slice()
-    .sort((a: any, b: any) => displayCostRank(a) - displayCostRank(b))
-    .map((c: any) => label(c as any));
+    .sort((a: CostData, b: CostData) => displayCostRank(a) - displayCostRank(b))
+    .map((c: CostData) => label(c as unknown as Cost));
   const cost = parts.join(", ");
   if (!cost.trim()) return null;
   return capitalize(cost);
@@ -314,9 +324,9 @@ export function costToString(cost: CostData | CostData[]): string | null {
     return cost.length > 0 ? costToString(cost[0]) : null;
   }
   if (!cost?.type) return null;
-  if (value(cost as any) < 0) return null;
+  if (value(cost as unknown as Cost) < 0) return null;
   const costType = cost.type;
-  const costString = label(cost as any);
+  const costString = label(cost as unknown as Cost);
   if (costType === "click" || costType === "lose-click")
     return `spend ${costString}`;
   if (costType === "credit") return `pay ${costString}`;
@@ -328,7 +338,7 @@ export function buildCostString(
   costs: Array<CostData | CostData[] | null | undefined>,
 ): string | null {
   const parts = mergeCosts(costs)
-    .map((c: any) => costToString(c))
+    .map((c: CostData) => costToString(c))
     .filter((s): s is string => !!s);
   const result = parts.join(" and ");
   if (!result.trim()) return null;

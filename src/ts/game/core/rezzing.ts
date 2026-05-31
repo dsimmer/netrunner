@@ -4,7 +4,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { Ability, CardDef } from "./types";
+import type { Ability, AbilityFn, CardDef } from "./types";
 import type { CostData } from "./payment";
 
 import { asset, conditionCounter, ice, rezzed, upgrade } from "./card";
@@ -101,7 +101,7 @@ function trashHostedCards(
   eid: EID,
   card: Card,
 ): void {
-  const hostedCards = card.hosted?.filter((h: any) => !conditionCounter(h)) ?? [];
+  const hostedCards = card.hosted?.filter((h: Card) => !conditionCounter(h)) ?? [];
 
   if (canHost(state, card)) {
     effectCompleted(state, side, eid);
@@ -110,9 +110,9 @@ function trashHostedCards(
       state,
       [
         [{ asyncResult: "result" }],
-        function (s: GameState, _e: EID, _binds: any) {
+        function (s: GameState, _e: EID, _binds: Record<string, unknown>) {
           if (hostedCards.length > 0) {
-            const names = hostedCards.map((h: any) =>
+            const names = hostedCards.map((h: Card) =>
               cardStr(s, h, { visible: true }),
             );
             systemMsg(
@@ -169,9 +169,8 @@ function rezMessage(
   const titleCard = cardStr(state, card, { visible: true });
 
   // get-in msg-keys [:include-cost-from-eid :latest-payment-str]
-  const prependCostStr = (msgKeys["include-cost-from-eid"] as any)
-    ? ((msgKeys["include-cost-from-eid"] as any)["latest-payment-str"] ?? "")
-    : "";
+  const includeCostFromEid = msgKeys["include-cost-from-eid"] as { "latest-payment-str"?: string } | undefined;
+  const prependCostStr = includeCostFromEid?.["latest-payment-str"] ?? "";
 
   let adjustedCostStr: string | undefined;
   if (ignoreCost !== "all-costs") {
@@ -250,8 +249,8 @@ function completeRez(
     state,
     [
       [{ asyncResult: "result" }],
-      function (s: GameState, _e: EID, binds: any) {
-        const asyncResult = (binds as any).asyncResult ?? binds;
+      function (s: GameState, _e: EID, binds: Record<string, unknown>) {
+        const asyncResult = (binds.asyncResult ?? binds) as { msg?: string; costPaid?: unknown };
         const msg = asyncResult?.msg;
         const costPaid = asyncResult?.costPaid;
 
@@ -261,7 +260,8 @@ function completeRez(
         }
 
         // Unregister derezzed events if they exist
-        if ((cdef as any)["derezzed-events"]) {
+        const cdefRec = cdef as { "derezzed-events"?: unknown; "rez-sound"?: string; "suppress-rez-sound"?: AbilityFn; "on-rez"?: Ability };
+        if (cdefRec["derezzed-events"]) {
           unregisterEvents(s, side, card);
         }
 
@@ -285,12 +285,10 @@ function completeRez(
         for (const h of hosted) {
           updateCard(s, side, {
             ...h,
-            zone: (h.zone as any[])?.map((z: unknown) => toKeyword(z)),
+            zone: h.zone?.map((z: string) => toKeyword(z)),
             host: {
-              ...((h as any).host ?? {}),
-              zone: ((h as any).host?.zone as any[])?.map((z: unknown) =>
-                toKeyword(z),
-              ),
+              ...(h.host ?? {}),
+              zone: h.host?.zone?.map((z: string) => toKeyword(z)),
             },
           } as unknown as Card);
         }
@@ -304,7 +302,7 @@ function completeRez(
         }
 
         // Warning about rez timing
-        if (!args.noWarning && (s as any).corpPhase12) {
+        if (!args.noWarning && s.corpPhase12) {
           toast(
             s,
             "corp",
@@ -315,13 +313,13 @@ function completeRez(
         }
 
         // Play sound
-        const rezByte = (cdef as any)["rez-sound"];
+        const rezByte = cdefRec["rez-sound"];
         const suppressRezSound =
           args.silent ??
           (() => {
-            const suppressReq = (cdef as any)["suppress-rez-sound"];
+            const suppressReq = cdefRec["suppress-rez-sound"];
             if (suppressReq) {
-              return suppressReq(s, side, eid, newCard, null);
+              return suppressReq(s, side, eid, newCard, []);
             }
             return false;
           })();
@@ -338,14 +336,15 @@ function completeRez(
         }
 
         // Update stats
-        const stats = (s as any).stats ?? {};
-        if (!stats.corp) stats.corp = {};
-        if (!stats.corp.cards) stats.corp.cards = {};
-        stats.corp.cards.rezzed = (stats.corp.cards.rezzed ?? 0) + 1;
-        (s as any).stats = stats;
+        const stats = s.stats ?? (s.stats = {});
+        const corpStats = (stats.corp as Record<string, Record<string, number | undefined>> | undefined) ?? {};
+        stats.corp = corpStats;
+        const cardsStats: Record<string, number | undefined> = corpStats.cards ?? {};
+        corpStats.cards = cardsStats;
+        cardsStats.rezzed = (cardsStats.rezzed ?? 0) + 1;
 
         // Register pending on-rez event
-        const cardAbility = (cdef as any)["on-rez"];
+        const cardAbility = cdefRec["on-rez"];
         if (cardAbility) {
           registerPendingEvent(s, "rez", newCard, cardAbility);
         }
@@ -359,7 +358,7 @@ function completeRez(
           s,
           [
             [{ asyncResult: "result" }],
-            function (s2: GameState, _e2: EID, _binds2: any) {
+            function (s2: GameState, _e2: EID, _binds2: Record<string, unknown>) {
               // Checkpoint with :rez duration
               const cpEid = makeEID(s2, eid);
               if (args.suppressCheckpoint) {
@@ -399,9 +398,7 @@ export function canPayToRez(
   const costs = getRezCost(state, side, resolvedCard, args ?? {}) ?? [];
   const alternativeCost =
     resolvedCard && !isDisabledReg(state, resolvedCard)
-      ? ((cardDef(resolvedCard) as any)["alternative-cost"] as
-          | CostData[]
-          | undefined)
+      ? ((cardDef(resolvedCard) as { "alternative-cost"?: CostData[] })["alternative-cost"])
       : undefined;
 
   if (alternativeCost) {
@@ -417,30 +414,71 @@ export function canPayToRez(
 /**
  * rez: Rez a corp card.
  */
+interface RezArgs {
+  ignoreCost?: boolean | "all-costs" | ":all-costs" | string;
+  "ignore-cost"?: boolean | "all-costs" | ":all-costs" | string;
+  force?: boolean;
+  declinedAlternativeCost?: boolean;
+  alternativeCost?: CostData[];
+  noWarning?: boolean;
+  noMsg?: boolean;
+  pressContinue?: boolean;
+  disabled?: boolean;
+  silent?: boolean;
+  suppressCheckpoint?: boolean;
+  costBonus?: number;
+  msgKeys?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+// Permissive overloads for legacy card-side call shapes (some omit eid or
+// pass args at the wrong position).
+export function rez(eid: EID, card: Card, args?: RezArgs): void;
+export function rez(state: GameState, side: string, card: Card): void;
+export function rez(state: GameState, side: string, card: Card, args: RezArgs): void;
+export function rez(state: GameState, side: string, args: RezArgs, card: Card): void;
+export function rez(state: GameState, side: string, eid: EID, card: Card, args?: RezArgs): void;
 export function rez(
-  state: any,
-  side?: any,
-  eid?: any,
-  card?: any,
-  args?: any,
-): any;
-export function rez(
+  arg1: GameState | EID,
+  arg2: string | Card,
+  arg3?: EID | Card | RezArgs,
+  arg4?: Card | RezArgs,
+  arg5?: RezArgs,
+): void {
+  // (eid, card, args?) — no state, no-op
+  if (arg1 && typeof arg1 === "object" && "id" in arg1 && !("corp" in arg1)) {
+    return;
+  }
+  const state = arg1 as GameState;
+  const side = arg2 as string;
+  let eid: EID;
+  let card: Card;
+  let args: RezArgs | undefined;
+  // (state, side, card) or (state, side, card, args)
+  if (arg3 && typeof arg3 === "object" && "cid" in arg3) {
+    eid = makeEID(state);
+    card = arg3 as Card;
+    args = arg4 as RezArgs | undefined;
+  } else if (arg3 && typeof arg3 === "object" && "id" in arg3 && !("cid" in arg3)) {
+    // (state, side, eid, card, args?)
+    eid = arg3 as EID;
+    card = arg4 as Card;
+    args = arg5;
+  } else {
+    // (state, side, args, card) — broken legacy shape
+    eid = makeEID(state);
+    args = arg3 as RezArgs;
+    card = arg4 as Card;
+  }
+  return rezImpl(state, side, eid, card, args);
+}
+
+function rezImpl(
   state: GameState,
   side: string,
   eid: EID,
   card: Card,
-  args?: {
-    ignoreCost?: boolean | "all-costs";
-    force?: boolean;
-    declinedAlternativeCost?: boolean;
-    alternativeCost?: CostData[];
-    noWarning?: boolean;
-    noMsg?: boolean;
-    pressContinue?: boolean;
-    disabled?: boolean;
-    silent?: boolean;
-    suppressCheckpoint?: boolean;
-  },
+  args?: RezArgs,
 ): void {
   const opts = args ?? {};
   const eidWithSource = { ...eid, sourceType: "rez" };
@@ -453,9 +491,7 @@ export function rez(
     !isDisabledReg(state, resolvedCard) &&
     !opts.declinedAlternativeCost
   ) {
-    effectiveAlternativeCost = (cardDef(resolvedCard) as any)[
-      "alternative-cost"
-    ];
+    effectiveAlternativeCost = (cardDef(resolvedCard) as { "alternative-cost"?: CostData[] })["alternative-cost"];
   }
 
   const isRezEligible =
@@ -464,7 +500,7 @@ export function rez(
     (asset(resolvedCard) ||
       ice(resolvedCard) ||
       upgrade(resolvedCard) ||
-      !!(cardDef(resolvedCard) as any)["install-rezzed"]);
+      !!(cardDef(resolvedCard) as { "install-rezzed"?: boolean })["install-rezzed"]);
 
   if (!isRezEligible) {
     effectCompleted(state, side, eid);
@@ -515,7 +551,7 @@ export function rez(
       [],
     );
   } else {
-    completeRez(state, side, eid, resolvedCard, opts);
+    completeRez(state, side, eid, resolvedCard, opts as Parameters<typeof completeRez>[4]);
   }
 }
 
@@ -534,11 +570,10 @@ function rezMultipleMessage(
     (eid.source as Card)?.title ?? (eid.source as Card)?.printedTitle;
 
   // get-in msg-keys [:include-cost-from-eid :latest-payment-str]
-  const costStr = (msgKeys["include-cost-from-eid"] as any)
-    ? ((msgKeys["include-cost-from-eid"] as any)["latest-payment-str"] ?? "")
-    : "";
+  const includeCostFromEid = msgKeys["include-cost-from-eid"] as { "latest-payment-str"?: string } | undefined;
+  const costStr = includeCostFromEid?.["latest-payment-str"] ?? "";
 
-  const titles = cards.map((c: any) => cardStr(state, c, { visible: true }));
+  const titles = cards.map((c: Card) => cardStr(state, c, { visible: true }));
   const rhs = " (ignoring all costs)";
 
   const finalMsg = sourceCard
@@ -581,7 +616,7 @@ export function rezMultipleCards(
       state,
       [
         [{ asyncResult: "result" }],
-        function (s: GameState, _e: EID, _binds: any) {
+        function (s: GameState, _e: EID, _binds: Record<string, unknown>) {
           rezMultipleCards(s, side, eid, cards.slice(1), {
             ...opts,
             noMsg: true,
@@ -611,13 +646,12 @@ function derezMessage(
   msgKeys: { andThen?: string; [key: string]: unknown } = {},
 ): void {
   const { andThen = "" } = msgKeys;
-  const cardStrs = cards.map((c: any) => cardStr(state, c, { visible: true }));
+  const cardStrs = cards.map((c: Card) => cardStr(state, c, { visible: true }));
   const enumerate = enumerateStr(cardStrs);
 
   // get-in msg-keys [:include-cost-from-eid :latest-payment-str]
-  const prependCostStr = (msgKeys["include-cost-from-eid"] as any)
-    ? ((msgKeys["include-cost-from-eid"] as any)["latest-payment-str"] ?? "")
-    : "";
+  const includeCostFromEid = msgKeys["include-cost-from-eid"] as { "latest-payment-str"?: string } | undefined;
+  const prependCostStr = includeCostFromEid?.["latest-payment-str"] ?? "";
 
   const sourceCard = eid.source as Card;
   const title = sourceCard?.title ?? sourceCard?.printedTitle;
@@ -634,41 +668,46 @@ function derezMessage(
 /**
  * derez: Derez a number of corp cards.
  */
+interface DerezArgs {
+  suppressCheckpoint?: boolean;
+  noEvent?: boolean;
+  noMsg?: boolean;
+  msgKeys?: Record<string, unknown>;
+  [k: string]: unknown;
+}
+
 export function derez(eid: EID, cards: Card | Card[]): void;
-export function derez(state: GameState, side: string, cards: Card | Card[], args?: any): void;
-export function derez(state: GameState, side: string, eid: EID, cards: Card | Card[], args?: any): void;
-export function derez(...rawArgs: any[]): void;
+export function derez(state: GameState, side: string, cards: Card | Card[], args?: DerezArgs): void;
+export function derez(state: GameState, side: string, eid: EID, cards: Card | Card[], args?: DerezArgs): void;
 export function derez(
-  state?: any,
-  side?: any,
-  eidOrCards?: EID | Card | Card[],
-  cardsOrArgs?: Card | Card[] | any,
-  args?: {
-    suppressCheckpoint?: boolean;
-    noEvent?: boolean;
-    noMsg?: boolean;
-    msgKeys?: Record<string, unknown>;
-    [k: string]: any;
-  },
+  arg1?: GameState | EID,
+  arg2?: string | Card | Card[],
+  arg3?: EID | Card | Card[],
+  arg4?: Card | Card[] | DerezArgs,
+  arg5?: DerezArgs,
 ): void {
   let eid: EID, cards: Card | Card[];
+  let state: GameState | undefined;
+  let side: string | undefined;
+  let args: DerezArgs | undefined;
   // Shorthand (eid, cards) — first arg is an EID and second is card(s)
-  if (state && typeof state === "object" && "id" in (state as any) && !("title" in (state as any)) && !("activePlayer" in (state as any))) {
-    // 2-arg form passed as (state, side) here
-    eid = state as EID;
-    cards = side as Card | Card[];
-    // No state — best-effort no-op for the rest
+  if (arg1 && typeof arg1 === "object" && "id" in arg1 && !("activePlayer" in arg1) && !("corp" in arg1)) {
+    // No state — best-effort no-op
     return;
   }
-  if (eidOrCards && typeof eidOrCards === "object" && "id" in (eidOrCards as any) && !("title" in (eidOrCards as any)) && !Array.isArray(eidOrCards)) {
-    eid = eidOrCards as EID;
-    cards = cardsOrArgs as Card | Card[];
+  state = arg1 as GameState | undefined;
+  side = arg2 as string;
+  if (arg3 && typeof arg3 === "object" && "id" in arg3 && !Array.isArray(arg3)) {
+    eid = arg3 as EID;
+    cards = arg4 as Card | Card[];
+    args = arg5;
   } else {
-    eid = makeEID(state);
-    cards = eidOrCards as Card | Card[];
-    args = cardsOrArgs as any;
+    eid = makeEID(state!);
+    cards = arg3 as Card | Card[];
+    args = arg4 as DerezArgs | undefined;
   }
   const opts = args ?? {};
+  if (!state || !side) return;
 
   // Flatten and filter to only rezzed cards
   const cardList: Card[] = Array.isArray(cards) ? cards : [cards];
@@ -681,7 +720,7 @@ export function derez(
     }
   }
   const resolvedCards = flatCards
-    .map((c: any) => {
+    .map((c: Card) => {
       const resolved = getCard(state, c);
       return resolved && rezzed(resolved) ? resolved : null;
     })
@@ -697,22 +736,22 @@ export function derez(
     const deactivated = deactivate(state, "corp", c, true);
     updateCard(state, "corp", deactivated);
 
-    const cdef = cardDef(c);
+    const cdef = cardDef(c) as { "derez-effect"?: Ability; "derezzed-events"?: Ability[] };
 
     // derez-effect: currently only for lycian fixing subtypes on derez
-    const derezEffect = (cdef as any)["derez-effect"];
+    const derezEffect = cdef["derez-effect"];
     if (derezEffect) {
-      resolveAbility(state, "corp", derezEffect, getCard(state, c), cdef as any);
+      resolveAbility(state, "corp", derezEffect, getCard(state, c), []);
     }
 
     // Register derezzed events
-    const derezzedEvents = (cdef as any)["derezzed-events"];
+    const derezzedEvents = cdef["derezzed-events"];
     if (derezzedEvents) {
       registerEvents(
         state,
         "corp",
         c,
-        derezzedEvents.map((ev: any) => ({ ...ev, condition: "derezzed" })),
+        derezzedEvents.map((ev: Ability) => ({ ...ev, condition: "derezzed" })),
       );
     }
 

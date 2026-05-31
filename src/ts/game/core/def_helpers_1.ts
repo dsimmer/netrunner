@@ -74,40 +74,62 @@ export function waitFor(
   next: (asyncResult: unknown, innerEid: EID) => void,
 ): void {
   const inner = makeEIDFrom(state, parentEid);
-  registerEIDCallback(state, inner, (_s: any, _side: any, completed: any) => {
-    next((completed as EID).result, completed as EID);
+  registerEIDCallback(state, inner, (_s: GameState, _side: string, completed: EID) => {
+    next(completed.result, completed);
   });
   start(inner);
 }
 
-/** continue-ability shorthand — fresh resolve at current eid. */
-export function continueAbility(state: any, side?: any, eid?: any, ability?: any, card?: any, targets?: any): any;
-export function continueAbility(...args: any[]): any {
-  // Tolerate Clojure-style 3-or-4-arg calls: continueAbility(state, side, ability, card, targets?) or with eid.
-  let state: any, side: any, eid: any, ability: any, card: any, targets: any;
-  if (args.length === 6) {
-    [state, side, eid, ability, card, targets] = args;
-  } else if (args.length === 5) {
-    [state, side, ability, card, targets] = args;
-  } else if (args.length === 4) {
-    [state, side, ability, card] = args;
-    targets = [];
-  } else if (args.length === 3) {
-    [state, side, ability] = args;
-    card = null; targets = [];
+/** continue-ability shorthand — fresh resolve at current eid. Mirrors clj's 3/4/5/6-arity form.
+ *
+ *  Arg types are intentionally `unknown` for state/side because some tier-2 card files
+ *  call this with (cardDef, target, null) — a known port bug that will be fixed when
+ *  those card files are verified. Once card-side cleanup is done, narrow back to
+ *  `(state: GameState, side: string, ...)`.
+ */
+export function continueAbility(
+  state: unknown,
+  side: unknown,
+  arg3: Ability | EID | null | undefined,
+  arg4?: Ability | Card | null,
+  arg5?: Card | unknown[] | null,
+  arg6?: unknown[],
+): void {
+  let eid: EID | undefined;
+  let ability: Ability | null;
+  let card: Card | null;
+  let targets: unknown[];
+
+  // 6-arg form: state, side, eid, ability, card, targets
+  if (
+    arg3 &&
+    typeof arg3 === "object" &&
+    "id" in arg3 &&
+    !("effect" in arg3) &&
+    !("msg" in arg3)
+  ) {
+    eid = arg3 as EID;
+    ability = (arg4 as Ability | null) ?? null;
+    card = (arg5 as Card | null) ?? null;
+    targets = arg6 ?? [];
   } else {
-    return;
+    ability = (arg3 as Ability | null) ?? null;
+    card = (arg4 as Card | null) ?? null;
+    targets = (arg5 as unknown[]) ?? [];
   }
-  resolveAbility(state, side, { ...ability, eid } as Ability, card, targets);
+
+  if (!ability) return;
+  const finalAbility: Ability = eid ? { ...ability, eid } : ability;
+  resolveAbility(state as GameState, side as string, finalAbility, card, targets);
 }
 
 // ---------------------------------------------------------------------------
 // combine-abilities
 // ---------------------------------------------------------------------------
 
-export function combineAbilities(...abilities: any[]): any {
-  if (abilities.length < 2) return abilities[0];
-  const combined = abilities.slice(1).reduce((acc: any, ab: any) => {
+export function combineAbilities(...abilities: Ability[]): Ability {
+  if (abilities.length < 2) return abilities[0] ?? {};
+  return abilities.slice(1).reduce<Ability>((acc, ab) => {
     return {
       label: `${acc.label}. ${ab.label}`,
       async: true,
@@ -116,7 +138,7 @@ export function combineAbilities(...abilities: any[]): any {
         side: string,
         eid: EID,
         card: Card | null,
-        _targets: any[],
+        _targets: unknown[],
       ) => {
         waitFor(
           state,
@@ -127,15 +149,14 @@ export function combineAbilities(...abilities: any[]): any {
         );
       },
     };
-  }, abilities[0]);
-  return combined;
+  }, abilities[0] ?? {});
 }
 
 // ---------------------------------------------------------------------------
 // corp-rez-toast
 // ---------------------------------------------------------------------------
 
-export const corpRezToast: any = {
+export const corpRezToast: Ability = {
   event: "runner-turn-ends",
   effect: (state: GameState) =>
     toast(
@@ -150,63 +171,89 @@ export const corpRezToast: any = {
 // reorder-choice / reorder-final
 // ---------------------------------------------------------------------------
 
-export function reorderChoice(reorderSide: string, ...rest: any[]): any {
+// Wide overload signatures to tolerate the variety of shapes tier-2 card files
+// pass — some use Card[], some use unknown[] from upstream targets, some include
+// keyword-prefixed sides (":corp" / "corp"). The body normalises internally.
+export function reorderChoice(reorderSide: string, cards: readonly unknown[]): Ability;
+export function reorderChoice(
+  reorderSide: string,
+  waitSide: string,
+  remaining: readonly unknown[],
+  chosen: readonly unknown[],
+  n: number,
+  original: readonly unknown[],
+  dest?: string | null,
+): Ability;
+export function reorderChoice(
+  reorderSide: string,
+  arg2: readonly unknown[] | string,
+  arg3?: readonly unknown[],
+  arg4?: readonly unknown[],
+  arg5?: number,
+  arg6?: readonly unknown[],
+  arg7?: string | null,
+): Ability {
   let waitSide: string;
-  let remaining: any[];
-  let chosen: any[];
+  let remaining: Card[];
+  let chosen: Card[];
   let n: number;
-  let original: any[];
+  let original: Card[];
   let dest: string | null;
 
-  if (rest.length === 1) {
-    const cards = rest[0] as any[];
+  if (typeof arg2 === "string") {
+    waitSide = arg2;
+    remaining = (arg3 ?? []) as Card[];
+    chosen = (arg4 ?? []) as Card[];
+    n = arg5 ?? 0;
+    original = (arg6 ?? []) as Card[];
+    dest = arg7 ?? null;
+  } else {
+    const cards = arg2 as Card[];
     waitSide = otherSide(reorderSide) ?? "";
     remaining = cards;
     chosen = [];
     n = cards.length;
     original = cards;
     dest = null;
-  } else if (rest.length === 5) {
-    [waitSide, remaining, chosen, n, original] = rest;
-    dest = null;
-  } else {
-    [waitSide, remaining, chosen, n, original, dest] = rest;
   }
 
-  if (!remaining || remaining.length === 0) return undefined;
+  // Always return an Ability (never undefined) so callers that pass directly
+  // into resolveAbility don't trip TS strict-null. Empty-remaining → a no-op
+  // ability that immediately completes.
+  if (!remaining || remaining.length === 0) {
+    return {
+      async: true,
+      effect: (state: GameState, side: string, eid: EID) =>
+        effectCompleted(state, side, eid),
+    };
+  }
 
   return {
     prompt:
       `Choose a card to move next ${dest === "bottom" ? "under " : "onto "}` +
       `${reorderSide === "corp" ? "R&D" : "the stack"}`,
-    choices: remaining,
+    choices: remaining as unknown as string[],
     async: true,
     effect: (
       state: GameState,
       side: string,
       eid: EID,
       card: Card | null,
-      targets: any[],
+      targets: unknown[],
     ) => {
-      const target = targets?.[0];
+      const target = targets[0] as Card;
       const newChosen = [target, ...chosen];
       if (newChosen.length < n) {
-        continueAbility(
-          state,
-          side,
-          eid,
-          reorderChoice(
-            reorderSide,
-            waitSide,
-            removeOnce((x: any) => x === target, remaining),
-            newChosen,
-            n,
-            original,
-            dest,
-          ),
-          card,
-          [],
+        const nextAbility = reorderChoice(
+          reorderSide,
+          waitSide,
+          removeOnce((x: Card) => x === target, remaining) as Card[],
+          newChosen,
+          n,
+          original,
+          dest,
         );
+        continueAbility(state, side, eid, nextAbility, card, []);
       } else {
         continueAbility(
           state,
@@ -224,10 +271,10 @@ export function reorderChoice(reorderSide: string, ...rest: any[]): any {
 function reorderFinal(
   reorderSide: string,
   waitSide: string,
-  chosen: any[],
-  original: any[],
+  chosen: Card[],
+  original: Card[],
   dest: string | null = null,
-): any {
+): Ability {
   const zoneName = reorderSide === "corp" ? "R&D" : "the stack";
   return {
     prompt:
@@ -241,27 +288,28 @@ function reorderFinal(
       side: string,
       eid: EID,
       card: Card | null,
-      targets: any[],
+      targets: unknown[],
     ) => {
-      const target = targets?.[0];
-      const player = (state as any)[reorderSide];
+      const target = targets[0];
+      const player = reorderSide === "corp" ? state.corp : state.runner;
       const finishShuffleFlag = () => {
-        if (reorderSide === "corp" && state.run && (state as any).access) {
-          (state.run as any)["shuffled-during-access"] = {
-            ...((state.run as any)["shuffled-during-access"] ?? {}),
+        if (reorderSide === "corp" && state.run && state.access) {
+          const run = state.run as { "shuffled-during-access"?: Record<string, boolean> };
+          run["shuffled-during-access"] = {
+            ...(run["shuffled-during-access"] ?? {}),
             rd: true,
           };
         }
       };
 
       if (dest === "bottom" && target === "Done") {
-        const deck = (player.deck ?? []) as any[];
+        const deck = player.deck ?? [];
         player.deck = [...deck.slice(chosen.length), ...[...chosen].reverse()];
         finishShuffleFlag();
         clearWaitPrompt(state, waitSide);
         effectCompleted(state, side, eid);
       } else if (target === "Done") {
-        const deck = (player.deck ?? []) as any[];
+        const deck = player.deck ?? [];
         player.deck = [...chosen, ...deck.slice(chosen.length)];
         systemMsg(
           state,
@@ -272,22 +320,16 @@ function reorderFinal(
         clearWaitPrompt(state, waitSide);
         effectCompleted(state, side, eid);
       } else {
-        continueAbility(
-          state,
-          side,
-          eid,
-          reorderChoice(
-            reorderSide,
-            waitSide,
-            original,
-            [],
-            original.length,
-            original,
-            dest,
-          ),
-          card,
+        const nextAbility = reorderChoice(
+          reorderSide,
+          waitSide,
+          original,
           [],
+          original.length,
+          original,
+          dest,
         );
+        continueAbility(state, side, eid, nextAbility, card, []);
       }
     },
   };
@@ -297,11 +339,17 @@ function reorderFinal(
 // breach-access-bonus
 // ---------------------------------------------------------------------------
 
+interface BreachAccessBonusArgs {
+  duration?: string;
+  req?: Ability["req"];
+  msg?: string;
+}
+
 export function breachAccessBonus(
   server: string,
   bonus: number,
-  args: any = {},
-): any {
+  args: BreachAccessBonusArgs = {},
+): Ability {
   return {
     event: "breach-server",
     duration: args.duration,
@@ -312,8 +360,11 @@ export function breachAccessBonus(
           _side: string,
           _eid: EID,
           _c: Card | null,
-          targets: any[],
-        ) => server === targets?.[0]?.server,
+          targets: unknown[],
+        ) => {
+          const ctx = targets[0] as { server?: string } | undefined;
+          return server === ctx?.server;
+        },
     msg: args.msg,
     effect: (state: GameState) => accessBonus(state, "runner", bonus, server),
   };
@@ -323,7 +374,7 @@ export function breachAccessBonus(
 // damage shorthands
 // ---------------------------------------------------------------------------
 
-function dmgAbi(label: string, type: string, dmg: number): any {
+function dmgAbi(label: string, type: string, dmg: number): Ability {
   return {
     label: `Do ${dmg} ${label}`,
     async: true,
@@ -333,13 +384,13 @@ function dmgAbi(label: string, type: string, dmg: number): any {
   };
 }
 
-export function doNetDamage(dmg: number): any {
+export function doNetDamage(dmg: number): Ability {
   return dmgAbi("net damage", "net", dmg);
 }
-export function doMeatDamage(dmg: number): any {
+export function doMeatDamage(dmg: number): Ability {
   return dmgAbi("meat damage", "meat", dmg);
 }
-export function doBrainDamage(dmg: number): any {
+export function doBrainDamage(dmg: number): Ability {
   return dmgAbi("core damage", "brain", dmg);
 }
 
@@ -347,54 +398,48 @@ export function doBrainDamage(dmg: number): any {
 // rfg-on-empty / trash-on-empty
 // ---------------------------------------------------------------------------
 
-export function rfgOnEmpty(counterType: string): any {
+interface CounterAddedContext {
+  card?: Card | null;
+}
+
+function counterDrainedReq(counterType: string) {
+  return (
+    _s: GameState,
+    _side: string,
+    _eid: EID,
+    card: Card | null,
+    targets: unknown[],
+  ): boolean => {
+    const ctx = targets[0] as CounterAddedContext | undefined;
+    const skipped = card?.special?.["skipped-loading"] === true;
+    return Boolean(sameCard(card, ctx?.card ?? null)) && !skipped && !(getCounters(card, counterType) > 0);
+  };
+}
+
+export function rfgOnEmpty(counterType: string): Ability {
   return {
     event: "counter-added",
-    req: (
-      _s: GameState,
-      _side: string,
-      _eid: EID,
-      card: Card | null,
-      targets: any[],
-    ) => {
-      const ctx = targets?.[0];
-      return (
-        sameCard(card, ctx?.card) &&
-        !(card as any)?.special?.["skipped-loading"] &&
-        !(getCounters(card, counterType) > 0)
-      );
-    },
+    req: counterDrainedReq(counterType),
     effect: (state: GameState, side: string, _eid: EID, card: Card | null) => {
-      systemMsg(state, side, `removes ${(card as any)?.title} from the game`);
-      move(state, side, card as Card, "rfg");
+      systemMsg(state, side, `removes ${card?.title ?? ""} from the game`);
+      if (card) move(state, side, card, "rfg");
     },
   };
 }
 
-export function trashOnEmpty(counterType: string): any {
+export function trashOnEmpty(counterType: string): Ability {
   return {
     event: "counter-added",
-    req: (
-      _s: GameState,
-      _side: string,
-      _eid: EID,
-      card: Card | null,
-      targets: any[],
-    ) => {
-      const ctx = targets?.[0];
-      return (
-        sameCard(card, ctx?.card) &&
-        !(card as any)?.special?.["skipped-loading"] &&
-        !(getCounters(card, counterType) > 0)
-      );
-    },
+    req: counterDrainedReq(counterType),
     async: true,
     effect: (state: GameState, side: string, eid: EID, card: Card | null) => {
-      systemMsg(state, side, `trashes ${(card as any)?.title}`);
-      trash(state, side, eid, card as Card, {
-        unpreventable: true,
-        "source-card": card,
-      });
+      systemMsg(state, side, `trashes ${card?.title ?? ""}`);
+      if (card) {
+        trash(state, side, eid, card, {
+          unpreventable: true,
+          "source-card": card,
+        });
+      }
     },
   };
 }
@@ -431,9 +476,9 @@ export function playTieredSfx(
 
 export function drawAbi(
   x: number,
-  drawArgs: any = null,
-  abBase: any = null,
-): any {
+  drawArgs: Record<string, unknown> | null = null,
+  abBase: Partial<Ability> | null = null,
+): Ability {
   return {
     msg: `draw ${quantify(x, "card")}`,
     label: `Draw ${quantify(x, "card")}`,
@@ -452,7 +497,7 @@ export function drawLoud(
   eid: EID,
   card: Card | null,
   n: number,
-  args: any = null,
+  args: Record<string, unknown> | null = null,
 ): void {
   resolveAbility(
     state,
@@ -467,7 +512,7 @@ export function drawLoud(
 // give-tags
 // ---------------------------------------------------------------------------
 
-export function giveTags(n: number): any {
+export function giveTags(n: number): Ability {
   return {
     label: `Give the Runner ${quantify(n, "tag")}`,
     msg: `give the Runner ${quantify(n, "tag")}`,
@@ -482,8 +527,13 @@ export function giveTags(n: number): any {
 // run-server abilities
 // ---------------------------------------------------------------------------
 
-export function runServerAbility(server: string, abBase: any = {}): any {
-  const { events, ...rest } = abBase ?? {};
+interface RunAbilityBase extends Partial<Ability> {
+  events?: Ability[];
+  action?: boolean;
+}
+
+export function runServerAbility(server: string, abBase: RunAbilityBase = {}): Ability {
+  const { events, ...rest } = abBase;
   return {
     async: true,
     "change-in-game-state": {
@@ -493,8 +543,8 @@ export function runServerAbility(server: string, abBase: any = {}): any {
     msg: `make a run on ${zoneToName(server)}`,
     "makes-run": true,
     effect: (state: GameState, side: string, eid: EID, card: Card | null) => {
-      if (events && events.length)
-        registerEvents(state, side, card as Card, events);
+      if (events && events.length && card)
+        registerEvents(state, side, card, events);
       if (abBase.action) playSfx(state, side, "click-run");
       makeRun(state, side, eid, server, card);
     },
@@ -502,16 +552,14 @@ export function runServerAbility(server: string, abBase: any = {}): any {
   };
 }
 
-export function runAnyServerAbility(abBase: any = {}): any {
-  const { events, ...rest } = abBase ?? {};
+export function runAnyServerAbility(abBase: RunAbilityBase = {}): Ability {
+  const { events, ...rest } = abBase;
   return {
     async: true,
     prompt: "Choose a server",
-    choices: (state: GameState, side: string) =>
-      (state as any).runnableServers ?? [],
+    choices: (state: GameState) => state.runnableServers ?? [],
     req: (state: GameState) =>
-      Array.isArray((state as any).runnableServers) &&
-      (state as any).runnableServers.length > 0,
+      Array.isArray(state.runnableServers) && state.runnableServers.length > 0,
     label: "Run a server",
     "makes-run": true,
     msg: (
@@ -519,91 +567,84 @@ export function runAnyServerAbility(abBase: any = {}): any {
       _sd: string,
       _e: EID,
       _c: Card | null,
-      targets: any[],
-    ) => `make a run on ${targets?.[0]}`,
+      targets: unknown[],
+    ) => `make a run on ${String(targets[0] ?? "")}`,
     effect: (
       state: GameState,
       side: string,
       eid: EID,
       card: Card | null,
-      targets: any[],
+      targets: unknown[],
     ) => {
-      if (events && events.length)
-        registerEvents(state, side, card as Card, events);
+      if (events && events.length && card)
+        registerEvents(state, side, card, events);
       if (abBase.action) playSfx(state, side, "click-run");
-      makeRun(state, side, eid, targets?.[0], card);
+      makeRun(state, side, eid, String(targets[0] ?? ""), card);
     },
     ...rest,
   };
 }
 
-export const runRemoteServerAbility: any = {
+// Typed as union of object Ability and factory function. The exported value is
+// the object form; the factory branch is included so legacy card-side wrappers
+// (`typeof ability === "function" ? ability(...) : {...ability}`) compile.
+export const runRemoteServerAbility: Ability | ((opts?: RunAbilityBase) => Ability) = {
   async: true,
   prompt: "Choose a remote server",
   "change-in-game-state": {
     req: (state: GameState) =>
-      ((state as any).remotes ?? []).filter((r: string) =>
-        canRunServer(state, r),
-      ).length > 0,
+      (state.remotes ?? []).filter((r: string) => canRunServer(state, r)).length > 0,
   },
   choices: (state: GameState) =>
-    ((state as any).remotes ?? []).filter((r: string) =>
-      canRunServer(state, r),
-    ),
+    (state.remotes ?? []).filter((r: string) => canRunServer(state, r)),
   label: "Run a remote server",
-  msg: (_s: GameState, _sd: string, _e: EID, _c: Card | null, targets: any[]) =>
-    `make a run on ${targets?.[0]}`,
+  msg: (_s: GameState, _sd: string, _e: EID, _c: Card | null, targets: unknown[]) =>
+    `make a run on ${String(targets[0] ?? "")}`,
   effect: (
     state: GameState,
-    _side: string,
+    side: string,
     eid: EID,
     card: Card | null,
-    targets: any[],
-  ) => makeRun(state, _side, eid, targets?.[0], card),
+    targets: unknown[],
+  ) => makeRun(state, side, eid, String(targets[0] ?? ""), card),
 };
 
 const CENTRAL_SERVERS = new Set(["HQ", "R&D", "Archives"]);
 
-export const runCentralServerAbility: any = {
+export const runCentralServerAbility: Ability | ((opts?: RunAbilityBase) => Ability) = {
   prompt: "Choose a central server",
   choices: (state: GameState) =>
-    ((state as any).runnableServers ?? []).filter((s: string) =>
-      CENTRAL_SERVERS.has(s),
-    ),
+    (state.runnableServers ?? []).filter((s: string) => CENTRAL_SERVERS.has(s)),
   "change-in-game-state": {
     req: (state: GameState) =>
-      ((state as any).runnableServers ?? []).filter((s: string) =>
-        CENTRAL_SERVERS.has(s),
-      ).length > 0,
+      (state.runnableServers ?? []).filter((s: string) => CENTRAL_SERVERS.has(s)).length > 0,
   },
   async: true,
   label: "Run a central server",
-  msg: (_s: GameState, _sd: string, _e: EID, _c: Card | null, targets: any[]) =>
-    `make a run on ${targets?.[0]}`,
+  msg: (_s: GameState, _sd: string, _e: EID, _c: Card | null, targets: unknown[]) =>
+    `make a run on ${String(targets[0] ?? "")}`,
   effect: (
     state: GameState,
-    _side: string,
+    side: string,
     eid: EID,
     card: Card | null,
-    targets: any[],
-  ) => makeRun(state, _side, eid, targets?.[0], card),
+    targets: unknown[],
+  ) => makeRun(state, side, eid, String(targets[0] ?? ""), card),
 };
 
 export function runServerFromChoicesAbility(
   choices: string[],
-  abBase: any = {},
-): any {
-  const { events, ...rest } = abBase ?? {};
+  abBase: RunAbilityBase = {},
+): Ability {
+  const { events, ...rest } = abBase;
   const choiceSet = new Set(choices);
   return {
     prompt: "Choose a server",
     choices: (state: GameState) =>
-      choices.filter((s: any) => canRunServer(state, s)),
+      choices.filter((s) => canRunServer(state, s)),
     "change-in-game-state": {
       req: (state: GameState) =>
-        ((state as any).runnableServers ?? []).filter((s: string) =>
-          choiceSet.has(s),
-        ).length > 0,
+        (state.runnableServers ?? []).filter((s: string) => choiceSet.has(s)).length > 0,
     },
     async: true,
     msg: (
@@ -611,19 +652,19 @@ export function runServerFromChoicesAbility(
       _sd: string,
       _e: EID,
       _c: Card | null,
-      targets: any[],
-    ) => `make a run on ${targets?.[0]}`,
+      targets: unknown[],
+    ) => `make a run on ${String(targets[0] ?? "")}`,
     effect: (
       state: GameState,
       side: string,
       eid: EID,
       card: Card | null,
-      targets: any[],
+      targets: unknown[],
     ) => {
-      if (events && events.length)
-        registerEvents(state, side, card as Card, events);
+      if (events && events.length && card)
+        registerEvents(state, side, card, events);
       if (abBase.action) playSfx(state, side, "click-run");
-      makeRun(state, side, eid, targets?.[0], card);
+      makeRun(state, side, eid, String(targets[0] ?? ""), card);
     },
     ...rest,
   };
@@ -633,26 +674,62 @@ export function runServerFromChoicesAbility(
 // take-credits / take-n-credits-ability
 // ---------------------------------------------------------------------------
 
-export function takeCredits(state: GameState, side: string, card: Card | null, type: string, n: number | "all" | ":all" | string, args?: any): void;
-export function takeCredits(state: GameState, side: string, eid: EID, card: Card | null, type: string, n: number | "all" | ":all" | string, args?: any): void;
-export function takeCredits(...rawArgs: any[]): void {
-  let state: GameState, side: string, eid: EID, card: Card | null, type: string, n: number | "all", args: any;
-  // Detect EID by 3rd-arg shape
-  if (rawArgs.length >= 5 && rawArgs[2] && typeof rawArgs[2] === "object" && "id" in rawArgs[2] && !("title" in rawArgs[2])) {
-    [state, side, eid, card, type, n] = rawArgs as any;
-    args = rawArgs[6] ?? null;
+type TakeCreditsAmount = number | "all" | ":all";
+
+export function takeCredits(
+  state: GameState,
+  side: string,
+  card: Card | null,
+  type: string,
+  n: TakeCreditsAmount,
+  args?: Record<string, unknown> | null,
+): void;
+export function takeCredits(
+  state: GameState,
+  side: string,
+  eid: EID,
+  card: Card | null,
+  type: string,
+  n: TakeCreditsAmount,
+  args?: Record<string, unknown> | null,
+): void;
+export function takeCredits(
+  state: GameState,
+  side: string,
+  arg3: EID | Card | null,
+  arg4: Card | string | null,
+  arg5: string | TakeCreditsAmount,
+  arg6?: TakeCreditsAmount | Record<string, unknown> | null,
+  arg7?: Record<string, unknown> | null,
+): void {
+  let eid: EID;
+  let card: Card | null;
+  let type: string;
+  let n: TakeCreditsAmount;
+  let args: Record<string, unknown> | null;
+
+  // Detect EID by 3rd-arg shape (object with `id` but no `title`)
+  if (arg3 && typeof arg3 === "object" && "id" in arg3 && !("title" in arg3)) {
+    eid = arg3 as EID;
+    card = arg4 as Card | null;
+    type = arg5 as string;
+    n = arg6 as TakeCreditsAmount;
+    args = arg7 ?? null;
   } else {
-    [state, side, card, type, n] = rawArgs as any;
     eid = makeEID(state);
-    args = rawArgs[5] ?? null;
+    card = arg3 as Card | null;
+    type = arg4 as string;
+    n = arg5 as TakeCreditsAmount;
+    args = (arg6 as Record<string, unknown> | null) ?? null;
   }
+
   const fresh = getCard(state, card);
   if (!fresh) {
     effectCompleted(state, side, eid);
     return;
   }
   const counters = getCounters(fresh, type);
-  const want = n === "all" ? counters : n;
+  const want = n === "all" || n === ":all" ? counters : n;
   const toTake = Math.min(want as number, counters);
   if (toTake > 0) {
     waitFor(
@@ -675,11 +752,15 @@ export function takeCredits(...rawArgs: any[]): void {
   }
 }
 
+interface CreditAbilityBase extends Partial<Ability> {
+  action?: boolean;
+}
+
 export function takeNCreditsAbility(
   n: number,
   t: string = "card",
-  abBase: any = null,
-): any {
+  abBase: CreditAbilityBase | null = null,
+): Ability {
   return {
     label: `Take ${n} [Credits] from this ${t}`,
     "change-in-game-state": {
@@ -698,7 +779,9 @@ export function takeNCreditsAbility(
   };
 }
 
-export function takeAllCreditsAbility(abBase: any = null): any {
+export function takeAllCreditsAbility(
+  abBase: CreditAbilityBase | null = null,
+): Ability {
   return {
     label: "Take all hosted credits",
     "change-in-game-state": {
@@ -727,12 +810,12 @@ export function takeAllCreditsAbility(abBase: any = null): any {
 // in-hand* helpers
 // ---------------------------------------------------------------------------
 
-export function inHandStar(state: GameState, card: any): boolean {
+export function inHandStar(state: GameState, card: Card | null): boolean {
   return (
     inHand(card) ||
     anyEffects(
       state,
-      (card as any)?.side,
+      card?.side ?? "",
       "can-play-as-if-in-hand",
       (v: unknown) => v === true,
       card,
@@ -742,7 +825,7 @@ export function inHandStar(state: GameState, card: any): boolean {
 
 export function allCardsInHandStar(state: GameState, side: string): Card[] {
   return getAllCards(state).filter(
-    (c: any) =>
+    (c: Card) =>
       (side === "runner" ? isRunner(c) : isCorp(c)) && inHandStar(state, c),
   );
 }
@@ -758,7 +841,7 @@ export function spendCredits(
   card: Card | null,
   type: string,
   n: number | "all",
-  args: any = null,
+  args: Record<string, unknown> | null = null,
 ): void {
   const fresh = getCard(state, card);
   if (!fresh) {
@@ -796,9 +879,9 @@ export function spendCredits(
 // make-recurring-ability
 // ---------------------------------------------------------------------------
 
-export function makeRecurringAbility(ability: any): any {
+export function makeRecurringAbility(ability: Ability): Ability {
   if (!ability?.recurring) return ability;
-  const recurringAbility = {
+  const recurringAbility: Ability = {
     msg: "take 1 [Recurring Credits]",
     req: (_s: GameState, _side: string, _eid: EID, card: Card | null) =>
       getCounters(card, "recurring") > 0,
@@ -808,7 +891,7 @@ export function makeRecurringAbility(ability: any): any {
   };
   return {
     ...ability,
-    abilities: [...((ability.abilities as any[]) ?? []), recurringAbility],
+    abilities: [...((ability.abilities as Ability[]) ?? []), recurringAbility],
   };
 }
 
@@ -816,14 +899,14 @@ export function makeRecurringAbility(ability: any): any {
 // move-to-top / move-to-bottom
 // ---------------------------------------------------------------------------
 
-export function moveToTop(targetCard: any, actingSide: string): any {
+export function moveToTop(targetCard: Card, actingSide: string): Ability {
   const dest = isRunner(targetCard) ? "the Stack" : "R&D";
   return {
     msg: {
       public: (state: GameState) =>
-        `add ${cardStr(state, targetCard)} from ${nameZone(targetCard.side, targetCard.zone)} to the top of ${dest}`,
+        `add ${cardStr(state, targetCard)} from ${nameZone(targetCard.side ?? "", targetCard.zone ?? [])} to the top of ${dest}`,
       [actingSide]: (state: GameState) =>
-        `add ${cardStr(state, targetCard, { maybeVisible: true })} from ${nameZone(targetCard.side, targetCard.zone)} to the top of ${dest}`,
+        `add ${cardStr(state, targetCard, { maybeVisible: true })} from ${nameZone(targetCard.side ?? "", targetCard.zone ?? [])} to the top of ${dest}`,
     },
     effect: (state: GameState, side: string) =>
       move(state, side, targetCard, "deck", { front: true }),

@@ -123,13 +123,14 @@ export function shuffle(
   if (sideOrZone !== undefined && zone === undefined) {
     const s = stateOrZone as GameState;
     const z = sideOrZone;
-    const sd = (s as any)?.activePlayer ?? "corp";
+    const sd = s?.activePlayer ?? "corp";
     return shuffle(s, sd, z, opts);
   }
 
   const side = sideOrZone;
 
-  const s = stateOrZone;
+  if (typeof stateOrZone === "string") return;
+  const s: GameState = stateOrZone;
   const sd = kw(side!);
   const z = kw(zone!);
 
@@ -143,20 +144,20 @@ export function shuffle(
   }
 
   // Breach: corp deck shuffle clears known R&D cards
-  if ((s as any).breach && sd === CORP_SIDE && z === "deck") {
-    const breach = (s as any).breach;
-    if (breach?.knownCids) {
+  const breach = s.breach as { knownCids?: { deck?: string[] } } | null | undefined;
+  if (breach && sd === CORP_SIDE && z === "deck") {
+    if (breach.knownCids) {
       breach.knownCids.deck = [];
     }
   }
 
   // Access tracking: mark R&D shuffled during access
-  if ((s as any).access && (s as any).run && sd === CORP_SIDE && z === "deck") {
-    const runState = (s as any).run;
-    if (!runState["shuffledDuringAccess"]) {
-      runState["shuffledDuringAccess"] = {};
+  if (s.access && s.run && sd === CORP_SIDE && z === "deck") {
+    const runState = s.run as { shuffledDuringAccess?: { rd?: boolean } };
+    if (!runState.shuffledDuringAccess) {
+      runState.shuffledDuringAccess = {};
     }
-    runState["shuffledDuringAccess"].rd = true;
+    runState.shuffledDuringAccess.rd = true;
   }
 
   // Play sound
@@ -165,16 +166,17 @@ export function shuffle(
   }
 
   // Update shuffle stat
-  const stats = (s as any).stats ?? {};
-  const sideStats = stats[sd] ?? {};
-  sideStats.shuffleCount = (sideStats.shuffleCount ?? 0) + 1;
+  const stats = s.stats ?? (s.stats = {});
+  const sideStats: Record<string, number | undefined> =
+    (stats[sd] as Record<string, number | undefined> | undefined) ?? {};
   stats[sd] = sideStats;
-  (s as any).stats = stats;
+  sideStats.shuffleCount = (sideStats.shuffleCount ?? 0) + 1;
 
   // Perform the shuffle
-  const player = (s as any)[sd];
-  if (player && Array.isArray(player[z])) {
-    player[z] = shuffleColl(player[z]);
+  const player = sd === CORP_SIDE ? s.corp : s.runner;
+  const playerRec = player as unknown as Record<string, Card[] | undefined>;
+  if (Array.isArray(playerRec[z])) {
+    playerRec[z] = shuffleColl(playerRec[z] as Card[]);
   }
 }
 
@@ -209,11 +211,11 @@ export function shuffleCardsIntoDeck(
   flatten(targets);
 
   const resolvedCards = flat
-    .map((t: any) => getCard(state, t as Card) ?? (t as Card))
+    .map((t) => getCard(state, t as Card) ?? (t as Card))
     .filter((c): c is Card => c != null);
 
   // Filter out cards in locked discard
-  const filtered = resolvedCards.filter((c: any) => {
+  const filtered = resolvedCards.filter((c: Card) => {
     const z = getZone(c);
     return !(
       z.length === 1 &&
@@ -316,7 +318,7 @@ export function shuffleIntoDeck(
   const side = kw(sideOrZone as string);
   const zones = restZones
     .filter((z): z is string => typeof z === "string")
-    .map((z: any) => kw(z));
+    .map((z: string) => kw(z));
 
   for (const z of zones) {
     moveZone(state, side, z, "deck");
@@ -470,7 +472,7 @@ export function shuffleDeck(
   opts?: { close?: boolean },
 ): void {
   const sd = kw(side);
-  const player = (state as any)[sd];
+  const player = sd === CORP_SIDE ? state.corp : state.runner;
   if (player && Array.isArray(player.deck)) {
     player.deck = shuffleColl(player.deck);
   }
@@ -478,7 +480,7 @@ export function shuffleDeck(
 
   if (opts?.close) {
     // Remove view-deck prompt
-    player.viewDeck = undefined;
+    (player as unknown as { viewDeck?: unknown }).viewDeck = undefined;
     systemMsg(state, sd, "stops looking at [pronoun] deck and shuffles it");
   } else {
     systemMsg(state, sd, "shuffles [pronoun] deck");
@@ -501,7 +503,7 @@ export function getSetAside(
 ): Card[] {
   const sd = kw(side);
   const eidNum = typeof eid === "number" ? eid : (eid as EID).id;
-  const player = (state as any)[sd];
+  const player = sd === CORP_SIDE ? state.corp : state.runner;
   const tracking = player?.setAsideTracking;
   if (!tracking || typeof tracking !== "object") return [];
   return (tracking[String(eidNum)] as Card[]) ?? [];

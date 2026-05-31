@@ -111,14 +111,14 @@ export function getTrashEffect(
   args: TrashEffectArgs,
 ): Ability | null {
   const cdef = getCardDef(card);
-  const trashEffect = (cdef as any)["on-trash"] as Ability | undefined;
+  const trashEffect = cdef["on-trash"] as Ability | undefined;
   if (!card || card.disabled) return null;
 
   const okRunnerInstalled =
     isRunner(card) && isInstalled(card) && !isFacedown(card);
   const okRezzedNotHost = isRezzed(card) && !args.hostTrashed;
   const okWhenInactive =
-    !!(trashEffect as any)?.["when-inactive"] && !args.hostTrashed;
+    !!trashEffect?.["when-inactive"] && !args.hostTrashed;
   const okPlayArea = inPlayArea(card);
 
   if (!(okRunnerInstalled || okRezzedNotHost || okWhenInactive || okPlayArea))
@@ -143,7 +143,8 @@ export function getTrashEffect(
 
   const out: Ability = {
     ...(trashEffect as Ability),
-    ...({ "once-per-instance": true, condition: "inactive" } as any),
+    "once-per-instance": true,
+    condition: "inactive",
   };
   return dissocReq(out);
 }
@@ -157,7 +158,7 @@ export function setDurationOnTrashEvents(
   card: Card,
   trashEvent: string,
 ): void {
-  state.events = state.events.map((cur: any) => {
+  state.events = state.events.map((cur) => {
     if (
       sameCard(card, cur.card) &&
       cur.event === trashEvent &&
@@ -187,27 +188,53 @@ interface TrashCardsArgs extends TrashEffectArgs {
   keepServerAlive?: boolean;
   gameTrash?: boolean;
   suppressCheckpoint?: boolean;
+  "suppress-checkpoint"?: boolean;
   duringInstallation?: boolean;
   unpreventable?: boolean;
 }
 
+interface TrashListEntry {
+  card: Card;
+  destination?: string;
+  "shuffle-rd"?: boolean;
+}
+
+type DynamicStats = Record<string, Record<string, number>>;
+interface DynamicRun {
+  "shuffled-during-access"?: { rd?: boolean; hq?: boolean; [k: string]: unknown };
+  [k: string]: unknown;
+}
+interface DynamicState {
+  access?: Card | null;
+  stats?: DynamicStats;
+  breach?: Record<string, unknown>;
+  trash?: { "trash-list"?: { card?: Record<string, unknown> }; [k: string]: unknown };
+}
+
 export function trashCards(state: GameState, side: string, eid: EID, cards: (Card | null | undefined)[], args?: TrashCardsArgs): void;
-export function trashCards(...rawArgs: any[]): void;
-export function trashCards(...rawArgs: any[]): void {
+export function trashCards(...rawArgs: unknown[]): void;
+export function trashCards(...rawArgs: unknown[]): void {
   let state: GameState, side: string, eid: EID;
   let cards: (Card | null | undefined)[];
   let args: TrashCardsArgs = {};
-  if (rawArgs.length >= 4 && typeof rawArgs[2] === "object" && rawArgs[2] !== null && "id" in rawArgs[2]) {
-    [state, side, eid, cards] = rawArgs as any;
-    args = rawArgs[4] ?? {};
-  } else if (typeof rawArgs[0] === "object" && rawArgs[0] !== null && "id" in rawArgs[0]) {
+  const arg2 = rawArgs[2] as { id?: unknown } | null | undefined;
+  const arg0 = rawArgs[0] as { id?: unknown } | null | undefined;
+  if (rawArgs.length >= 4 && typeof arg2 === "object" && arg2 !== null && "id" in arg2) {
+    [state, side, eid, cards] = rawArgs as [GameState, string, EID, (Card | null | undefined)[]];
+    args = (rawArgs[4] as TrashCardsArgs | undefined) ?? {};
+  } else if (typeof arg0 === "object" && arg0 !== null && "id" in arg0) {
     // (eid, cards, opts) — legacy short form
-    eid = rawArgs[0]; cards = rawArgs[1]; args = rawArgs[2] ?? {};
-    state = {} as GameState; side = "corp";
+    eid = rawArgs[0] as EID;
+    cards = rawArgs[1] as (Card | null | undefined)[];
+    args = (rawArgs[2] as TrashCardsArgs | undefined) ?? {};
+    state = {} as GameState;
+    side = "corp";
   } else {
     // (state, side, cards, opts) — legacy no-eid form
-    state = rawArgs[0]; side = rawArgs[1]; cards = rawArgs[2];
-    args = rawArgs[3] ?? {};
+    state = rawArgs[0] as GameState;
+    side = rawArgs[1] as string;
+    cards = rawArgs[2] as (Card | null | undefined)[];
+    args = (rawArgs[3] as TrashCardsArgs | undefined) ?? {};
     eid = { id: 0, source: null } as unknown as EID;
   }
   args = args ?? {};
@@ -221,16 +248,12 @@ export function trashCards(...rawArgs: any[]): void {
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, binds: any) {
-        const trashlist: Array<{
-          card: Card;
-          destination?: string;
-          "shuffle-rd"?: boolean;
-        }> = binds.asyncResult?.remaining ?? [];
+      function (s: GameState, _e: EID, binds: { asyncResult?: { remaining?: TrashListEntry[] } }) {
+        const trashlist: TrashListEntry[] = binds.asyncResult?.remaining ?? [];
 
         updateCurrentIceToTrash(
           s,
-          trashlist.map((t: any) => t.card),
+          trashlist.map((t: TrashListEntry) => t.card),
         );
 
         wait_for(
@@ -244,7 +267,7 @@ export function trashCards(...rawArgs: any[]): void {
                   keepServerAlive: args.keepServerAlive,
                 });
 
-              const shouldShuffleRD = trashlist.some((t: any) => t["shuffle-rd"]);
+              const shouldShuffleRD = trashlist.some((t: TrashListEntry) => t["shuffle-rd"]);
 
               type MovedEntry = {
                 movedCard?: Card | null;
@@ -268,16 +291,17 @@ export function trashCards(...rawArgs: any[]): void {
                 movedCards.push({ movedCard, trashEffect, oldCard: card });
               }
 
+              const sExt = s2 as DynamicState;
               if (shouldShuffleRD) {
-                if ((s2 as any).access && s2.run) {
-                  ((s2 as any).run as any)["shuffled-during-access"] = {
-                    ...(((s2 as any).run as any)["shuffled-during-access"] ??
-                      {}),
+                if (sExt.access && s2.run) {
+                  const runExt = s2.run as unknown as DynamicRun;
+                  runExt["shuffled-during-access"] = {
+                    ...(runExt["shuffled-during-access"] ?? {}),
                     rd: true,
                   };
                 }
-                const stats = ((s2 as any).stats ??= {});
-                const corpStats = (stats.corp ??= {});
+                const stats = (sExt.stats ??= {} as DynamicStats);
+                const corpStats = (stats.corp ??= {} as Record<string, number>);
                 corpStats["shuffle-count"] =
                   (corpStats["shuffle-count"] ?? 0) + 1;
                 const deck = (s2.corp.deck ?? []).slice();
@@ -289,35 +313,35 @@ export function trashCards(...rawArgs: any[]): void {
                 triggerEvent(s2, side, "corp-shuffle-deck", null);
               }
 
-              const accessed = (s2 as any).access;
+              const accessed = sExt.access;
               if (
                 accessed &&
-                trashlist.some((t: any) => sameCard(accessed, t.card)) &&
+                trashlist.some((t: TrashListEntry) => sameCard(accessed, t.card)) &&
                 side === "runner"
               ) {
-                ((s2.runner.register ??= {}) as any)["trashed-accessed-card"] =
-                  true;
+                const reg = (s2.runner.register ??= {}) as Record<string, unknown>;
+                reg["trashed-accessed-card"] = true;
               }
               if (
-                (s2 as any).breach &&
+                sExt.breach &&
                 accessed &&
-                trashlist.some((t: any) => sameCard(accessed, t.card)) &&
+                trashlist.some((t: TrashListEntry) => sameCard(accessed, t.card)) &&
                 side === "runner"
               ) {
-                ((s2 as any).breach as any)["did-trash"] = true;
+                (sExt.breach as Record<string, unknown>)["did-trash"] = true;
               }
-              const trashList = ((s2 as any).trash ??= {});
-              const trashListCard = ((
-                (trashList["trash-list"] ??= {}) as any
-              ).card ??= {});
-              delete trashListCard[eid.id as any];
+              const trashList = (sExt.trash ??= {});
+              const trashListMap = (trashList["trash-list"] ??= {}) as { card?: Record<string, unknown> };
+              const trashListCard = (trashListMap.card ??= {});
+              delete trashListCard[String(eid.id)];
 
               if (side) {
                 const otherSides = trashlist
-                  .map((t: any) => toKeyword(t.card.side ?? ""))
-                  .filter((sd: any) => sd !== side);
+                  .map((t: TrashListEntry) => toKeyword(t.card.side ?? ""))
+                  .filter((sd: string) => sd !== side);
                 if (otherSides.length) {
-                  const reg = ((s2 as any)[side].register ??= {});
+                  const sidePlayer = s2[side === "corp" ? "corp" : "runner"];
+                  const reg = (sidePlayer.register ??= {}) as Record<string, unknown>;
                   reg["trashed-card"] = true;
                   if (args.accessed) reg["trashed-accessed-card"] = true;
                 }
@@ -327,13 +351,13 @@ export function trashCards(...rawArgs: any[]): void {
               const discard = (s2.corp.discard ?? []).slice();
               discard.sort(
                 (a, b) =>
-                  ((a as any).seen ? -1 : 1) - ((b as any).seen ? -1 : 1),
+                  ((a as Card & { seen?: boolean }).seen ? -1 : 1) - ((b as Card & { seen?: boolean }).seen ? -1 : 1),
               );
               s2.corp.discard = discard;
 
               const completionEid = makeResult(
                 eid,
-                movedCards.map((m: any) => m.movedCard).filter(Boolean),
+                movedCards.map((m: MovedEntry) => m.movedCard).filter(Boolean),
               );
 
               for (const { movedCard, trashEffect } of movedCards) {
@@ -349,14 +373,14 @@ export function trashCards(...rawArgs: any[]): void {
                   cause: args.cause,
                   "cause-card": trimCauseCard(args.causeCard),
                   accessed: args.accessed,
-                } as any);
+                });
               }
 
               if (args.suppressCheckpoint) {
-                effectCompleted(s2, "" as any, completionEid);
+                effectCompleted(s2, "", completionEid);
               } else {
                 fakeCheckpoint(s2);
-                effectCompleted(s2, "" as any, completionEid);
+                effectCompleted(s2, "", completionEid);
               }
             },
           ],
@@ -366,7 +390,7 @@ export function trashCards(...rawArgs: any[]): void {
             side,
             makeEID(state),
             "pre-trash-interrupt",
-            trashlist.map((t: any) => t.card),
+            trashlist.map((t: TrashListEntry) => t.card),
           ],
           { eid },
         );
@@ -387,21 +411,24 @@ registerMoveStar("trash-cards", (state, side, eid, _action, cards, args) => {
 // ---------------------------------------------------------------------------
 
 export function trash(state: GameState, side: string, eid: EID, card: Card, args?: TrashCardsArgs): void;
-export function trash(...rawArgs: any[]): void;
-export function trash(...rawArgs: any[]): void {
+export function trash(...rawArgs: unknown[]): void;
+export function trash(...rawArgs: unknown[]): void {
   let state: GameState, side: string, eid: EID, card: Card;
   let args: TrashCardsArgs = {};
-  if (rawArgs.length >= 4 && typeof rawArgs[2] === "object" && rawArgs[2] !== null && "id" in rawArgs[2]) {
-    [state, side, eid, card] = rawArgs as any;
-    args = rawArgs[4] ?? {};
-  } else if (rawArgs.length >= 3 && typeof rawArgs[2] === "object" && rawArgs[2] !== null && "cid" in rawArgs[2]) {
+  const arg2 = rawArgs[2] as { id?: unknown; cid?: unknown } | null | undefined;
+  if (rawArgs.length >= 4 && typeof arg2 === "object" && arg2 !== null && "id" in arg2) {
+    [state, side, eid, card] = rawArgs as [GameState, string, EID, Card];
+    args = (rawArgs[4] as TrashCardsArgs | undefined) ?? {};
+  } else if (rawArgs.length >= 3 && typeof arg2 === "object" && arg2 !== null && "cid" in arg2) {
     // (state, side, card, opts)
-    state = rawArgs[0]; side = rawArgs[1]; card = rawArgs[2];
-    args = rawArgs[3] ?? {};
+    state = rawArgs[0] as GameState;
+    side = rawArgs[1] as string;
+    card = rawArgs[2] as Card;
+    args = (rawArgs[3] as TrashCardsArgs | undefined) ?? {};
     eid = { id: 0, source: card } as unknown as EID;
   } else {
-    [state, side, eid, card] = rawArgs as any;
-    args = rawArgs[4] ?? {};
+    [state, side, eid, card] = rawArgs as [GameState, string, EID, Card];
+    args = (rawArgs[4] as TrashCardsArgs | undefined) ?? {};
   }
   args = args ?? {};
   trashCards(state, side, eid, [card], args);
@@ -420,7 +447,7 @@ export function mill(fromSide: string, eid: EID, toSide: string, n: number): voi
 export function mill(state: GameState, fromSide: string, toSide: string, n: number): void;
 export function mill(state: GameState, fromSide: string, eid: EID, n: number): void;
 export function mill(state: GameState, fromSide: string, eid: EID, toSide: string, n: number, args?: TrashCardsArgs): void;
-export function mill(...rawArgs: any[]): void {
+export function mill(...rawArgs: unknown[]): void {
   let state: GameState, fromSide: string, eid: EID, toSide: string, n: number;
   let args: TrashCardsArgs = {};
   // 4-arg w/o state: (fromSide, eid, toSide, n) — no-op
@@ -430,25 +457,31 @@ export function mill(...rawArgs: any[]): void {
   // 4-arg w/ state and without eid: (state, fromSide, toSide, n) — synthesize eid
   // OR (state, fromSide, eid, n) — derive toSide from fromSide
   if (rawArgs.length === 4 && typeof rawArgs[0] === "object") {
-    state = rawArgs[0]; fromSide = rawArgs[1];
+    state = rawArgs[0] as GameState;
+    fromSide = rawArgs[1] as string;
     const third = rawArgs[2];
     if (typeof third === "string") {
       toSide = third;
-      n = rawArgs[3];
+      n = rawArgs[3] as number;
       eid = makeEID(state);
     } else {
       // third is eid
-      eid = third;
-      n = rawArgs[3];
+      eid = third as EID;
+      n = rawArgs[3] as number;
       toSide = fromSide;
     }
   } else {
-    state = rawArgs[0]; fromSide = rawArgs[1]; eid = rawArgs[2]; toSide = rawArgs[3]; n = rawArgs[4];
-    args = rawArgs[5] ?? {};
+    state = rawArgs[0] as GameState;
+    fromSide = rawArgs[1] as string;
+    eid = rawArgs[2] as EID;
+    toSide = rawArgs[3] as string;
+    n = rawArgs[4] as number;
+    args = (rawArgs[5] as TrashCardsArgs | undefined) ?? {};
   }
-  const deck = (state as any)[toSide]?.deck ?? [];
+  const sideKey: "corp" | "runner" = toSide === "corp" ? "corp" : "runner";
+  const deck = state[sideKey]?.deck ?? [];
   const cards = deck.slice(0, n);
-  trashCards(state, fromSide, eid, cards, { ...args, unpreventable: true });
+  trashCards(state, fromSide, eid, cards as Card[], { ...args, unpreventable: true });
 }
 
 export function discardFromHand(
@@ -459,7 +492,8 @@ export function discardFromHand(
   n: number,
   args: TrashCardsArgs = {},
 ): void {
-  const hand = ((state as any)[toSide]?.hand ?? []).slice();
+  const sideKey: "corp" | "runner" = toSide === "corp" ? "corp" : "runner";
+  const hand: Card[] = (state[sideKey]?.hand ?? []).slice();
   // shuffle
   for (let i = hand.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -484,16 +518,19 @@ export function swapLegal(
 
   if (!(pred(a) && pred(b))) return false;
 
+  const walkToList = (path: Array<string | number | string[]>): Card[] => {
+    let cur: unknown = state;
+    for (const k of path) cur = (cur as Record<string, unknown> | null)?.[String(k)];
+    return Array.isArray(cur) ? (cur as Card[]) : [];
+  };
+
   // No two assets/agendas in the same server
   if (xor(isAsset(a) || isAgenda(a), isAsset(b) || isAgenda(b))) {
     const asset = isAsset(a) || isAgenda(a) ? a : b;
     const nonAsset = isAsset(a) || isAgenda(a) ? b : a;
     if (sameServer(asset, nonAsset)) return true;
-    const path = ["corp", ...(nonAsset.zone ?? [])];
-    let cur: any = state;
-    for (const k of path) cur = cur?.[k];
-    const list: Card[] = Array.isArray(cur) ? cur : [];
-    return !list.some((c: any) => isAsset(c) || isAgenda(c));
+    const list = walkToList(["corp", ...(nonAsset.zone ?? [])]);
+    return !list.some((c: Card) => isAsset(c) || isAgenda(c));
   }
 
   // No two regions in the same server
@@ -503,11 +540,8 @@ export function swapLegal(
     const region = aRegion ? a : b;
     const nonRegion = aRegion ? b : a;
     if (sameServer(region, nonRegion)) return true;
-    const path = ["corp", ...(nonRegion.zone ?? [])];
-    let cur: any = state;
-    for (const k of path) cur = cur?.[k];
-    const list: Card[] = Array.isArray(cur) ? cur : [];
-    return !list.some((c: any) => hasSubtype(c, "Region"));
+    const list = walkToList(["corp", ...(nonRegion.zone ?? [])]);
+    return !list.some((c: Card) => hasSubtype(c, "Region"));
   }
 
   // Cannot swap ICE with a non-ICE card
@@ -532,10 +566,10 @@ export function swapInstalled(
 
   const setAt = (zone: Zone, idx: number, card: Card) => {
     const path = ["corp", ...zone.map(String)];
-    let cur: any = state;
-    for (let i = 0; i < path.length - 1; i++) cur = cur[path[i]];
+    let cur: Record<string, unknown> = state as unknown as Record<string, unknown>;
+    for (let i = 0; i < path.length - 1; i++) cur = cur[path[i]] as Record<string, unknown>;
     const key = path[path.length - 1];
-    if (Array.isArray(cur[key])) cur[key][idx] = card;
+    if (Array.isArray(cur[key])) (cur[key] as Card[])[idx] = card;
   };
   setAt(a.zone ?? [], aIndex, bNew);
   setAt(b.zone ?? [], bIndex, aNew);
@@ -550,7 +584,7 @@ export function swapInstalled(
       registerDefaultEvents(state, side, newCard);
       registerStaticAbilities(state, side, newCard);
     } else {
-      const dre = (getCardDef(newCard) as any)["derezzed-events"] as
+      const dre = getCardDef(newCard)["derezzed-events"] as
         | Ability[]
         | undefined;
       if (dre?.length) {
@@ -558,7 +592,7 @@ export function swapInstalled(
           state,
           side,
           newCard,
-          dre.map((d: any) => ({ ...d, condition: "derezzed" }) as any),
+          dre.map((d: Ability) => ({ ...d, condition: "derezzed" })),
         );
       }
     }
@@ -568,12 +602,15 @@ export function swapInstalled(
         zone: ["onhost"],
         host: { ...(h.host as Card), zone: newCard.zone },
       };
-      (updateCard as any)(state, side, (c: any) => c, newh);
+      updateCard(state, side, newh);
       unregisterEvents(state, side, h);
       registerDefaultEvents(state, side, newh);
       unregisterStaticAbilities(state, side, h);
       registerStaticAbilities(state, side, newh);
-      if (isProgram(newh)) (initMuCost as any)?.(state, newh);
+      if (isProgram(newh)) {
+        const initFn = initMuCost as ((s: GameState, c: Card) => void) | undefined;
+        initFn?.(state, newh);
+      }
     }
   }
 
@@ -586,9 +623,6 @@ export function swapInstalled(
 
 export function swapICE(a: Card, b: Card): void;
 export function swapICE(state: GameState, side: string, a: Card, b: Card): void;
-export function swapICE(
-  ...rawArgs: any[]
-): void;
 export function swapICE(
   stateOrA?: GameState | Card,
   sideOrB?: string | Card,
@@ -620,7 +654,8 @@ export function removeFromCurrentlyDrawing(
   side: string,
   card: Card,
 ): void {
-  const reg = ((state as any)[side].register ??= {}) as Record<string, unknown>;
+  const sidePlayer = state[side === "corp" ? "corp" : "runner"];
+  const reg = (sidePlayer.register ??= {}) as Record<string, unknown>;
   const mrd: Card[][] = (reg["currently-drawing"] as Card[][]) ?? [];
   if (!mrd.length) return;
   const tail = peek(mrd) ?? [];
@@ -633,7 +668,8 @@ export function addToCurrentlyDrawing(
   side: string,
   card: Card,
 ): void {
-  const reg = ((state as any)[side].register ??= {}) as Record<string, unknown>;
+  const sidePlayer = state[side === "corp" ? "corp" : "runner"];
+  const reg = (sidePlayer.register ??= {}) as Record<string, unknown>;
   const mrd: Card[][] = (reg["currently-drawing"] as Card[][]) ?? [];
   if (!mrd.length) {
     reg["currently-drawing"] = [[card]];
@@ -681,17 +717,17 @@ export function swapCards(
   for (const moved of [movedA, movedB]) {
     if (moved && isInstalled(moved)) {
       const cdef = getCardDef(moved);
-      const dre = (cdef as any)["derezzed-events"] as Ability[] | undefined;
-      (updateCard as any)(state, side, (c: any) => c, {
+      const dre = cdef["derezzed-events"] as Ability[] | undefined;
+      updateCard(state, side, {
         ...moved,
-        advanceable: (cdef as any).advanceable,
+        advanceable: cdef.advanceable as Card["advanceable"],
       });
       if (dre?.length) {
         registerEvents(
           state,
           side,
           moved,
-          dre.map((d: any) => ({ ...d, condition: "derezzed" }) as any),
+          dre.map((d: Ability) => ({ ...d, condition: "derezzed" })),
         );
       }
     }
@@ -701,8 +737,9 @@ export function swapCards(
     setCurrentIce(state);
   }
 
-  const reg = (state as any)[side]?.register;
-  const drawing: Card[][] | undefined = reg?.["currently-drawing"];
+  const sidePlayer = state[side === "corp" ? "corp" : "runner"];
+  const reg = sidePlayer?.register;
+  const drawing: Card[][] | undefined = reg?.["currently-drawing"] as Card[][] | undefined;
   if (drawing && peek(drawing)) {
     if (inHand(aRefreshed))
       removeFromCurrentlyDrawing(state, aSide, aRefreshed);
@@ -721,7 +758,7 @@ export function swapCards(
 
 export function swapAgendas(scored: Card, stolen: Card): [Card | null, Card | null];
 export function swapAgendas(state: GameState, side: string, scored: Card, stolen: Card): [Card | null, Card | null];
-export function swapAgendas(...args: any[]): [Card | null, Card | null] {
+export function swapAgendas(...args: unknown[]): [Card | null, Card | null] {
   if (args.length === 2) {
     // shorthand (scored, stolen) — no state, return cards unchanged
     return [args[0] as Card, args[1] as Card];
@@ -774,26 +811,33 @@ export function asAgenda(
 // forfeit
 // ---------------------------------------------------------------------------
 
+interface ForfeitOpts {
+  msg?: boolean;
+  suppressCheckpoint?: boolean;
+  'suppress-checkpoint'?: boolean;
+  [k: string]: unknown;
+}
+
 export function forfeit(state: GameState, side: string, card: Card): void;
 export function forfeit(
   state: GameState,
   side: string,
   eid: EID,
   card: Card,
-  opts?: { msg?: boolean; suppressCheckpoint?: boolean; 'suppress-checkpoint'?: boolean; [k: string]: any },
+  opts?: ForfeitOpts,
 ): void;
-export function forfeit(...args: any[]): void {
+export function forfeit(...args: unknown[]): void {
   let state: GameState, side: string, eid: EID, card: Card;
-  let opts: { msg?: boolean; suppressCheckpoint?: boolean; 'suppress-checkpoint'?: boolean; [k: string]: any } = { msg: true };
+  let opts: ForfeitOpts = { msg: true };
   if (args.length === 3) {
     [state, side, card] = args as [GameState, string, Card];
-    eid = (require("./eid") as typeof import("./eid")).makeEID(state);
+    eid = makeEID(state);
   } else {
     [state, side, eid, card] = args as [GameState, string, EID, Card];
-    opts = args[4] ?? { msg: true };
+    opts = (args[4] as ForfeitOpts | undefined) ?? { msg: true };
   }
   const { msg = true } = opts;
-  const suppressCheckpoint = opts.suppressCheckpoint ?? (opts as any)['suppress-checkpoint'];
+  const suppressCheckpoint = opts.suppressCheckpoint ?? opts['suppress-checkpoint'];
   wait_for(
     state,
     [
@@ -811,15 +855,15 @@ export function forfeit(...args: any[]): void {
         if (msg) systemMsg(s, side, `forfeits ${getTitle(refreshed)}`);
         updateAllAgendaPoints(s);
         checkWinByAgenda(s);
-        queueEvent(s, forfeitEv, { card: refreshed } as any);
-        const onForfeit = (getCardDef(refreshed) as any)["on-forfeit"] as
+        queueEvent(s, forfeitEv, { card: refreshed });
+        const onForfeit = getCardDef(refreshed)["on-forfeit"] as
           | Ability
           | undefined;
         if (onForfeit && movedCard) {
           registerPendingEvent(s, forfeitEv, movedCard, {
             ...onForfeit,
             location: "rfg",
-          } as any);
+          });
         }
         if (suppressCheckpoint) {
           completeWithResult(s, side, eid, movedCard);
@@ -857,7 +901,7 @@ export function flipFacedown(state: GameState, side: string, card: Card): void {
   if (card.host) {
     const c = deactivate(state, side, card);
     const c2 = { ...c, facedown: true } as Card;
-    (updateCard as any)(state, side, (x: any) => x, c2);
+    updateCard(state, side, c2);
   } else {
     move(state, side, card, ["rig", "facedown"]);
   }

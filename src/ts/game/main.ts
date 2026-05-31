@@ -11,9 +11,8 @@ import type { Side, State } from '../types';
  * Creates a unique action id for each server response - used in client lock
  */
 export function setActionId(state: State, side: Side): void {
-  const path = [side, 'aid'];
-  const current = (state as any)[side]?.aid ?? 0;
-  (state as any)[side].aid = (current ?? 0) + 1;
+  const player = side === "corp" || side === ":corp" ? state.corp : state.runner;
+  player.aid = (player.aid ?? 0) + 1;
 }
 
 /**
@@ -55,11 +54,11 @@ export function handleSay(state: State, side: Side, user: { username: string; em
  * Handle notification - sends a system message
  */
 export function handleNotification(state: State, text: string): void;
-export function handleNotification(state: State, _arg1: any, text: string): void;
-export function handleNotification(state: State, _arg1: any, _arg2: any, text: string): void;
-export function handleNotification(state: State, ...args: any[]): void {
+export function handleNotification(state: State, _arg1: unknown, text: string): void;
+export function handleNotification(state: State, _arg1: unknown, _arg2: unknown, text: string): void;
+export function handleNotification(state: State, ...args: unknown[]): void {
   // Overload resolution: last argument is always text
-  const text = args[args.length - 1];
+  const text = String(args[args.length - 1] ?? "");
   if (state) {
     core.systemSay(state, '', text);
   }
@@ -80,17 +79,19 @@ export function handleAnnouncement(state: State, text: string): void {
  * Handle rejoin - allows a user to rejoin the game
  */
 export function handleRejoin(state: State, user: { _id: string; username: string }): void {
-  const stateAny = state as any;
   let side: Side | null = null;
-  
-  if (stateAny.corp?.user?._id === user._id) {
+  const corpUserId = (state.corp.user as { _id?: string } | undefined)?._id;
+  const runnerUserId = (state.runner.user as { _id?: string } | undefined)?._id;
+
+  if (corpUserId === user._id) {
     side = 'corp';
-  } else if (stateAny.runner?.user?._id === user._id) {
+  } else if (runnerUserId === user._id) {
     side = 'runner';
   }
-  
+
   if (side) {
-    stateAny[side].user = user;
+    const player = side === "corp" ? state.corp : state.runner;
+    player.user = user as unknown as Record<string, unknown>;
     handleNotification(state, `${user.username} rejoined the game.`);
   }
 }

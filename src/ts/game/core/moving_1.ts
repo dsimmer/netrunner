@@ -4,7 +4,7 @@
 import type { GameState } from "./state";
 import type { Card, Zone } from "./card";
 import type { EID } from "./eid";
-import type { Ability, Counter, ReqFn } from "./types";
+import type { Ability, Counter, EventHandler, ReqFn } from "./types";
 import {
   isAgenda,
   isAsset,
@@ -83,7 +83,7 @@ import { trash } from "./moving_2";
 function effectiveZone(card: Card): Zone {
   if (card.host) {
     const hz = card.host.zone ?? [];
-    return hz.map((s: any) => toKeyword(s));
+    return hz.map((s: string) => toKeyword(s));
   }
   return card.zone ?? [];
 }
@@ -94,8 +94,8 @@ export function cardIndex(state: GameState, card: Card): number | null {
   if (typeof card.index === "number") return card.index;
   const z = getZone(card);
   // Get-in (cons :corp z)
-  let cur: any = state.corp;
-  for (const k of z) cur = cur?.[k];
+  let cur: unknown = state.corp;
+  for (const k of z) cur = (cur as Record<string, unknown> | null)?.[String(k)];
   if (!Array.isArray(cur)) return null;
   const idx = cur.findIndex((c: Card) => sameCard(c, card));
   return idx === -1 ? null : idx;
@@ -187,7 +187,7 @@ export function shouldTrigger(
   if (!ability) return false;
   if (ability.req) {
     if (typeof ability.req !== "function") return !!ability.req;
-    return (ability.req as (...a: any[]) => any)(state, side, eid, card, targets as Card[]);
+    return (ability.req as (s: GameState, sd: string, e: EID, c: Card | null, t: Card[]) => unknown)(state, side, eid, card, targets as Card[]) as boolean;
   }
   return true;
 }
@@ -227,7 +227,7 @@ export function trimCauseCard(
   card: Card | null | undefined,
 ): Partial<Card> | null {
   if (!card) return null;
-  return { cid: card.cid, name: (card as any).name, side: card.side };
+  return { cid: card.cid, name: (card as Card & { name?: string }).name, side: card.side };
 }
 
 // ---------------------------------------------------------------------------
@@ -241,17 +241,17 @@ function removeOldCard(state: GameState, side: string, card: Card): void {
     if (card.host) {
       removeFromHost(state, side, card);
     } else {
-      const path = [s as string, ...zone.map((z: any) => String(z))];
+      const path = [s as string, ...zone.map((z: string) => String(z))];
       // Walk into state with a mutable reference and replace the leaf list.
-      let cur: any = state;
+      let cur: Record<string, unknown> | null = state as unknown as Record<string, unknown>;
       for (let i = 0; i < path.length - 1; i++) {
         if (cur == null) break;
-        cur = cur[path[i]];
+        cur = cur[path[i]] as Record<string, unknown> | null;
       }
       if (cur && Array.isArray(cur[path[path.length - 1]])) {
         cur[path[path.length - 1]] = removeOnce(
           (c: Card) => sameCard(c, card),
-          cur[path[path.length - 1]],
+          cur[path[path.length - 1]] as Card[],
         );
       }
     }
@@ -266,7 +266,7 @@ export function uninstall(
   oldCard: Card,
 ): Card {
   const cdef = getCardDef(card);
-  const uninstallEffect = (cdef as any).uninstall as
+  const uninstallEffect = cdef.uninstall as
     | ((s: GameState, sd: string, eid: EID, c: Card, t: unknown[]) => void)
     | undefined;
   if (uninstallEffect && !card.disabled) {
@@ -286,13 +286,15 @@ function shouldMovedCardBeKnown(
 ): boolean {
   const target = Array.isArray(to) ? to[0] : to;
   if (target !== "discard" || side !== "corp") return false;
-  if (sameCard(card, (state as any).access)) return true;
+  const accessCard = (state as GameState & { access?: Card }).access;
+  if (accessCard && sameCard(card, accessCard)) return true;
 
   const z = getZone(card);
   const top = z[0];
   const fromZone =
     top === "discard" || top === "deck" || top === "hand" ? top : z[1];
-  const known = (state as any).breach?.["known-cids"]?.[fromZone];
+  const breach = state.breach as { "known-cids"?: Record<string, string[]> } | undefined;
+  const known = breach?.["known-cids"]?.[String(fromZone)];
   if (!Array.isArray(known)) return false;
   return known.includes(card.cid);
 }
@@ -301,7 +303,7 @@ function shouldMovedCardBeKnown(
 // get-moved-card
 // ---------------------------------------------------------------------------
 
-interface MoveCardOpts {
+export interface MoveCardOpts {
   front?: boolean;
   index?: number;
   keepServerAlive?: boolean;
@@ -318,7 +320,7 @@ function getMovedCard(
   to: string | Zone,
 ): Card {
   const zone = card.host
-    ? (card.host.zone ?? []).map((z: any) => toKeyword(z))
+    ? (card.host.zone ?? []).map((z: string) => toKeyword(z))
     : (card.zone ?? []);
   const srcZone = zone[0];
   const targetZone = Array.isArray(to) ? to[0] : to;
@@ -332,10 +334,10 @@ function getMovedCard(
   const trashHosted = (h: Card): null => {
     moveStar(
       state,
-      "" as any,
+      "",
       makeEID(state),
-      "trash" as any,
-      { ...h, zone: (h.zone ?? []).map((z: any) => toKeyword(z)) },
+      "trash",
+      { ...h, zone: (h.zone ?? []).map((z: string) => toKeyword(z)) },
       {
         unpreventable: true,
         suppressCheckpoint: true,
@@ -348,7 +350,7 @@ function getMovedCard(
 
   const updateHostedCard = (h: Card): Card[] => {
     const newz = ([] as string[]).concat(
-      ...dest.map((d: any) => (Array.isArray(d) ? d : [d])),
+      ...dest.map((d: string | string[]) => (Array.isArray(d) ? d : [d])),
     );
     const newh: Card = {
       ...h,
@@ -362,7 +364,8 @@ function getMovedCard(
       unregisterStaticAbilities(state, side, h);
       registerStaticAbilities(state, side, newh);
       if (isProgram(newh)) {
-        (initMuCost as any)?.(state, newh);
+        const initFn = initMuCost as ((s: GameState, c: Card) => void) | undefined;
+        initFn?.(state, newh);
       }
     }
     return [newh];
@@ -423,7 +426,7 @@ function getMovedCard(
 
   if (toInstalled) {
     c = { ...c, installed: true, installedThisTurn: true } as Card;
-    (c as any).installed = "this-turn";
+    (c as { installed: boolean | "this-turn" }).installed = "this-turn";
   } else {
     const { installed, ...rest } = c;
     c = rest as Card;
@@ -437,7 +440,7 @@ function getMovedCard(
   }
 
   if (dest[0] === "scored") {
-    (c as any)["scored-side"] = side;
+    (c as Card & { "scored-side"?: string })["scored-side"] = side;
   }
 
   const isHubZone = (z: string | undefined) =>
@@ -482,7 +485,7 @@ function getMovedCard(
  *  otherwise drop while-active effects bound to the old card. */
 function updateEffects(state: GameState, card: Card, movedCard: Card): void {
   if (card.cid === movedCard.cid) {
-    state.effects = state.effects.map((eff: any) => {
+    state.effects = state.effects.map((eff) => {
       if (eff.card?.cid === card.cid) {
         return { ...eff, card: movedCard };
       }
@@ -505,9 +508,9 @@ export function updateInstalledCardIndices(
   server: Zone,
 ): void {
   const path = [side, ...server.map(String)];
-  let parent: any = state;
+  let parent: Record<string, unknown> | undefined = state as unknown as Record<string, unknown>;
   for (let i = 0; i < path.length - 1; i++) {
-    parent = parent?.[path[i]];
+    parent = parent?.[path[i]] as Record<string, unknown> | undefined;
     if (parent == null) return;
   }
   const key = path[path.length - 1];
@@ -535,7 +538,7 @@ function updateRunPosition(
   const protectingRunServer = (c: Card): boolean => {
     if (!isICE(c)) return false;
     const z = c.zone ?? [];
-    return z[1] === targetServer(run as any) && z[z.length - 1] === "ices";
+    return z[1] === targetServer(run) && z[z.length - 1] === "ices";
   };
   const inward = (c: Card): boolean =>
     typeof c.index === "number" && c.index < position;
@@ -551,23 +554,16 @@ function updateRunPosition(
 // move
 // ---------------------------------------------------------------------------
 
-export function move(card: any, to: any, opts?: any): any;
+export function move(...args: unknown[]): Card | null;
 export function move(
-  state: any,
-  side: any,
-  card: any,
-  to?: any,
-  opts?: any,
-): any;
-export function move(
-  stateArg: GameState | Card,
-  sideArg: string | Card | string | Zone,
-  cardArg?: Card | string | Zone,
-  toArg?: string | Zone | MoveCardOpts | null,
-  optsArg: MoveCardOpts | null = {},
+  stateArg?: unknown,
+  sideArg?: unknown,
+  cardArg?: unknown,
+  toArg?: unknown,
+  optsArg: unknown = {},
 ): Card | null {
   // 2/3-arg shorthand (card, to, opts?): no state, no-op
-  if (cardArg === undefined || (typeof (stateArg as any)?.cid === "string")) {
+  if (cardArg === undefined || cardArg === null || typeof (stateArg as Card)?.cid === "string") {
     return null;
   }
   // 4-5 arg standard form
@@ -575,7 +571,8 @@ export function move(
   const side = sideArg as string;
   const card = cardArg as Card;
   const to = toArg as string | Zone;
-  const opts: MoveCardOpts = (optsArg ?? {}) as MoveCardOpts;
+  const opts: MoveCardOpts =
+    optsArg && typeof optsArg === "object" ? optsArg : {};
   const {
     front,
     index,
@@ -586,7 +583,7 @@ export function move(
     swap,
   } = opts;
   const zone = card.host
-    ? (card.host.zone ?? []).map((z: any) => toKeyword(z))
+    ? (card.host.zone ?? []).map((z: string) => toKeyword(z))
     : (card.zone ?? []);
 
   if (isFakeIdentity(card)) {
@@ -595,17 +592,14 @@ export function move(
     return null;
   }
 
+  const walkPath = (path: string[]): Card[] => {
+    let cur: unknown = state;
+    for (const k of path) cur = (cur as Record<string, unknown> | null)?.[k];
+    return Array.isArray(cur) ? (cur as Card[]) : [];
+  };
   // Card must exist either as hosted or in a known zone slot.
-  const corpZone = (() => {
-    let cur: any = state;
-    for (const k of ["corp", ...zone.map(String)]) cur = cur?.[k];
-    return Array.isArray(cur) ? cur : [];
-  })();
-  const runnerZone = (() => {
-    let cur: any = state;
-    for (const k of ["runner", ...zone.map(String)]) cur = cur?.[k];
-    return Array.isArray(cur) ? cur : [];
-  })();
+  const corpZone = walkPath(["corp", ...zone.map(String)]);
+  const runnerZone = walkPath(["runner", ...zone.map(String)]);
 
   const presentSomewhere =
     !!card.host ||
@@ -619,7 +613,7 @@ export function move(
 
   const cdef = getCardDef(card);
   const dest: Zone = Array.isArray(to) ? to.slice() : [to];
-  const destReplacementFn = (cdef as any)["move-zone-replacement"] as
+  const destReplacementFn = cdef["move-zone-replacement"] as
     | ((
         s: GameState,
         sd: string,
@@ -642,10 +636,12 @@ export function move(
 
   // Splice the moved card into its new zone slot
   const sidePath = [side, ...finalDest.map(String)];
-  let parent: any = state;
-  for (let i = 0; i < sidePath.length - 1; i++) parent = parent[sidePath[i]];
+  let parent: Record<string, unknown> = state as unknown as Record<string, unknown>;
+  for (let i = 0; i < sidePath.length - 1; i++) {
+    parent = parent[sidePath[i]] as Record<string, unknown>;
+  }
   const key = sidePath[sidePath.length - 1];
-  const list: Card[] = Array.isArray(parent[key]) ? parent[key] : [];
+  const list: Card[] = Array.isArray(parent[key]) ? (parent[key] as Card[]) : [];
   const posToMoveTo =
     typeof index === "number" ? index : front ? 0 : list.length;
   parent[key] = insertNth(posToMoveTo, movedCard, list);
@@ -668,10 +664,10 @@ export function move(
   if (!keepServerAlive) {
     // Walk to (corp + butlast(zone)) and remove if both :content and :ices empty
     const path = ["corp", ...zone.slice(0, -1).map(String)];
-    let cur: any = state;
-    for (let i = 0; i < path.length - 1; i++) cur = cur?.[path[i]];
+    let cur: Record<string, unknown> | undefined = state as unknown as Record<string, unknown>;
+    for (let i = 0; i < path.length - 1; i++) cur = cur?.[path[i]] as Record<string, unknown> | undefined;
     const k = path[path.length - 1];
-    const node = cur?.[k];
+    const node = cur?.[k] as { content?: Card[]; ices?: Card[] } | undefined;
     if (
       isRemoteZone(["servers", String(k)] as Zone) &&
       node &&
@@ -680,13 +676,13 @@ export function move(
       node.content.length === 0 &&
       node.ices.length === 0
     ) {
-      delete cur[k];
+      delete cur![k];
     }
   }
 
   // :move-zone hook on the moved card definition
   const movedCdef = getCardDef(movedCard);
-  const moveZoneFn = (movedCdef as any)["move-zone"] as
+  const moveZoneFn = movedCdef["move-zone"] as
     | ((s: GameState, sd: string, eid: EID, mc: Card, oc: Card) => void)
     | undefined;
   if (moveZoneFn) {
@@ -703,29 +699,25 @@ export function move(
   // After move-zone-fn and event, refresh and rewire location-bound events
   const refreshed = getCard(state, movedCard) ?? movedCard;
   const previousFirst = refreshed.previousZone?.[0];
-  const oldEvents = ((movedCdef as any).events ?? []).filter(
-    (e: any) =>
-      previousFirst &&
-      (e.location === previousFirst ||
-        (Array.isArray(e.location) && e.location.includes(previousFirst))),
-  );
+  const events: EventHandler[] = movedCdef.events ?? [];
+  const matchesLoc = (eLoc: EventHandler["location"], target: string | undefined): boolean => {
+    if (!target) return false;
+    if (eLoc === target) return true;
+    return Array.isArray(eLoc) && (eLoc as Array<string | string[]>).includes(target);
+  };
+  const oldEvents = events.filter((e: EventHandler) => matchesLoc(e.location, previousFirst as string | undefined));
   if (oldEvents.length) {
-    unregisterEvents(state, side, refreshed, { events: oldEvents } as any);
+    unregisterEvents(state, side, refreshed, { events: oldEvents as unknown as Ability[] });
   }
   const newFirst = refreshed.zone?.[0];
-  const newEvents = ((movedCdef as any).events ?? []).filter(
-    (e: any) =>
-      newFirst &&
-      (e.location === newFirst ||
-        (Array.isArray(e.location) && e.location.includes(newFirst))),
-  );
+  const newEvents = events.filter((e: EventHandler) => matchesLoc(e.location, newFirst as string | undefined));
   if (newEvents.length) {
     registerEvents(state, side, refreshed, newEvents);
   }
 
   // Default a card when moved to inactive zones (except :persistent key)
   const inactiveZones = new Set(["discard", "hand", "deck", "rfg"]);
-  if (finalDest.some((d: any) => inactiveZones.has(String(d)))) {
+  if (finalDest.some((d: string | string[]) => inactiveZones.has(String(d)))) {
     resetCard(state, side, refreshed);
   }
 
@@ -736,13 +728,13 @@ export function move(
 // engine/move* multimethod dispatch
 // ---------------------------------------------------------------------------
 
-type MoveStarFn = (
+export type MoveStarFn = (
   state: GameState,
   side: string,
   eid: EID,
   action: string,
-  cardOrCards: any,
-  args: any,
+  cardOrCards: Card | Card[],
+  args?: MoveCardOpts & { to?: string | Zone; [k: string]: unknown },
 ) => void;
 
 const moveStarMethods = new Map<string, MoveStarFn>();
@@ -756,8 +748,8 @@ export function moveStar(
   side: string,
   eid: EID,
   action: string,
-  cardOrCards: any,
-  args: any,
+  cardOrCards: Card | Card[],
+  args?: MoveCardOpts & { to?: string | Zone; [k: string]: unknown },
 ): void {
   const fn = moveStarMethods.get(action);
   if (!fn) {
@@ -768,27 +760,28 @@ export function moveStar(
 
 // :move
 registerMoveStar("move", (state, side, _eid, _action, card, args) => {
-  move(state, side, card, args?.to, args);
+  move(state, side, card as Card, args?.to, args);
 });
 
 // ---------------------------------------------------------------------------
 // move-zone — moves all cards in a zone to another (Chronos Project).
 // ---------------------------------------------------------------------------
 
+export function moveZone(...rawArgs: unknown[]): void;
 export function moveZone(
-  state: any,
-  side?: any,
-  server?: any,
-  to?: any,
-): any;
-export function moveZone(
-  state: GameState,
-  side: string,
-  server: string,
-  to: string | Zone,
+  stateArg?: unknown,
+  sideArg?: unknown,
+  serverArg?: unknown,
+  toArg?: unknown,
 ): void {
+  // 3-arg shorthand: no state, no-op
+  if (toArg === undefined) return;
+  const state = stateArg as GameState;
+  const side = sideArg as string;
+  const server = serverArg as string;
+  const to = toArg as string | Zone;
   if (zoneLocked(state, side, server)) return;
-  const sideRef = (state as any)[side];
+  const sideRef = state[side === "corp" ? "corp" : "runner"] as unknown as Record<string, Card[]>;
   const cards: Card[] = sideRef?.[server] ?? [];
   for (const card of cards) move(state, side, card, to);
 }
@@ -803,7 +796,7 @@ export function updateCurrentIceToTrash(
 ): void {
   const currentIce = getCurrentIce(state);
   if (!currentIce) return;
-  const match = trashlist.find((c: any) => sameCard(c, currentIce));
+  const match = trashlist.find((c: Card) => sameCard(c, currentIce));
   if (match) {
     setCurrentIce(state, getCard(state, match) ?? match);
   }

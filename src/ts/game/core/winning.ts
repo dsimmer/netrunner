@@ -105,16 +105,16 @@ export function concede(state: GameState, side: string): void {
  * Mirrors: (clear-win state side)
  */
 export function clearWin(state: GameState, side: string): void {
-  const sideKey = `${side}:clearWin` as keyof GameState;
-  (state as any)[sideKey] = true;
+  const stateRec = state as GameState & Record<string, unknown>;
+  stateRec[`${side}:clearWin`] = true;
 
-  const runnerClear = (state as any)[`${RUNNER_SIDE}:clearWin`];
-  const corpClear = (state as any)[`${CORP_SIDE}:clearWin`];
+  const runnerClear = stateRec[`${RUNNER_SIDE}:clearWin`];
+  const corpClear = stateRec[`${CORP_SIDE}:clearWin`];
 
   if (runnerClear && corpClear) {
     systemMsg(state, side, "cleared the win condition");
-    delete (state as any)[`${RUNNER_SIDE}:clearWin`];
-    delete (state as any)[`${CORP_SIDE}:clearWin`];
+    delete stateRec[`${RUNNER_SIDE}:clearWin`];
+    delete stateRec[`${CORP_SIDE}:clearWin`];
     delete state.winner;
     delete state.loser;
     delete state.winnerUser;

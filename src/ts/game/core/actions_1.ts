@@ -1042,5 +1042,5 @@ export function playHeapBreakerAutoPumpAndBreakImpl(
         { eid },
       );
     },
-  } as any;
+  };
 }

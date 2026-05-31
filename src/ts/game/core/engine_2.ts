@@ -114,8 +114,8 @@ export function serverCardTitles(
   return [
     ...new Set(
       allCardsList
-        .filter((c: any) => predicate(state, "", makeEID(state), null, [c]))
-        .map((c: any) => getTitle(c) ?? ""),
+        .filter((c: Card) => predicate(state, "", makeEID(state), null, [c]))
+        .map((c: Card) => getTitle(c) ?? ""),
     ),
   ].sort();
 }
@@ -137,21 +137,22 @@ export function promptFn(
   ability: Ability,
   args: Record<string, unknown>,
 ): void {
-  const eid = (ability as any).eid;
-  const f: AbilityFn = (s: any, s2: any, _e: any, c: any, t: any) => {
+  const eid = ability.eid as EID | undefined;
+  const f: AbilityFn = (s: GameState, s2: string, _e: EID, c: Card | null, t: unknown[]) => {
     resolveAbility(s, s2, ability, c, t);
   };
 
   let cancelFn: AbilityFn | undefined;
-  if ((args as any).cancel) {
-    cancelFn = (s: any, s2: any, _e: any, c: any, t: any) => {
-      resolveAbility(s, s2, (args as any).cancel as Ability, c, t);
+  const cancelArg = args.cancel as Ability | undefined;
+  if (cancelArg) {
+    cancelFn = (s: GameState, s2: string, _e: EID, c: Card | null, t: unknown[]) => {
+      resolveAbility(s, s2, cancelArg, c, t);
     };
   }
 
   const promptArgs = cancelFn ? { ...args, cancel: cancelFn } : args;
 
-  showPrompt(state, side, card, message as any, choices, f, { ...(promptArgs as any), eid });
+  showPrompt(state, side, card, message ?? "", choices as unknown, f, { ...promptArgs, eid });
 }
 
 // ---------------------------------------------------------------------------
@@ -166,6 +167,14 @@ interface SuppressEntry {
   req?: ReqFn;
 }
 
+interface StateWithSuppress {
+  suppress?: SuppressEntry[];
+}
+
+function stateWithSuppress(state: GameState): StateWithSuppress {
+  return state as GameState & StateWithSuppress;
+}
+
 /**
  * Registers each suppression handler in the given card definition.
  * Mirrors `register-suppress`.
@@ -175,8 +184,8 @@ export function registerSuppress(
   side: string,
   card: Card,
 ): SuppressEntry[] {
-  const cdef = getCardDef(card);
-  const events = (cdef as any).suppress as Ability[] | undefined;
+  const cdef = getCardDef(card) as { suppress?: Ability[] } | undefined;
+  const events = cdef?.suppress;
   if (!events || !events.length) return [];
   return registerSuppressInternal(state, side, card, events);
 }
@@ -187,15 +196,16 @@ function registerSuppressInternal(
   card: Card,
   events: Ability[],
 ): SuppressEntry[] {
-  const abilities: SuppressEntry[] = events.map((ability: any) => ({
+  const abilities: SuppressEntry[] = events.map((ability: Ability) => ({
     event: ability.event ?? "",
     ability: { ...ability, event: undefined },
     card,
     uuid: randomUUID(),
   }));
 
-  const existing = (state as any).suppress ?? [];
-  (state as any).suppress =[...existing, ...abilities];
+  const sws = stateWithSuppress(state);
+  const existing = sws.suppress ?? [];
+  sws.suppress = [...existing, ...abilities];
   return abilities;
 }
 
@@ -208,8 +218,8 @@ export function unregisterSuppress(
   side: string,
   card: Card,
 ): void {
-  const cdef = getCardDef(card);
-  const events = (cdef as any).suppress as Ability[] | undefined;
+  const cdef = getCardDef(card) as { suppress?: Ability[] } | undefined;
+  const events = cdef?.suppress;
   if (!events) return;
   unregisterSuppressInternal(state, side, card, events);
 }
@@ -220,9 +230,10 @@ function unregisterSuppressInternal(
   card: Card,
   events: Ability[],
 ): void {
-  const eventNames = new Set(events.map((e: any) => e.event ?? ""));
-  const existing = (state as any).suppress ?? [];
-  (state as any).suppress =existing.filter(
+  const eventNames = new Set(events.map((e: Ability) => e.event ?? ""));
+  const sws = stateWithSuppress(state);
+  const existing = sws.suppress ?? [];
+  sws.suppress = existing.filter(
     (entry: SuppressEntry) =>
       !(sameCard(card, entry.card) && eventNames.has(entry.event)),
   );
@@ -237,8 +248,9 @@ export function unregisterSuppressByUUID(
   _side: string,
   uuid: string,
 ): void {
-  const existing = (state as any).suppress ?? [];
-  (state as any).suppress =existing.filter(
+  const sws = stateWithSuppress(state);
+  const existing = sws.suppress ?? [];
+  sws.suppress = existing.filter(
     (entry: SuppressEntry) => entry.uuid !== uuid,
   );
 }
@@ -282,7 +294,7 @@ function defaultLocations(card: Card | null): Set<string> {
  * Build location set from ability. Mirrors `build-location`.
  */
 function buildLocation(card: Card | null, ability: Ability): Set<string> {
-  const location = (ability as any).location;
+  const location = ability.location;
   if (!location) return defaultLocations(card);
   if (Array.isArray(location)) return new Set(location);
   if (typeof location === "string") return new Set([location]);
@@ -293,9 +305,9 @@ function buildLocation(card: Card | null, ability: Ability): Set<string> {
  * Build condition keyword. Mirrors `build-condition`.
  */
 function buildCondition(ability: Ability): string {
-  const condition = (ability as any).condition as string | undefined;
+  const condition = ability.condition as string | undefined;
   if (condition) return condition;
-  const location = (ability as any).location;
+  const location = ability.location;
   if (location) return "in-location";
   return "active";
 }
@@ -310,10 +322,10 @@ export function buildEventAbility(
   return {
     event: ability.event ?? "",
     location: buildLocation(card, ability),
-    duration: (ability as any).duration ?? "default-duration",
+    duration: ability.duration ?? "default-duration",
     condition: buildCondition(ability),
-    unregisterOnceResolved: (ability as any).unregisterOnceResolved ?? false,
-    oncePerInstance: (ability as any).oncePerInstance ?? false,
+    unregisterOnceResolved: ability.unregisterOnceResolved ?? false,
+    oncePerInstance: ability.oncePerInstance ?? false,
     ability: {
       ...ability,
       event: undefined,
@@ -331,20 +343,45 @@ export function buildEventAbility(
  * Registers each event handler defined in the given card definition.
  * Mirrors `register-events`.
  */
+// Card-side callers sometimes pass (card, events) or (state, card, events).
+// We accept these shapes via permissive overloads and normalise internally.
+export function registerEvents(card: Card, events: Ability[]): RegisteredEvent[];
+export function registerEvents(state: GameState, card: Card, events: Ability[]): RegisteredEvent[];
+export function registerEvents(state: GameState, side: string, card: Card, events: Ability[]): RegisteredEvent[];
 export function registerEvents(
-  state: any,
-  side?: any,
-  card?: any,
-  events?: any,
-): any;
-export function registerEvents(
-  state: GameState,
-  _side: string,
-  card: Card,
-  events: Ability[],
+  arg1: GameState | Card,
+  arg2: Card | string | Ability[],
+  arg3?: Card | Ability[],
+  arg4?: Ability[],
 ): RegisteredEvent[] {
+  let state: GameState;
+  let card: Card;
+  let events: Ability[];
+
+  // Detect (card, events) — first arg is a Card-shaped object (has cid).
+  if (
+    typeof arg1 === "object" &&
+    arg1 !== null &&
+    "cid" in arg1 &&
+    Array.isArray(arg2)
+  ) {
+    // 2-arg form: no state, no-op.
+    return [];
+  }
+  state = arg1 as GameState;
+
+  if (Array.isArray(arg3)) {
+    // 3-arg form: (state, card, events)
+    card = arg2 as Card;
+    events = arg3;
+  } else {
+    // 4-arg form: (state, side, card, events)
+    card = arg3 as Card;
+    events = arg4 ?? [];
+  }
+
   if (!events.length) return [];
-  const abilities = events.map((ability: any) => buildEventAbility(ability, card));
+  const abilities = events.map((ability: Ability) => buildEventAbility(ability, card));
   state.events = [...state.events, ...abilities];
   return abilities;
 }
@@ -359,11 +396,11 @@ export function registerDefaultEvents(
   card: Card,
 ): void {
   registerSuppress(state, side, card);
-  const cdef = getCardDef(card);
-  const allEvents = [(cdef as any).events, (cdef as any).derezzedEvents]
+  const cdef = getCardDef(card) as { events?: Ability[]; derezzedEvents?: Ability[] } | undefined;
+  const allEvents = [cdef?.events, cdef?.derezzedEvents]
     .flat()
-    .filter((e: any) => e && !e?.location);
-  registerEvents(state, side, card, allEvents as Ability[]);
+    .filter((e: Ability | undefined): e is Ability => !!e && !e.location);
+  registerEvents(state, side, card, allEvents);
 }
 
 /**
@@ -379,9 +416,9 @@ export function registerPendingEvent(
   const pending: Ability = {
     ...ability,
     event,
-    duration: (ability as any).duration ?? "pending",
+    duration: ability.duration ?? "pending",
     unregisterOnceResolved: true,
-    oncePerInstance: (ability as any).oncePerInstance ?? false,
+    oncePerInstance: ability.oncePerInstance ?? false,
   };
   registerEvents(state, "", card, [pending]);
 }
@@ -390,27 +427,40 @@ export function registerPendingEvent(
  * Removes all event handlers defined for the given card.
  * Mirrors `unregister-events`.
  */
-export function unregisterEvents(state: GameState, side: string, card: Card, cdef?: Record<string, unknown>): void;
+interface CardDefEvents {
+  events?: Ability[];
+  derezzedEvents?: Ability[];
+}
+
+export function unregisterEvents(state: GameState, side: string, card: Card, cdef?: CardDefEvents): void;
 export function unregisterEvents(card: Card): void;
-export function unregisterEvents(...rawArgs: any[]): void {
-  let state: GameState, side: string, card: Card;
-  let cdef: Record<string, unknown> | undefined;
-  if (rawArgs.length === 1) {
-    card = rawArgs[0];
-    state = {} as GameState;
-    side = "corp";
-  } else {
-    [state, side, card, cdef] = rawArgs as any;
+export function unregisterEvents(
+  arg1: GameState | Card,
+  arg2?: string,
+  arg3?: Card,
+  arg4?: CardDefEvents,
+): void {
+  let state: GameState;
+  let side: string;
+  let card: Card;
+  let cdef: CardDefEvents | undefined;
+  if (arg2 === undefined) {
+    // 1-arg form (legacy): card only — no state, so no-op
+    return;
   }
+  state = arg1 as GameState;
+  side = arg2;
+  card = arg3 as Card;
+  cdef = arg4;
   if (!state || !state.effects) return;
-  const events = cdef
-    ? [(cdef as any).events, (cdef as any).derezzedEvents].flat()
+  const events: (Ability | undefined)[] = cdef
+    ? [cdef.events, cdef.derezzedEvents].flat()
     : (() => {
-        const def = getCardDef(card);
-        return [(def as any).events, (def as any).derezzedEvents].flat();
+        const def = getCardDef(card) as CardDefEvents | undefined;
+        return [def?.events, def?.derezzedEvents].flat();
       })();
 
-  const eventNames = new Set(events.map((e: any) => e?.event ?? ""));
+  const eventNames = new Set(events.map((e) => e?.event ?? ""));
 
   state.events = state.events.filter(
     (entry) =>
@@ -434,7 +484,7 @@ export function updateFloatingEventDurations(
   fromKey: string,
   toKey: string,
 ): void {
-  state.events = state.events.map((e: any) =>
+  state.events = state.events.map((e: RegisteredEvent) =>
     e.duration === fromKey ? { ...e, duration: toKey } : e,
   );
 }
@@ -449,7 +499,7 @@ export function unregisterFloatingEvents(
   duration: string,
 ): void {
   if (duration === "default-duration") return;
-  state.events = state.events.filter((e: any) => e.duration !== duration);
+  state.events = state.events.filter((e: RegisteredEvent) => e.duration !== duration);
 }
 
 /**
@@ -461,17 +511,21 @@ export function unregisterEventByUUID(
   _side: string,
   uuid: string,
 ): void {
-  state.events = state.events.filter((e: any) => e.uuid !== uuid);
+  state.events = state.events.filter((e: RegisteredEvent) => e.uuid !== uuid);
 }
 
 // ---------------------------------------------------------------------------
 // Event triggering
 // ---------------------------------------------------------------------------
 
-/** Handler is skippable? Mirrors `handler-skippable?`. */
-export function handlerSkippable(handler: any): boolean {
-  const ability = handler?.handler?.ability ?? handler?.ability;
-  return ability?.skippable ?? false;
+/** Handler is skippable? Mirrors `handler-skippable?`.
+ *  Accepts `unknown` because card-side callers pass a variety of shapes
+ *  (RegisteredEvent, raw ability map, wrapped {handler, context} tuple). */
+export function handlerSkippable(handler: unknown): boolean {
+  if (!handler || typeof handler !== "object") return false;
+  const h = handler as { handler?: { ability?: Ability }; ability?: Ability };
+  const ability = h.handler?.ability ?? h.ability;
+  return (ability?.skippable as boolean | undefined) ?? false;
 }
 
 /**
@@ -500,7 +554,8 @@ export const automaticPriority: Record<string, number> = {
 };
 
 export function getAbilitySide(ability: RegisteredEvent): string {
-  return (ability.ability as any)?.side ?? "";
+  const inner = ability.ability as { side?: string } | undefined;
+  return inner?.side ?? "";
 }
 
 export function isActivePlayer(
@@ -519,13 +574,13 @@ function validCondition(
   ability: Ability,
 ): Card | null {
   if (!card) return null;
-  const condition = (ability as any).condition as string | undefined;
-  const location = (ability as any).location as Set<string> | undefined;
+  const condition = ability.condition as string | undefined;
+  const location = ability.location as Set<string> | undefined;
 
   const condOk = (() => {
     switch (condition) {
       case "accessed":
-        return sameCard(card, (state as any).access);
+        return sameCard(card, (state.run as { access?: Card | null } | undefined)?.access ?? null);
       case "active":
         return isActive(card);
       case "derezzed":
@@ -584,7 +639,7 @@ export function cardForAbility(
       const side = getSide(ability.card);
       const installed = allInstalled(state, side ?? "");
       const cid = ability.card.cid;
-      const swapped = installed.find((c: any) => c.cid === cid) ?? null;
+      const swapped = installed.find((c: Card) => c.cid === cid) ?? null;
       if (swapped) return validCondition(state, swapped, ability);
     }
   }
@@ -601,15 +656,18 @@ export function triggerSuppress(
   event: string,
   ...targets: unknown[]
 ): boolean {
-  const suppressList = (state as any).suppress ?? [];
+  const suppressList = stateWithSuppress(state).suppress ?? [];
   const matching = suppressList.filter((e: SuppressEntry) => e.event === event);
   for (const entry of matching) {
     const ability = entry.ability;
-    const card = cardForAbility(state, entry as any);
+    const card = cardForAbility(state, entry as unknown as RegisteredEvent);
     if (ability.req) {
       try {
-        if (ability.req(state, side, makeEID(state), card, targets as Card[]))
+        if (typeof ability.req !== "function") {
+          if (ability.req) return true;
+        } else if (ability.req(state, side, makeEID(state), card, targets as Card[])) {
           return true;
+        }
       } catch (_e) {
         /* ignore */
       }
@@ -628,9 +686,9 @@ export function gatherEvents(
   eid: EID,
   event: string,
   targets: unknown[],
-  cardAbilities?: any[] | null,
+  cardAbilities?: RegisteredEvent[] | null,
 ): RegisteredEvent[] {
-  const matching = state.events.filter((e: any) => e.event === event);
+  const matching = state.events.filter((e: RegisteredEvent) => e.event === event);
   const all = cardAbilities
     ? [...matching, ...cardAbilities.filter(Boolean)]
     : matching;
@@ -640,12 +698,12 @@ export function gatherEvents(
     const card = cardForAbility(state, ability);
     if (!card) continue;
     if (triggerSuppress(state, side, event, card, ...targets)) continue;
-    if (!canTrigger(state, side, eid, ability, card, targets)) continue;
+    if (!canTrigger(state, side, eid, ability.ability ?? {}, card, targets)) continue;
     valid.push(ability);
   }
 
   // Active player's handlers last (non-active first)
-  valid.sort((a: any, b: any) => {
+  valid.sort((a: RegisteredEvent, b: RegisteredEvent) => {
     const aActive = isActivePlayer(state, a) ? 1 : 0;
     const bActive = isActivePlayer(state, b) ? 1 : 0;
     return aActive - bActive;
@@ -663,14 +721,15 @@ export function logEvent(
   event: string,
   targets: unknown[],
 ): void {
-  (state as any).turnEvents = [
-    { event, targets },
-    ...((state as any).turnEvents ?? []),
+  state.turnEvents = [
+    { type: event, targets: targets as Card[] },
+    ...(state.turnEvents ?? []),
   ];
   if (state.run) {
-    (state.run as any).events = [
+    const runWithEvents = state.run as { events?: Array<{ event: string; targets: unknown[] }> };
+    runWithEvents.events = [
       { event, targets },
-      ...((state.run as any).events ?? []),
+      ...(runWithEvents.events ?? []),
     ];
   }
 }
@@ -679,13 +738,51 @@ export function logEvent(
  * Resolve all handlers for an event (async, no ordering).
  * Mirrors `trigger-event`.
  */
-export function triggerEvent(state: any, side?: any, event?: any, context?: any): any;
+// Card-side callers sometimes pass fewer args: (state, event) or (event).
+// We accept both via permissive overloads and normalise internally — the
+// missing side defaults to the active player.
+export function triggerEvent(event: string): void;
+export function triggerEvent(state: GameState, event: string): void;
+export function triggerEvent(state: GameState, event: string, context: Record<string, unknown> | null): void;
+export function triggerEvent(state: GameState, side: string, event: string | null, context?: Record<string, unknown> | null): void;
+// Permissive 4-arg overload: accepts unknown state for callers whose state is
+// a wider union (e.g. shuffling.ts where state is `GameState | string` pre-narrowing).
+export function triggerEvent(state: unknown, side: string, event: string | null, context: Record<string, unknown> | null): void;
+// Permissive impl signature — accepts unknown to tolerate callers that haven't
+// narrowed their state/side types (e.g. shuffling.ts overload bodies).
 export function triggerEvent(
-  state: GameState,
-  side: string,
-  event: string | null,
-  context?: Record<string, unknown> | null,
+  arg1: unknown,
+  arg2?: unknown,
+  arg3?: unknown,
+  arg4?: Record<string, unknown> | null,
 ): void {
+  let state: GameState;
+  let side: string;
+  let event: string | null;
+  let context: Record<string, unknown> | null | undefined;
+
+  if (typeof arg1 === "string" || !arg1 || typeof arg1 !== "object") {
+    // 1-arg form: just an event name. No state available — silently no-op.
+    return;
+  }
+  state = arg1 as GameState;
+
+  if (typeof arg2 === "string" && typeof arg3 === "string") {
+    // (state, side, event[, context])
+    side = arg2;
+    event = arg3;
+    context = arg4;
+  } else if (typeof arg2 === "string") {
+    // (state, event[, context])
+    side = state.activePlayer ?? "corp";
+    event = arg2;
+    context = arg3 as Record<string, unknown> | null | undefined;
+  } else {
+    side = state.activePlayer ?? "corp";
+    event = null;
+    context = undefined;
+  }
+
   if (!event) return;
 
   logEvent(state, event, [context]);
@@ -703,7 +800,7 @@ export function triggerEvent(
     eid.source = card;
     eid.sourceType = "ability";
 
-    (resolveAbility as any)(state, side, eid, dissocReq(toResolve), card, [context]);
+    resolveAbility(state, side, eid, dissocReq(toResolve.ability ?? {}), card, [context]);
   }
 }
 
@@ -744,7 +841,7 @@ export function triggerEventSyncNext(
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, _binds: any) {
+      function (s: GameState, _e: EID, _binds: Record<string, unknown>) {
         triggerEventSyncNext(s, side, eid, rest, event, targets);
       },
     ],

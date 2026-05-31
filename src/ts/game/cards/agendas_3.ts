@@ -1339,7 +1339,7 @@ export const lotusHaze: CardDef = {
                   ":content",
                 ]);
                 coreEngine.unregisterEvents(state, side, toMove);
-                coreEngine.registerDefaultEvents(state, side, c);
+                if (c) coreEngine.registerDefaultEvents(state, side, c);
               }),
             },
             card,

@@ -3,7 +3,7 @@
 
 import type { GameState, FlagEntry } from "./state";
 import type { Card } from "./card";
-import type { ReqFn } from "./types";
+import type { AbilityFn, ReqFn } from "./types";
 import { CORP_SIDE } from "./state";
 import { isAgenda, isInstalled, isRezzed, inScored, getCounters as getCounter } from "./card";
 import { allActive, allInstalled } from "./board";
@@ -44,7 +44,7 @@ export function cardFlag(
   value?: unknown,
 ): boolean {
   const cdef = cardDef(card);
-  const entry = (cdef as any).flags?.[flagKey];
+  const entry = (cdef as { flags?: Record<string, unknown> }).flags?.[flagKey];
   if (value !== undefined) return entry === value;
   return entry != null;
 }
@@ -62,10 +62,10 @@ export function cardFlagFn(
   value?: unknown,
 ): boolean {
   const cdef = cardDef(card);
-  const fn = (cdef as any).flags?.[flagKey] as ReqFn | undefined;
+  const fn = (cdef as { flags?: Record<string, unknown> }).flags?.[flagKey] as ReqFn | undefined;
   if (!fn) return false;
   const result = typeof fn === "function"
-    ? (fn as (...a: any[]) => any)(state, side, makeEID(state), card, [])
+    ? (fn as AbilityFn)(state, side, makeEID(state), card, [])
     : fn;
   if (value !== undefined) return result === value;
   return result as unknown as boolean;
@@ -84,7 +84,7 @@ export function anyFlagFn(
   cards?: Card[],
 ): boolean {
   const list = cards ?? allActive(state, side);
-  return list.some((c: any) => cardFlagFn(state, side, c, flagKey, value));
+  return list.some((c: Card) => cardFlagFn(state, side, c, flagKey, value));
 }
 
 // ---------------------------------------------------------------------------
@@ -118,7 +118,10 @@ function checkFlag(
 ): boolean {
   const conditions = getFlagBucket(state, flagType)[flag] ?? [];
   const eid = makeEID(state);
-  return conditions.every((c: any) => typeof c.condition === "function" ? (c.condition as any)(state, side, eid, card, []) : !!c.condition);
+  return conditions.every((c: { condition: ReqFn | unknown }) =>
+    typeof c.condition === "function"
+      ? (c.condition as AbilityFn)(state, side, eid, card, [])
+      : !!c.condition);
 }
 
 /**
@@ -132,7 +135,7 @@ export function checkFlagTypes(
   flag: string,
   flagTypes: FlagType[],
 ): boolean {
-  return flagTypes.every((ft: any) => checkFlag(state, side, card, ft, flag));
+  return flagTypes.every((ft: FlagType) => checkFlag(state, side, card, ft, flag));
 }
 
 /**
@@ -151,7 +154,7 @@ export function getPreventingCards(
   for (const ft of flagTypes) {
     for (const entry of getFlagBucket(state, ft)[flag] ?? []) {
       const cond = entry.condition;
-      const ok = typeof cond === "function" ? (cond as any)(state, side, eid, card, []) : !!cond;
+      const ok = typeof cond === "function" ? (cond as AbilityFn)(state, side, eid, card, []) : !!cond;
       if (!ok) out.push(entry.card);
     }
   }
@@ -184,7 +187,7 @@ function clearFlagForCard(
   const bucket = getFlagBucket(state, flagType);
   const list = bucket[flag];
   if (!list) return;
-  bucket[flag] = list.filter((e: any) => e.card.cid !== card.cid);
+  bucket[flag] = list.filter((e: { card: Card }) => e.card.cid !== card.cid);
 }
 
 /**
@@ -211,15 +214,21 @@ export function clearAllFlagsForCard(
 
 export function registerRunFlag(card: Card, flag: string, condition: ReqFn): void;
 export function registerRunFlag(state: GameState, side: string, card: Card, flag: string, condition: ReqFn): void;
-export function registerRunFlag(...args: any[]): void {
-  if (args.length === 3) {
-    // shorthand without state — no-op
+export function registerRunFlag(
+  arg1: Card | GameState,
+  arg2: string,
+  arg3: Card | ReqFn,
+  arg4?: string,
+  arg5?: ReqFn,
+): void {
+  if (arg4 === undefined) {
+    // shorthand (card, flag, condition) — no state available, no-op.
     return;
   }
-  const state = args[0] as GameState;
-  const card = args[2] as Card;
-  const flag = args[3] as string;
-  const condition = args[4] as ReqFn;
+  const state = arg1 as GameState;
+  const card = arg3 as Card;
+  const flag = arg4;
+  const condition = arg5 as ReqFn;
   registerFlag(state, card, "currentRun", flag, condition);
 }
 
@@ -251,16 +260,21 @@ export function clearRunFlag(
 
 export function registerTurnFlag(card: Card, flag: string, condition: ReqFn | null): void;
 export function registerTurnFlag(state: GameState, side: string, card: Card, flag: string, condition: ReqFn | null): void;
-export function registerTurnFlag(...args: any[]): void {
-  if (args.length === 3) {
-    // shorthand (card, flag, condition) — used inside effect() lambdas.
-    // No state available — best-effort no-op.
+export function registerTurnFlag(
+  arg1: Card | GameState,
+  arg2: string,
+  arg3: Card | ReqFn | null,
+  arg4?: string,
+  arg5?: ReqFn | null,
+): void {
+  if (arg4 === undefined) {
+    // shorthand (card, flag, condition) — no state available, no-op.
     return;
   }
-  const state = args[0] as GameState;
-  const card = args[2] as Card;
-  const flag = args[3] as string;
-  const condition = (args[4] as ReqFn | null) ?? (() => false);
+  const state = arg1 as GameState;
+  const card = arg3 as Card;
+  const flag = arg4;
+  const condition = (arg5 ?? (() => false)) as ReqFn;
   registerFlag(state, card, "currentTurn", flag, condition);
 }
 
@@ -344,32 +358,56 @@ function ensureLocked(holder: LockedHolder): Record<string, string[]> {
   return holder.locked;
 }
 
+function getSideHolder(state: GameState, tside: string): LockedHolder {
+  return (tside === "corp" || tside === ":corp" ? state.corp : state.runner) as unknown as LockedHolder;
+}
+
 export function lockZone(state: GameState, cid: string, tside: string, tzone: string): void;
 export function lockZone(state: GameState, side: string, cid: string, tside: string, tzone: string): void;
-export function lockZone(...args: any[]): void {
-  let state: GameState, cid: string, tside: string, tzone: string;
-  if (args.length === 4) {
-    [state, cid, tside, tzone] = args as [GameState, string, string, string];
+export function lockZone(
+  state: GameState,
+  arg2: string,
+  arg3: string,
+  arg4: string,
+  arg5?: string,
+): void {
+  let cid: string, tside: string, tzone: string;
+  if (arg5 === undefined) {
+    cid = arg2;
+    tside = arg3;
+    tzone = arg4;
   } else {
-    state = args[0]; cid = args[2]; tside = args[3]; tzone = args[4];
+    cid = arg3;
+    tside = arg4;
+    tzone = arg5;
   }
-  const holder = (state as any)[tside] as LockedHolder;
+  const holder = getSideHolder(state, tside);
   const locked = ensureLocked(holder);
   locked[tzone] = [cid, ...(locked[tzone] ?? [])];
 }
 
 export function releaseZone(state: GameState, cid: string, tside: string, tzone: string): void;
 export function releaseZone(state: GameState, side: string, cid: string, tside: string, tzone: string): void;
-export function releaseZone(...args: any[]): void {
-  let state: GameState, cid: string, tside: string, tzone: string;
-  if (args.length === 4) {
-    [state, cid, tside, tzone] = args as [GameState, string, string, string];
+export function releaseZone(
+  state: GameState,
+  arg2: string,
+  arg3: string,
+  arg4: string,
+  arg5?: string,
+): void {
+  let cid: string, tside: string, tzone: string;
+  if (arg5 === undefined) {
+    cid = arg2;
+    tside = arg3;
+    tzone = arg4;
   } else {
-    state = args[0]; cid = args[2]; tside = args[3]; tzone = args[4];
+    cid = arg3;
+    tside = arg4;
+    tzone = arg5;
   }
-  const holder = (state as any)[tside] as LockedHolder;
+  const holder = getSideHolder(state, tside);
   const locked = ensureLocked(holder);
-  locked[tzone] = (locked[tzone] ?? []).filter((c: any) => c !== cid);
+  locked[tzone] = (locked[tzone] ?? []).filter((c: string) => c !== cid);
 }
 
 export function zoneLocked(
@@ -377,7 +415,7 @@ export function zoneLocked(
   side: string,
   zone: string,
 ): boolean {
-  const locked = ((state as any)[side] as LockedHolder)?.locked?.[zone];
+  const locked = getSideHolder(state, side)?.locked?.[zone];
   return !!locked && locked.length > 0;
 }
 
@@ -422,7 +460,7 @@ type RezReason =
 function canRezReason(state: GameState, side: string, card: Card): RezReason {
   const uniqueness = card.uniqueness === true;
   const cdef = cardDef(card);
-  const rezReq = (cdef as any)["rez-req"] as ReqFn | undefined;
+  const rezReq = (cdef as { "rez-req"?: ReqFn })["rez-req"];
 
   if (!sameSide(side, card.side ?? "")) return "side";
   if (!runFlag(state, side, card, "can-rez")) return "run-flag";
@@ -430,12 +468,12 @@ function canRezReason(state: GameState, side: string, card: Card): RezReason {
   if (!persistentFlag(state, side, card, "can-rez")) return "persistent-flag";
   if (
     uniqueness &&
-    allInstalled(state, "corp").some((c: any) => isRezzed(c) && c.code === card.code)
+    allInstalled(state, "corp").some((c: Card) => isRezzed(c) && c.code === card.code)
   ) {
     return "unique";
   }
   if (rezReq) {
-    const ok = typeof rezReq === "function" ? (rezReq as any)(state, side, makeEID(state), card, []) : !!rezReq;
+    const ok = typeof rezReq === "function" ? (rezReq as AbilityFn)(state, side, makeEID(state), card, []) : !!rezReq;
     if (!ok) return "req";
   }
   return true;
@@ -520,7 +558,7 @@ export function canRun(
   const entries = state.flagStack.currentTurn["can-run"] ?? [];
   if (entries.length === 0) return true;
   if (!silent) {
-    const titles = entries.map((e: any) => e.card.title ?? "");
+    const titles = entries.map((e: { card: Card }) => e.card.title ?? "");
     toast(state, side, `Cannot run due to ${enumerateStr(titles)}`);
   }
   return false;
@@ -549,7 +587,7 @@ export function canAccessLoud(
     "persistent",
   ]);
   if (blockers.length === 0) return true;
-  const titles = blockers.map((c: any) => c.title ?? "");
+  const titles = blockers.map((c: Card) => c.title ?? "");
   toast(
     state,
     side,
@@ -584,7 +622,7 @@ export function canScore(
   if (inScored(card)) return false;
 
   if (!noReq) {
-    const cost = (card as any).currentAdvancementRequirement as
+    const cost = card.currentAdvancementRequirement as
       | number
       | undefined;
     if (cost == null || cost > getCounter(card, "advancement")) return false;
@@ -625,7 +663,7 @@ export function canScore(
  */
 export function isScored(state: GameState, side: string, card: Card): boolean {
   const scored = side === CORP_SIDE ? state.corp.scored : state.runner.scored;
-  return scored.some((c: any) => sameCard(c, card));
+  return scored.some((c: Card) => sameCard(c, card));
 }
 
 export function inCorpScored(
@@ -660,7 +698,7 @@ function isDisabledRegInternal(state: GameState, card: Card | null): boolean {
 export function canHost(state: GameState, card: Card): boolean {
   return (
     !isRezzed(card) ||
-    !(cardDef(card) as any)["cannot-host"] ||
+    !(cardDef(card) as { "cannot-host"?: unknown })["cannot-host"] ||
     isDisabledRegInternal(state, card)
   );
 }
@@ -670,7 +708,7 @@ export function canHost(state: GameState, card: Card): boolean {
  * Mirrors: when-scored? in flags.clj
  */
 export function whenScored(card: Card): unknown {
-  return (cardDef(card) as any)["on-score"];
+  return (cardDef(card) as { "on-score"?: unknown })["on-score"];
 }
 
 export { isTagged as tagged, countBadPub, countTags } from "../../jinteki/utils";

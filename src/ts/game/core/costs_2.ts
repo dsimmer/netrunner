@@ -164,14 +164,14 @@ handlerDispatch.set("x-tags", (_c, state, side, eid, card) => {
       async: true,
       prompt: "How many tags do you want to remove?",
       choices: {
-        number: ((s: GameState) => (s as any).runner?.tag?.base ?? 0) as any,
-      } as any,
-      effect: ((
+        number: (s: GameState) => s.runner?.tag?.base ?? 0,
+      },
+      effect: (
         s: GameState,
         sd: string,
         ei: EID,
         _ca: Card | null,
-        targets: any[],
+        targets: unknown[],
       ) => {
         const cost = targets[0] as number;
         if (cost === 0) {
@@ -195,8 +195,8 @@ handlerDispatch.set("x-tags", (_c, state, side, eid, card) => {
             });
           },
         );
-      }) as any,
-    } as any,
+      },
+    },
     card,
     [],
   );
@@ -248,7 +248,7 @@ handlerDispatch.set("tag-or-bad-pub", (c, state, side, eid, card) => {
         sd: string,
         ei: EID,
         _ca: Card | null,
-        targets: any[],
+        targets: unknown[],
       ) => {
         const t = targets[0] as string;
         if (t === `Gain ${value(c)} bad publicity`) {
@@ -284,8 +284,8 @@ handlerDispatch.set("tag-or-bad-pub", (c, state, side, eid, card) => {
             },
           );
         }
-      }) as any,
-    } as any,
+      }),
+    },
     card,
     [],
   );
@@ -353,7 +353,7 @@ handlerDispatch.set("rfg-program", (c, state, side, eid, card) => {
         all: true,
         max: value(c),
         card: (x: Card) => isInstalled(x) && isProgram(x) && !isFacedown(x),
-      } as any,
+      },
       async: true,
       effect: ((
         s: GameState,
@@ -366,20 +366,20 @@ handlerDispatch.set("rfg-program", (c, state, side, eid, card) => {
           const tagged: Card = {
             ...t,
             persistent: {
-              ...((t as any).persistent ?? {}),
+              ...((t as Card & { persistent?: Record<string, unknown> }).persistent ?? {}),
               "from-cid": card?.cid,
             },
           } as Card;
           move(s, sd, tagged, "rfg");
         }
         completeWithResult(s, sd, ei, {
-          "paid/msg": `removes ${quantify(value(c), "installed program")} from the game (${enumerateStr(targets.map((t: any) => cardStr(s, t)))})`,
+          "paid/msg": `removes ${quantify(value(c), "installed program")} from the game (${enumerateStr(targets.map((t: Card) => cardStr(s, t)))})`,
           "paid/type": "rfg-program",
           "paid/value": value(c),
           "paid/targets": targets,
         });
-      }) as any,
-    } as any,
+      }),
+    },
     card,
     [],
   );
@@ -414,7 +414,7 @@ function registerTrashInstalled(
           all: true,
           max: value(c),
           card: cardPred(state, side, card),
-        } as any,
+        },
         async: true,
         effect: ((
           s: GameState,
@@ -435,15 +435,15 @@ function registerTrashInstalled(
             (asyncResult) => {
               const trashed = (asyncResult as Card[]) ?? [];
               completeWithResult(s, sd, ei, {
-                "paid/msg": `trashes ${quantify(trashed.length, description)} (${enumerateStr(targets.map((t: any) => cardStr(s, t)))})`,
+                "paid/msg": `trashes ${quantify(trashed.length, description)} (${enumerateStr(targets.map((t: Card) => cardStr(s, t)))})`,
                 "paid/type": type,
                 "paid/value": trashed.length,
                 "paid/targets": targets,
               });
             },
           );
-        }) as any,
-      } as any,
+        }),
+      },
       card,
       [],
     );
@@ -455,10 +455,10 @@ registerTrashInstalled(
   "trash-other-installed",
   "installed card",
   (state, side, card) =>
-    allInstalled(state, side).filter((c: any) => !sameCard(card as any, c)),
+    allInstalled(state, side).filter((c: Card) => !sameCard(card as Card, c)),
   (_state, side, card) => (c) =>
     isInstalled(c) &&
-    !sameCard(c, card as any) &&
+    !sameCard(c, card as Card) &&
     (side === "runner" ? isRunner(c) : isCorp(c)),
 );
 
@@ -492,7 +492,7 @@ handlerDispatch.set("hardware", (c, state, side, eid, card) => {
         all: true,
         max: value(c),
         card: (x: Card) => isInstalled(x) && isHardware(x) && !isFacedown(x),
-      } as any,
+      },
       async: true,
       effect: ((
         s: GameState,
@@ -513,15 +513,15 @@ handlerDispatch.set("hardware", (c, state, side, eid, card) => {
           (asyncResult) => {
             const trashed = (asyncResult as Card[]) ?? [];
             completeWithResult(s, sd, ei, {
-              "paid/msg": `trashes ${quantify(trashed.length, "installed piece")} of hardware (${enumerateStr(targets.map((t: any) => cardStr(s, t)))})`,
+              "paid/msg": `trashes ${quantify(trashed.length, "installed piece")} of hardware (${enumerateStr(targets.map((t: Card) => cardStr(s, t)))})`,
               "paid/type": "hardware",
               "paid/value": trashed.length,
               "paid/targets": targets,
             });
           },
         );
-      }) as any,
-    } as any,
+      }),
+    },
     card,
     [],
   );
@@ -548,7 +548,7 @@ registerTrashInstalled(
   "connection",
   "installed connection resource",
   (state) =>
-    allActiveInstalled(state, "runner").filter((c: any) =>
+    allActiveInstalled(state, "runner").filter((c: Card) =>
       hasSubtype(c, "Connection"),
     ),
   () => (c) =>
@@ -582,7 +582,7 @@ payableDispatch.set("derez-other-harmonic", (c, state, _side, _eid, card) => {
   return (
     allActiveInstalled(state, "corp").filter(
       (x) =>
-        isRezzed(x) && hasSubtype(x, "Harmonic") && !sameCard(card as any, x),
+        isRezzed(x) && hasSubtype(x, "Harmonic") && !sameCard(card as Card, x),
     ).length -
       value(c) >=
     0
@@ -598,8 +598,8 @@ handlerDispatch.set("derez-other-harmonic", (c, state, side, eid, card) => {
         all: true,
         max: value(c),
         card: (x: Card) =>
-          isRezzed(x) && !sameCard(x, card as any) && hasSubtype(x, "Harmonic"),
-      } as any,
+          isRezzed(x) && !sameCard(x, card as Card) && hasSubtype(x, "Harmonic"),
+      },
       async: true,
       effect: ((
         s: GameState,
@@ -615,18 +615,18 @@ handlerDispatch.set("derez-other-harmonic", (c, state, side, eid, card) => {
             derez(s, sd, innerEid, targets, {
               suppressCheckpoint: true,
               noMsg: true,
-            } as any),
+            }),
           () => {
             completeWithResult(s, sd, ei, {
-              "paid/msg": `derezzes ${targets.length} Harmonic ice (${enumerateStr(targets.map((t: any) => cardStr(s, t)))})`,
+              "paid/msg": `derezzes ${targets.length} Harmonic ice (${enumerateStr(targets.map((t: Card) => cardStr(s, t)))})`,
               "paid/type": "derez",
               "paid/value": targets.length,
               "paid/targets": targets,
             });
           },
         );
-      }) as any,
-    } as any,
+      }),
+    },
     card,
     [],
   );
@@ -672,7 +672,7 @@ handlerDispatch.set("bioroid-run-server", (c, state, side, eid, card) => {
           _sd: string,
           _e: EID,
           _ca: Card | null,
-          targets: any[],
+          targets: unknown[],
         ) => {
           const t = targets[0] as Card;
           return (
@@ -681,8 +681,8 @@ handlerDispatch.set("bioroid-run-server", (c, state, side, eid, card) => {
             hasSubtype(t, "Bioroid") &&
             getZone(t)?.[1] === runServer
           );
-        }) as any,
-      } as any,
+        }),
+      },
       async: true,
       effect: ((
         s: GameState,
@@ -702,15 +702,15 @@ handlerDispatch.set("bioroid-run-server", (c, state, side, eid, card) => {
           (asyncResult) => {
             const trashed = (asyncResult as Card[]) ?? [];
             completeWithResult(s, sd, ei, {
-              "paid/msg": `trashes ${quantify(trashed.length, " rezzed Bioroid", "")} (${enumerateStr(targets.map((t: any) => cardStr(s, t)))})`,
+              "paid/msg": `trashes ${quantify(trashed.length, " rezzed Bioroid", "")} (${enumerateStr(targets.map((t: Card) => cardStr(s, t)))})`,
               "paid/type": "bioroid-run-server",
               "paid/value": trashed.length,
               "paid/targets": targets,
             });
           },
         );
-      }) as any,
-    } as any,
+      }),
+    },
     card,
     [],
   );
@@ -726,7 +726,7 @@ labelDispatch.set(
   (c) => `trash ${quantify(value(c), "card")} from the top of your deck`,
 );
 payableDispatch.set("trash-from-deck", (c, state, side) => {
-  return (((state as any)[side]?.deck ?? []) as Card[]).length - value(c) >= 0;
+  return ((state[side === "corp" ? "corp" : "runner"]?.deck ?? []) as Card[]).length - value(c) >= 0;
 });
 handlerDispatch.set("trash-from-deck", (c, state, side, eid) => {
   waitFor(
@@ -735,7 +735,7 @@ handlerDispatch.set("trash-from-deck", (c, state, side, eid) => {
     (innerEid) =>
       mill(state, side, innerEid, side, value(c), {
         "suppress-checkpoint": true,
-      } as any),
+      }),
     (asyncResult) => {
       const trashed = (asyncResult as Card[]) ?? [];
       completeWithResult(state, side, eid, {
@@ -758,7 +758,7 @@ labelDispatch.set(
   (c) => `trash ${quantify(value(c), "card")} from your hand`,
 );
 payableDispatch.set("trash-from-hand", (c, state, side) => {
-  return (((state as any)[side]?.hand ?? []) as Card[]).length - value(c) >= 0;
+  return ((state[side === "corp" ? "corp" : "runner"]?.hand ?? []) as Card[]).length - value(c) >= 0;
 });
 handlerDispatch.set("trash-from-hand", (c, state, side, eid) => {
   const selectFn = (x: Card) =>
@@ -769,7 +769,7 @@ handlerDispatch.set("trash-from-hand", (c, state, side, eid) => {
     side,
     {
       prompt: `Choose ${quantify(value(c), "card")} to trash`,
-      choices: { all: true, max: value(c), card: selectFn } as any,
+      choices: { all: true, max: value(c), card: selectFn },
       async: true,
       effect: ((
         s: GameState,
@@ -792,7 +792,7 @@ handlerDispatch.set("trash-from-hand", (c, state, side, eid) => {
             const trashed = (asyncResult as Card[]) ?? [];
             const detail =
               sd === "runner" && trashed.length > 0
-                ? ` (${enumerateStr(targets.map((t: any) => cardStr(s, t)))})`
+                ? ` (${enumerateStr(targets.map((t: Card) => cardStr(s, t)))})`
                 : "";
             completeWithResult(s, sd, ei, {
               "paid/msg": `trashes ${quantify(trashed.length, "card")}${detail} from ${handName}`,
@@ -802,8 +802,8 @@ handlerDispatch.set("trash-from-hand", (c, state, side, eid) => {
             });
           },
         );
-      }) as any,
-    } as any,
+      }),
+    },
     null,
     [],
   );
@@ -819,7 +819,7 @@ labelDispatch.set(
   (c) => `trash ${quantify(value(c), "card")} randomly from your hand`,
 );
 payableDispatch.set("randomly-trash-from-hand", (c, state, side) => {
-  return (((state as any)[side]?.hand ?? []) as Card[]).length - value(c) >= 0;
+  return ((state[side === "corp" ? "corp" : "runner"]?.hand ?? []) as Card[]).length - value(c) >= 0;
 });
 handlerDispatch.set("randomly-trash-from-hand", (c, state, side, eid) => {
   waitFor(
@@ -828,7 +828,7 @@ handlerDispatch.set("randomly-trash-from-hand", (c, state, side, eid) => {
     (innerEid) =>
       discardFromHand(state, side, innerEid, side, value(c), {
         "suppress-checkpoint": true,
-      } as any),
+      }),
     (asyncResult) => {
       const trashed = (asyncResult as Card[]) ?? [];
       const detail =

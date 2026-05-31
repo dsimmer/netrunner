@@ -20,7 +20,7 @@ import { enumerateStr, enumerateCards, pluralize, quantify } from "../utils";
  * Returns a ReqFn that produces the prompt text for the sabotage card-selection
  * step.  Mirrors `choosing-prompt-req`.
  */
-export function choosingPromptReq(n: number): any {
+export function choosingPromptReq(n: number): (state: GameState) => string {
   return (state: GameState) => {
     const cardsRd = (state.corp.deck ?? []).length;
     const forcedHq = n - cardsRd;
@@ -53,7 +53,7 @@ function cardsStr(
     (public_ ? ` (${enumerateCards(unknown)})` : "");
 
   if (known.length > 0) {
-    const parts: string[] = known.map((c: any) => c.title ?? "");
+    const parts: string[] = known.map((c: Card) => c.title ?? "");
     if (unknown.length > 0) parts.push(unknownStr);
     return ` ${enumerateStr(parts)} from ${from}`;
   }
@@ -88,17 +88,14 @@ export function trashSelectedReq(n: number): AbilityFn {
     const rndToTrash = deck.slice(0, selectedRd);
     const toTrash: Card[] = [...targetCards, ...rndToTrash];
 
-    const knownHandCids = new Set(
-      (state.breach as any)?.["known-cids"]?.hand ?? [],
-    );
-    const knownDeckCids = new Set(
-      (state.breach as any)?.["known-cids"]?.deck ?? [],
-    );
+    const breach = state.breach as { "known-cids"?: { hand?: string[]; deck?: string[] } } | null | undefined;
+    const knownHandCids = new Set<string>(breach?.["known-cids"]?.hand ?? []);
+    const knownDeckCids = new Set<string>(breach?.["known-cids"]?.deck ?? []);
 
-    const knownHqCards = toTrash.filter((c: any) => knownHandCids.has(c.cid));
-    const knownRdCards = toTrash.filter((c: any) => knownDeckCids.has(c.cid));
-    const unknownHqCards = targetCards.filter((c: any) => !knownHandCids.has(c.cid));
-    const unknownRdCards = rndToTrash.filter((c: any) => !knownDeckCids.has(c.cid));
+    const knownHqCards = toTrash.filter((c: Card) => knownHandCids.has(c.cid));
+    const knownRdCards = toTrash.filter((c: Card) => knownDeckCids.has(c.cid));
+    const unknownHqCards = targetCards.filter((c: Card) => !knownHandCids.has(c.cid));
+    const unknownRdCards = rndToTrash.filter((c: Card) => !knownDeckCids.has(c.cid));
 
     let publicMsg = "trashes";
     if (selectedHq > 0) {
@@ -204,8 +201,10 @@ export function sabotageAbility(n: number): Ability {
       _targets: unknown[],
     ) => {
       // Update stats
-      const stats = (state.stats ??= {} as any);
-      const runnerStats = (stats.runner ??= {} as any);
+      const stats = (state.stats ??= {});
+      const runnerStats: Record<string, number | undefined> =
+        (stats.runner as Record<string, number | undefined> | undefined) ?? {};
+      stats.runner = runnerStats;
       runnerStats["cards-sabotaged"] =
         (runnerStats["cards-sabotaged"] ?? 0) + n;
 

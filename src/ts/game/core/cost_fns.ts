@@ -10,7 +10,7 @@ import { makeEID } from "./eid";
 import { mergeCosts } from "./payment";
 import type { CostData } from "./payment";
 import type { EID } from "./eid";
-import type { Ability, State } from "./types";
+import type { Ability, AbilityFn, State } from "./types";
 export type { CostData } from "./payment";
 
 // ---------------------------------------------------------------------------
@@ -42,10 +42,10 @@ export function playCost(
   const costBonus = args?.costBonus ?? 0;
 
   const playCostBonus = (() => {
-    const def = cardDef(card);
-    const playFn = (def as any).onPlay?.playCostBonus;
+    const def = cardDef(card) as { onPlay?: { playCostBonus?: AbilityFn } };
+    const playFn = def.onPlay?.playCostBonus;
     if (playFn) {
-      return playFn(state, side, makeEID(state), card, null);
+      return playFn(state, side, makeEID(state), card, []);
     }
     return undefined;
   })();
@@ -74,15 +74,15 @@ export function basePlayCost(
   card: Card,
   args?: { costBonus?: number },
 ): CostData[] {
-  const def = cardDef(card);
-  const specialCost = (def as any).onPlay?.basePlayCost;
+  const def = cardDef(card) as { onPlay?: { basePlayCost?: CostData[]; playCostBonus?: AbilityFn } };
+  const specialCost = def.onPlay?.basePlayCost;
 
   if (specialCost) {
     const costBonus = args?.costBonus ?? 0;
     const playCostBonus = (() => {
-      const playFn = (def as any).onPlay?.playCostBonus;
+      const playFn = def.onPlay?.playCostBonus;
       if (playFn) {
-        return playFn(state, side, makeEID(state), card, null);
+        return playFn(state, side, makeEID(state), card, []);
       }
       return 0;
     })();
@@ -125,10 +125,10 @@ export function playAdditionalCostBonus(
   side: string,
   card: Card,
 ): CostData[] {
-  const def = cardDef(card);
+  const def = cardDef(card) as { onPlay?: { additionalCost?: CostData[] } };
   return mergeCosts([
-    (def as any).onPlay?.additionalCost ?? [],
-    getEffects(state, side, "play-additional-cost", card, []),
+    def.onPlay?.additionalCost ?? [],
+    getEffects(state, side, "play-additional-cost", card, []) as CostData[],
   ]);
 }
 
@@ -143,7 +143,7 @@ export function rezCost(
   state: GameState,
   side: string,
   card: Card | null,
-  args?: { costBonus?: number; "cost-bonus"?: number; [k: string]: any },
+  args?: { costBonus?: number; "cost-bonus"?: number; [k: string]: unknown },
 ): number | undefined {
   if (!card) return undefined;
   const { cost } = card;
@@ -153,10 +153,10 @@ export function rezCost(
 
   const rezCostBonus = (() => {
     if (isDisabledReg(state, card)) return undefined;
-    const def = cardDef(card);
-    const rezFn = (def as any).rezCostBonus;
+    const def = cardDef(card) as { rezCostBonus?: AbilityFn };
+    const rezFn = def.rezCostBonus;
     if (rezFn) {
-      return rezFn(state, side, makeEID(state), card, null);
+      return rezFn(state, side, makeEID(state), card, []);
     }
     return undefined;
   })();
@@ -187,10 +187,10 @@ export function rezAdditionalCostBonus(
   const costs = mergeCosts([
     isDisabledReg(state, card)
       ? []
-      : ((cardDef(card) as any).additionalCost ?? []),
-    getEffects(state, side, "rez-additional-cost", card, []),
+      : ((cardDef(card) as { additionalCost?: CostData[] }).additionalCost ?? []),
+    getEffects(state, side, "rez-additional-cost", card, []) as CostData[],
   ]);
-  return costs.filter(pred ?? ((c) => c));
+  return costs.filter(pred ?? ((_c) => true));
 }
 
 // ---------------------------------------------------------------------------
@@ -205,10 +205,10 @@ export function scoreAdditionalCostBonus(
   side: string,
   card: Card,
 ): CostData[] {
-  const def = cardDef(card);
+  const def = cardDef(card) as { additionalCost?: CostData[] };
   return mergeCosts([
-    (def as any).additionalCost ?? [],
-    getEffects(state, side, "score-additional-cost", card, []),
+    def.additionalCost ?? [],
+    getEffects(state, side, "score-additional-cost", card, []) as CostData[],
   ]);
 }
 
@@ -231,10 +231,10 @@ export function trashCost(
   const costBonus = args?.costBonus ?? 0;
 
   const trashCostBonus = (() => {
-    const def = cardDef(card);
-    const trashFn = (def as any).trashCostBonus;
+    const def = cardDef(card) as { trashCostBonus?: AbilityFn };
+    const trashFn = def.trashCostBonus;
     if (trashFn) {
-      return trashFn(state, side, makeEID(state), card, null);
+      return trashFn(state, side, makeEID(state), card, []);
     }
     return undefined;
   })();
@@ -260,7 +260,7 @@ export function installCost(
   state: GameState,
   side: string,
   card: Card,
-  args?: { costBonus?: number; "cost-bonus"?: number; [k: string]: any },
+  args?: { costBonus?: number; "cost-bonus"?: number; [k: string]: unknown },
   targets?: Card[],
 ): number {
   const costBonus = args?.costBonus ?? 0;
@@ -269,10 +269,10 @@ export function installCost(
   const cardCost = isRunner(card) ? (card.cost ?? undefined) : undefined;
 
   const installCostBonus = (() => {
-    const def = cardDef(card);
-    const instFn = (def as any).installCostBonus;
+    const def = cardDef(card) as { installCostBonus?: AbilityFn };
+    const instFn = def.installCostBonus;
     if (instFn) {
-      return instFn(state, side, makeEID(state), card, null);
+      return instFn(state, side, makeEID(state), card, []);
     }
     return undefined;
   })();
@@ -299,10 +299,10 @@ export function installAdditionalCostBonus(
   side: string,
   card: Card,
 ): CostData[] {
-  const def = cardDef(card);
+  const def = cardDef(card) as { additionalCost?: CostData[] };
   return mergeCosts([
-    (def as any).additionalCost ?? [],
-    getEffects(state, side, "install-additional-cost", card, []),
+    def.additionalCost ?? [],
+    getEffects(state, side, "install-additional-cost", card, []) as CostData[],
   ]);
 }
 
@@ -387,16 +387,21 @@ export function runAdditionalCostBonus(
  * Returns true if the card has a trash-can cost ability.
  */
 export function hasTrashAbility(card: Card): boolean {
-  const def = cardDef(card);
-  const abilities = (def as any).abilities ?? [];
-  const prevents = ((def as any).prevention ?? []).map((p: any) => p.ability);
-  const accessAb = [(def as any).interactions?.accessAbility];
-  const events = (def as any).events ?? [];
+  const def = cardDef(card) as {
+    abilities?: Ability[];
+    prevention?: { ability?: Ability }[];
+    interactions?: { accessAbility?: Ability };
+    events?: Ability[];
+  };
+  const abilities = def.abilities ?? [];
+  const prevents = (def.prevention ?? []).map((p) => p.ability);
+  const accessAb = [def.interactions?.accessAbility];
+  const events = def.events ?? [];
 
   const allCosts = mergeCosts(
-    [...abilities, ...prevents, ...accessAb, ...events].map((ab: any) => [
-      ab?.cost,
-      ab?.fakeCost,
+    [...abilities, ...prevents, ...accessAb, ...events].flatMap((ab: Ability | undefined) => [
+      ab?.cost as CostData | CostData[] | undefined,
+      (ab as { fakeCost?: CostData | CostData[] } | undefined)?.fakeCost,
     ]),
   );
 
@@ -420,7 +425,7 @@ export function cardAbilityCost(
   const t = targets ?? [];
 
   const costBonus = (() => {
-    const costBonusFn = (ability as any).costBonus;
+    const costBonusFn = (ability as { costBonus?: AbilityFn }).costBonus;
     if (costBonusFn) {
       return costBonusFn(state, side, makeEID(state), card, t);
     }
@@ -429,7 +434,7 @@ export function cardAbilityCost(
 
   const effectsCost = getEffects(state, side, "card-ability-cost", card, t);
 
-  const baseCost = [(ability as any).cost, costBonus, ...effectsCost];
+  const baseCost = [ability.cost as CostData | CostData[] | undefined, costBonus, ...(effectsCost as CostData[])];
 
   const additionalEffects = getEffects(
     state,
@@ -440,8 +445,8 @@ export function cardAbilityCost(
   );
 
   const additionalCost = [
-    (ability as any).additionalCost,
-    ...additionalEffects,
+    ability.additionalCost as CostData | CostData[] | undefined,
+    ...(additionalEffects as CostData[]),
   ].flat();
 
   return mergeCosts([...baseCost, ...additionalCost]);
@@ -464,7 +469,7 @@ export function breakSubAbilityCost(
   const t = targets ?? [];
 
   const breakCostBonus = (() => {
-    const breakFn = (ability as any).breakCostBonus;
+    const breakFn = (ability as { breakCostBonus?: AbilityFn }).breakCostBonus;
     if (breakFn) {
       return breakFn(state, side, makeEID(state), card, t);
     }
@@ -472,10 +477,10 @@ export function breakSubAbilityCost(
   })();
 
   return mergeCosts([
-    (ability as any).breakCost,
-    (ability as any).additionalCost,
+    ability.breakCost as CostData | CostData[] | undefined,
+    ability.additionalCost as CostData | CostData[] | undefined,
     breakCostBonus,
-    getEffects(state, side, "break-sub-additional-cost", card, t),
+    getEffects(state, side, "break-sub-additional-cost", card, t) as CostData[],
   ]);
 }
 
@@ -510,12 +515,12 @@ export function stealCost(
   eid: EID,
   card: Card,
 ): CostData[] {
-  const def = cardDef(card);
-  const costFun = (def as any).stealCostBonus;
+  const def = cardDef(card) as { stealCostBonus?: AbilityFn };
+  const costFun = def.stealCostBonus;
 
   let stealCost: CostData[] | CostData | undefined;
   if (costFun) {
-    const result = costFun(state, side, eid, card, null);
+    const result = costFun(state, side, eid, card, []) as CostData[] | CostData | undefined;
     stealCost = result;
   }
 
@@ -530,15 +535,19 @@ export function stealCost(
     : undefined;
 
   // Build an effect value resolver for the agenda
-  const ev = (e: any): any => {
+  interface EffectMap {
+    value?: AbilityFn;
+    card?: Card | null;
+  }
+  const ev = (e: EffectMap): unknown => {
     if (!e.value) return null;
-    return e.value(state, side, eid, e.card, [card]);
+    return e.value(state, side, eid, e.card ?? null, [card]);
   };
 
   // Gather additional costs from effects
   const maps = getEffectMaps(state, side, "steal-additional-cost", eid, [card]);
 
-  const effectCosts = maps.reduce((acc: any[], e: any) => {
+  const effectCosts = (maps as EffectMap[]).reduce((acc: unknown[], e: EffectMap) => {
     const cost = ev(e);
     if (!cost) return acc;
 
@@ -547,14 +556,14 @@ export function stealCost(
           ...c,
           args: { ...(c.args ?? {}), source: e.card },
         }))
-      : { ...cost, args: { ...(cost.args ?? {}), source: e.card } };
+      : { ...(cost as CostData), args: { ...((cost as CostData).args ?? {}), source: e.card } };
 
     return [...acc, annotated];
   }, []);
 
   return [...effectCosts.flat(), annotatedStealCost]
     .flat()
-    .filter((c: any) => c)
+    .filter((c): c is CostData => !!c)
     .map((c: CostData) => ({
       ...c,
       additional: true,

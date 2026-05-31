@@ -1,6 +1,7 @@
 // Turmoil: card replacement / shuffling for the turmoil game mode.
 // Mirrors: src/clj/game/core/turmoil.clj
 
+import type { Card } from "./card";
 import {
   agenda,
   asset,
@@ -54,7 +55,7 @@ let cachedIndexes: CachedIndexes | null = null;
  * Mirrors is-econ?
  */
 function isEcon(card: Record<string, unknown>): boolean {
-  const title = (card as any).title ?? "";
+  const title = (card.title as string | undefined) ?? "";
   const cardDef = serverCard(title);
   const text = (cardDef?.text as string) ?? "";
   return /.(ain|ake) (\d+|(.? host.*)).?.?.?redit/.test(text);
@@ -75,7 +76,7 @@ function setCards(): void {
   // agenda-by-points
   const agendaByPoints: Record<number, Record<string, unknown>[]> = {};
   for (const card of allCards) {
-    if (agenda(card as any)) {
+    if (agenda(card as unknown as Card)) {
       const pts = (card.agendapoints as number) ?? 0;
       if (!agendaByPoints[pts]) agendaByPoints[pts] = [];
       agendaByPoints[pts].push(card);
@@ -84,30 +85,30 @@ function setCards(): void {
 
   // identity-by-side
   const identityBySide: Record<string, Record<string, unknown>[]> = {
-    corp: allCards.filter((c: any) => identity(c as any) && corp(c as any)),
-    runner: allCards.filter((c: any) => identity(c as any) && runner(c as any)),
+    corp: allCards.filter((c) => identity(c as Card) && corp(c as Card)),
+    runner: allCards.filter((c) => identity(c as Card) && runner(c as Card)),
   };
 
   // program-by-icebreaker
   const programByIcebreaker: Record<string, Record<string, unknown>[]> = {
     icebreaker: allCards.filter(
-      (c) => program(c as any) && hasSubtype(c as any, "Icebreaker"),
+      (c) => program(c as Card) && hasSubtype(c as Card, "Icebreaker") !== undefined,
     ),
     regular: allCards.filter(
-      (c) => program(c as any) && !hasSubtype(c as any, "Icebreaker"),
+      (c) => program(c as Card) && hasSubtype(c as Card, "Icebreaker") === undefined,
     ),
   };
 
   // cards-by-type
-  const typePredicates: Record<string, (c: any) => boolean> = {
-    asset: (c: any) => asset(c),
-    event: (c: any) => event(c),
-    hardware: (c: any) => hardware(c),
-    resource: (c: any) => resource(c),
-    program: (c: any) => program(c),
-    upgrade: (c: any) => upgrade(c),
-    ice: (c: any) => ice(c),
-    operation: (c: any) => operation(c),
+  const typePredicates: Record<string, (c: Card) => boolean> = {
+    asset: (c: Card) => asset(c),
+    event: (c: Card) => event(c),
+    hardware: (c: Card) => hardware(c),
+    resource: (c: Card) => resource(c),
+    program: (c: Card) => program(c),
+    upgrade: (c: Card) => upgrade(c),
+    ice: (c: Card) => ice(c),
+    operation: (c: Card) => operation(c),
   };
   const keysSorted = Object.keys(typePredicates).sort();
   const cardsByType: CachedIndexes["cardsByType"] = {};
@@ -115,11 +116,11 @@ function setCards(): void {
     const pred = typePredicates[key];
     if (filterByEconTypes.has(key)) {
       cardsByType[key] = {
-        economy: allCards.filter((c: any) => pred(c as any) && isEcon(c)),
-        regular: allCards.filter((c: any) => pred(c as any) && !isEcon(c)),
+        economy: allCards.filter((c) => pred(c as Card) && isEcon(c)),
+        regular: allCards.filter((c) => pred(c as Card) && !isEcon(c)),
       };
     } else {
-      cardsByType[key] = allCards.filter((c: any) => pred(c as any));
+      cardsByType[key] = allCards.filter((c) => pred(c as Card));
     }
   }
 
@@ -200,7 +201,7 @@ function pickReplacementCard(
 
   // program: maintain icebreaker / regular classification (with cross-contamination)
   if (cType === "program") {
-    const hasIcebreaker = !!hasSubtype(card as any, "Icebreaker");
+    const hasIcebreaker = !!hasSubtype(card as Card, "Icebreaker");
     // 10% chance of cross-contamination for icebreakers
     const choice = shouldReplace("icebreakerCrossContam")
       ? hasIcebreaker
@@ -231,7 +232,7 @@ function pickReplacementCard(
       !Array.isArray(bucket) &&
       "economy" in bucket
     ) {
-      const pool = (bucket as any)[choice] ?? [];
+      const pool = (bucket as Record<string, Record<string, unknown>[]>)[choice] ?? [];
       if (pool.length === 0) return card;
       return pool[Math.floor(Math.random() * pool.length)];
     }
@@ -257,7 +258,7 @@ function pickReplacementCard(
 function replaceHand(state: GameState, side: string): void {
   const player = getPlayer(state, side);
   const hand = player.hand ?? [];
-  const newHand = hand.map((card: any) => {
+  const newHand = hand.map((card: Card) => {
     if (shouldReplace("hand", hand.length)) {
       disableCard(state, side, card);
       const replacement = pickReplacementCard(card);
@@ -272,7 +273,7 @@ function replaceHand(state: GameState, side: string): void {
 function replaceDiscard(state: GameState, side: string): void {
   const player = getPlayer(state, side);
   const discard = player.discard ?? [];
-  const newDiscard = discard.map((card: any) => {
+  const newDiscard = discard.map((card: Card) => {
     if (shouldReplace("discard")) {
       disableCard(state, side, card);
       const replacement = pickReplacementCard(card);
@@ -287,7 +288,7 @@ function replaceDiscard(state: GameState, side: string): void {
 function replaceDeck(state: GameState, side: string): void {
   const player = getPlayer(state, side);
   const deck = player.deck ?? [];
-  const newDeck = deck.map((card: any) => {
+  const newDeck = deck.map((card: Card) => {
     if (shouldReplace("deck")) {
       disableCard(state, side, card);
       const replacement = pickReplacementCard(card);
@@ -336,10 +337,10 @@ function replaceId(state: GameState, side: string): void {
   const currentId = player.identity;
   if (currentId) {
     // Get cards from temp-hosted zone
-    const tempHosted: any[] = [];
+    const tempHosted: Card[] = [];
     try {
       // temp-hosted is dynamically created by move; traverse state to find it
-      const path = (state as any)[side];
+      const path = (side === "corp" || side === ":corp" ? state.corp : state.runner) as unknown as Record<string, Card[] | undefined>;
       if (path && Array.isArray(path.tempHosted)) {
         tempHosted.push(...path.tempHosted);
       } else if (path && Array.isArray(path["temp-hosted"])) {

@@ -1,11 +1,9 @@
 This repo is the web version of the netrunner card game.
 
-Never split work up into multiple agents. Never use type 'any', use a defined type
-
 Your job is to manage the conversion from clojure and clojurescript to typescript.
 
 You must make sure that all functionality is faithfully ported. Where a library is specific to clojure, use an equivalent library in typescript.
 
 If you need to reference how a function works, check the equivalent clojure file.
 
-Do not use any git commands
+Do not use any git commands. Never use type 'any' or 'unknown', use a defined type. Never use @ts-nocheck or @ts-ignore. Do not use sub agents.

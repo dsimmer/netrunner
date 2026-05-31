@@ -34,6 +34,7 @@ import {
   damageName,
   damagePending,
   fetchAndClear,
+  pCtx,
   preventNumeric,
   pushPrevention,
   resolveKeyedPreventionForSide,
@@ -453,7 +454,7 @@ export function preventExpose(
           c: Card,
           t: unknown[],
         ) {
-          return [...remaining].sort((a: any, b: any) =>
+          return [...remaining].sort((a: Card, b: Card) =>
             (a.title ?? "").localeCompare(b.title ?? ""),
           );
         }),
@@ -466,7 +467,7 @@ export function preventExpose(
           t: unknown[],
         ) {
           const target = (t as Card[])[0];
-          const ctx = (s as any).prevent?.expose as PreventionContext;
+          const ctx = pCtx(s, "expose");
           if (ctx) {
             ctx.remaining = (ctx.remaining as Card[]).filter(
               (r: Card) => !sameCard(r, target),
@@ -492,7 +493,7 @@ function resolveExposePreventionForSide(
   const remaining = (state.prevent?.expose?.remaining as Card[]) ?? [];
 
   const promptStr = `Prevent ${enumerateStr(
-    remaining.map((c: any) => cardStr(state, c, { visible: side === "corp" })),
+    remaining.map((c: Card) => cardStr(state, c, { visible: side === "corp" })),
     "or",
   )} from being exposed?`;
   const optionStr = `Allow ${quantify(remaining.length, "card")} to be exposed`;
@@ -541,7 +542,7 @@ export function resolveExposePrevention(
 
   // Filter out rezzed or nil cards
   const newTargets = targets
-    .map((c: any) => getCard(state, c))
+    .map((c: Card) => getCard(state, c))
     .filter((c): c is Card => c != null && !rezzed(c));
 
   state.prevent.expose.remaining = newTargets;
@@ -678,7 +679,7 @@ export function preventUpToNTags(n: number | "all"): Ability {
       c: Card,
       t: unknown[],
     ) {
-      return !!(s as any).prevent?.tag;
+      return !!pCtx(s, "tag");
     }),
     choices: {
       number: req(function (
@@ -689,10 +690,10 @@ export function preventUpToNTags(n: number | "all"): Ability {
         c: Card,
         t: unknown[],
       ) {
-        const remaining = ((s as any).prevent?.tag as PreventionContext)
-          ?.remaining as number;
-        if (n === "all") return remaining;
-        return Math.min(remaining, n as number);
+        const remaining = pCtx(s, "tag")?.remaining as number | undefined;
+        const r = remaining ?? 0;
+        if (n === "all") return r;
+        return Math.min(r, n as number);
       }),
       default: req(function (
         this: void,
@@ -702,10 +703,10 @@ export function preventUpToNTags(n: number | "all"): Ability {
         c: Card,
         t: unknown[],
       ) {
-        const remaining = ((s as any).prevent?.tag as PreventionContext)
-          ?.remaining as number;
-        if (n === "all") return remaining;
-        return Math.min(remaining, n as number);
+        const remaining = pCtx(s, "tag")?.remaining as number | undefined;
+        const r = remaining ?? 0;
+        if (n === "all") return r;
+        return Math.min(r, n as number);
       }),
     },
     async: true,
@@ -718,8 +719,8 @@ export function preventUpToNTags(n: number | "all"): Ability {
       c: Card,
       t: unknown[],
     ) {
-      const target = (t as any[])[0];
-      preventTag(s, sid, e, target as number);
+      const target = (t as Array<number | "all">)[0];
+      preventTag(s, sid, e, target);
     }),
     cancel: {
       async: true,
@@ -734,7 +735,7 @@ export function preventUpToNTags(n: number | "all"): Ability {
         preventTag(s, sid, e, 0);
       }),
     },
-  } as any;
+  };
 }
 
 function resolveTagPreventionForSide(

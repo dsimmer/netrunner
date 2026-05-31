@@ -2,6 +2,7 @@
 // Mirrors: src/cljc/jinteki/chimera.cljc
 
 import { isAgenda, isCorp, isIdentity, isRunner } from "../game/core/card";
+import type { Card } from "../game/core/card";
 import { AllCards } from "./cards";
 import type { Counter, Server, Side } from '../types';
 
@@ -475,7 +476,7 @@ export function makeRunnerDeck(): ChimeraDeck {
   const baseProgramSet = new Set(basePrograms);
 
   const runnerCards = Object.values(AllCards).filter(
-    (c) => isRunner(c as any) && !isIdentity(c as any),
+    (c) => isRunner(c as unknown as Card) && !isIdentity(c as unknown as Card),
   );
 
   const formatCards = runnerCards.filter(
@@ -507,14 +508,14 @@ export function makeRunnerDeck(): ChimeraDeck {
 }
 
 export function makeCorpDeck(): ChimeraDeck {
-  const corpCards = Object.values(AllCards).filter((c) => isCorp(c as any));
+  const corpCards = Object.values(AllCards).filter((c) => isCorp(c as unknown as Card));
 
   const formatCards = corpCards.filter(
-    (c) => !corpBans.has(c["title"] as string) && !isIdentity(c as any),
+    (c) => !corpBans.has(c["title"] as string) && !isIdentity(c as unknown as Card),
   );
 
   // build 20 agenda points
-  const allAgendas = shuffle(formatCards.filter((c) => isAgenda(c as any)));
+  const allAgendas = shuffle(formatCards.filter((c) => isAgenda(c as unknown as Card)));
   const chosenAgendas: Record<string, unknown>[] = [];
   let totalPoints = 0;
   for (const agenda of allAgendas) {
@@ -540,7 +541,7 @@ export function makeCorpDeck(): ChimeraDeck {
 
   const toFill = 49 - (chosenAgendas.length + 9 + 3);
   const remainingPool = formatCards.filter(
-    (c) => !usedTitles.has(c["title"] as string) && !isAgenda(c as any),
+    (c) => !usedTitles.has(c["title"] as string) && !isAgenda(c as unknown as Card),
   );
   const remainingCards = shuffle(remainingPool).slice(0, toFill);
 

@@ -1,7 +1,7 @@
 // Turn management: start-turn, end-turn, phase-1.2, post-discard phases.
 // Mirrors: src/clj/game/core/turns.clj
 
-import type { GameState } from "./state";
+import type { GameState, PhaseState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
 import { CORP_SIDE, RUNNER_SIDE } from "./state";
@@ -80,8 +80,8 @@ function waitFor(
   next: (innerEid: EID) => void,
 ): void {
   const inner = makeEIDFrom(state, parentEid);
-  registerEIDCallback(state, inner, (_s: any, _side: any, completed: any) => {
-    next(completed as EID);
+  registerEIDCallback(state, inner, (_s: GameState, _side: string, completed: EID) => {
+    next(completed);
   });
   start(inner);
 }
@@ -141,6 +141,9 @@ function turnMessage(
 // Mirrors: end-phase-12 in turns.clj
 // ---------------------------------------------------------------------------
 
+type Phase12Field = "corpPhase12" | "runnerPhase12";
+type PostDiscardField = "corpPostDiscard" | "runnerPostDiscard";
+
 export function endPhase12(
   state: GameState,
   side: string,
@@ -148,9 +151,9 @@ export function endPhase12(
   _extra?: unknown,
 ): void {
   const effectiveEid = eid ?? makeEID(state);
-  const phaseKey = side === CORP_SIDE ? "corp-phase-12" : "runner-phase-12";
+  const phaseKey: Phase12Field = side === CORP_SIDE ? "corpPhase12" : "runnerPhase12";
 
-  if (!(state as any)[phaseKey]) return;
+  if (!state[phaseKey]) return;
 
   turnMessage(state, side, true);
 
@@ -184,22 +187,22 @@ export function endPhase12(
         // draw then trigger corp-mandatory-draw
         draw(state, side, innerEid, 1, {});
         // After draw completes, trigger the mandatory draw event
-        registerEIDCallback(state, innerEid, (s: any, s2: any, completed: any) => {
+        registerEIDCallback(state, innerEid, (s: GameState, s2: string, completed: EID) => {
           triggerEventSimult(
             s,
             s2,
-            makeEIDFrom(s, completed as EID),
+            makeEIDFrom(s, completed),
             "corp-mandatory-draw",
             {},
           );
-          effectCompleted(s, s2, completed as EID);
+          effectCompleted(s, s2, completed);
         });
       } else {
         effectCompleted(state, side, innerEid);
       }
     },
     (innerEid) => {
-      delete (state as any)[phaseKey];
+      delete state[phaseKey];
       effectCompleted(state, side, innerEid);
     },
     (innerEid) => {
@@ -225,32 +228,30 @@ export function phase12PassPriority(
 ): void {
   const effectiveEid = eid ?? makeEID(state);
 
-  if ((state as any)["corp-phase-12"]) {
-    const bucket = (state as any)["corp-phase-12"];
+  const handlePhase = (key: Phase12Field, endSide: string): void => {
+    const bucket = state[key];
+    if (!bucket) return;
+    let typed: PhaseState;
     if (typeof bucket !== "object" || bucket === null) {
-      (state as any)["corp-phase-12"] = {};
+      typed = {};
+      state[key] = typed;
+    } else {
+      typed = bucket;
     }
-    ((state as any)["corp-phase-12"] as Record<string, boolean>)[side] = true;
-    const cp12 = (state as any)["corp-phase-12"] as Record<string, boolean>;
-    if (cp12[CORP_SIDE] && cp12[RUNNER_SIDE]) {
-      endPhase12(state, CORP_SIDE, effectiveEid, undefined);
+    if (side === CORP_SIDE) typed.corp = true;
+    else typed.runner = true;
+    if (typed.corp && typed.runner) {
+      endPhase12(state, endSide, effectiveEid, undefined);
     } else {
       systemMsg(state, side, "has no further action");
       effectCompleted(state, side, effectiveEid);
     }
-  } else if ((state as any)["runner-phase-12"]) {
-    const bucket = (state as any)["runner-phase-12"];
-    if (typeof bucket !== "object" || bucket === null) {
-      (state as any)["runner-phase-12"] = {};
-    }
-    ((state as any)["runner-phase-12"] as Record<string, boolean>)[side] = true;
-    const rp12 = (state as any)["runner-phase-12"] as Record<string, boolean>;
-    if (rp12[CORP_SIDE] && rp12[RUNNER_SIDE]) {
-      endPhase12(state, RUNNER_SIDE, effectiveEid, undefined);
-    } else {
-      systemMsg(state, side, "has no further action");
-      effectCompleted(state, side, effectiveEid);
-    }
+  };
+
+  if (state.corpPhase12) {
+    handlePhase("corpPhase12", CORP_SIDE);
+  } else if (state.runnerPhase12) {
+    handlePhase("runnerPhase12", RUNNER_SIDE);
   }
 }
 
@@ -268,25 +269,26 @@ export function startTurn(
   // note that it's possible for the front-end to send the "start-turn" command twice,
   // before it can be updated with the fact that the turn has started.
   const player = side === CORP_SIDE ? state.corp : state.runner;
-  if ((player as any).turnStarted) return;
+  if (player.turnStarted) return;
 
   // Don't clear :turn-events until the player clicks "Start Turn"
   // Fix for Hayley triggers
-  state.turnEvents = [] as any;
-  (player as any).turnStarted = true;
+  state.turnEvents = [];
+  player.turnStarted = true;
 
   // clear out last-revealed so cards don't stick around all game
   state.lastRevealed = [];
 
   // Functions to set up state for undo-turn functionality
   for (const s of [CORP_SIDE, RUNNER_SIDE]) {
-    delete (state as any)[s]["undo-turn"];
+    const sidePlayer = s === CORP_SIDE ? state.corp : state.runner;
+    delete sidePlayer.undoTurn;
   }
   state.clickStates = [];
-  delete (state as any).paidAbilityState;
+  delete state.paidAbilityState;
   // Copy state minus log, history, turn-state
-  const { log, history, turnState, ...rest } = state as any;
-  state.turnState = rest;
+  const { log: _log, history: _history, turnState: _turnState, ...rest } = state;
+  state.turnState = rest as unknown as Record<string, unknown>;
 
   if (side === CORP_SIDE) {
     state.turn = (state.turn ?? 0) + 1;
@@ -294,28 +296,28 @@ export function startTurn(
 
   // Clear :new flag on installed/scored and discard cards
   const installedAndScored = allInstalledAndScored(state, side);
-  const discard = (player as any).discard ?? [];
+  const discard = player.discard ?? [];
   const cardsWithNew = [...installedAndScored, ...discard].filter(
     (c: Card) => c.new,
   );
   for (const c of cardsWithNew) {
     const card = getCard(state, c);
     if (card) {
-      delete (card as any).new;
+      delete card.new;
       update(state, side, card);
     }
   }
 
   state.activePlayer = side;
-  (state as any).perTurn = null;
-  (state as any).endTurn = false;
+  state.perTurn = {};
+  state.endTurn = false;
 
   for (const s of [CORP_SIDE, RUNNER_SIDE]) {
     const p = s === CORP_SIDE ? state.corp : state.runner;
-    (p as any).register = null;
+    p.register = undefined;
   }
 
-  const phaseKey = side === CORP_SIDE ? "corp-phase-12" : "runner-phase-12";
+  const phaseField: Phase12Field = side === CORP_SIDE ? "corpPhase12" : "runnerPhase12";
   const phaseEvent = side === CORP_SIDE ? "corp-phase-12" : "runner-phase-12";
 
   const activeCards = allActive(state, side);
@@ -324,11 +326,11 @@ export function startTurn(
   );
   const allCards = [...new Set([...activeCards, ...installedCards])];
 
-  const startCards = allCards.filter((c: any) =>
-    cardFlagFn(state, side, c, phaseKey, true),
+  const startCards = allCards.filter((c: Card) =>
+    cardFlagFn(state, side, c, phaseEvent, true),
   );
 
-  const extraClicks = ((player as any).extraClickTemp ?? 0) as number;
+  const extraClicks = player.extraClickTemp ?? 0;
 
   gain(state, side, "click", player.clickPerTurn ?? 5);
   if (extraClicks < 0) {
@@ -336,16 +338,17 @@ export function startTurn(
   } else if (extraClicks > 0) {
     gain(state, side, "click", extraClicks);
   }
-  delete (player as any).extraClickTemp;
+  delete player.extraClickTemp;
 
-  (state as any)[phaseKey] = { active: true };
+  state[phaseField] = { active: true };
 
   triggerEvent(state, side, phaseEvent);
 
   const oppSide = otherSide(side);
+  const oppPlayer = oppSide === CORP_SIDE ? state.corp : oppSide === RUNNER_SIDE ? state.runner : null;
   if (
-    oppSide &&
-    (state as any)[oppSide]?.properties?.["force-phase-12-opponent"]
+    oppPlayer &&
+    oppPlayer.properties?.["force-phase-12-opponent"]
   ) {
     toast(
       state,
@@ -355,9 +358,10 @@ export function startTurn(
         : "players may use abilities before you can take your first click",
       "info",
     );
-    ((state as any)[phaseKey] as any).requiresConsent = true;
+    const bucket = state[phaseField];
+    if (bucket) bucket.requiresConsent = true;
   } else if (
-    (player as any).properties?.["force-phase-12-self"] ||
+    player.properties?.["force-phase-12-self"] ||
     startCards.length > 0
   ) {
     toast(
@@ -450,7 +454,7 @@ function handleEndOfTurnDiscard(
             checkpoint(s, null, eid, { durations: [ev] });
           },
         ),
-      } as any,
+      } as Parameters<typeof continue_ability>[2],
       null as unknown as Card,
       [],
     );
@@ -472,13 +476,13 @@ export function endTurnContinue(
   _extra?: unknown,
 ): void {
   const effectiveEid = eid ?? makeEID(state);
-  const postDiscardKey =
-    side === CORP_SIDE ? "corp-post-discard" : "runner-post-discard";
+  const postDiscardField: PostDiscardField =
+    side === CORP_SIDE ? "corpPostDiscard" : "runnerPostDiscard";
 
-  if (!(state as any)[postDiscardKey]) return;
+  if (!state[postDiscardField]) return;
 
-  delete (state as any)["corp-post-discard"];
-  delete (state as any)["runner-post-discard"];
+  delete state.corpPostDiscard;
+  delete state.runnerPostDiscard;
 
   turnMessage(state, side, false);
 
@@ -505,7 +509,7 @@ export function endTurnContinue(
     },
     (innerEid) => {
       const player = side === CORP_SIDE ? state.corp : state.runner;
-      (player as any).registerLastTurn = (player as any).register;
+      player.registerLastTurn = player.register;
       effectCompleted(state, side, innerEid);
     },
     (innerEid) => {
@@ -526,16 +530,17 @@ export function endTurnContinue(
       effectCompleted(state, side, innerEid);
     },
     (innerEid) => {
-      (state as any).endTurn = true;
+      state.endTurn = true;
       cleanSetAside(state, side);
       effectCompleted(state, side, innerEid);
     },
     (innerEid) => {
+      const thisTurnFlags = (c: Card | null): c is Card & { installed: boolean | "this-turn"; rezzed?: boolean | "this-turn" } => c !== null;
       // Clear :this-turn installed flags on runner cards
       for (const card of allActiveInstalled(state, RUNNER_SIDE)) {
         const actualCard = getCard(state, card);
-        if (actualCard && (actualCard as any).installed === "this-turn") {
-          (actualCard as any).installed = true;
+        if (thisTurnFlags(actualCard) && (actualCard.installed as boolean | "this-turn") === "this-turn") {
+          actualCard.installed = true;
           update(state, side, actualCard);
         }
         // Remove all :turn strength from icebreakers.
@@ -550,12 +555,12 @@ export function endTurnContinue(
       // Clear :this-turn flags on corp installed cards
       for (const card of allInstalled(state, CORP_SIDE)) {
         const actualCard = getCard(state, card);
-        if (actualCard && (actualCard as any).installed === "this-turn") {
-          (actualCard as any).installed = true;
+        if (thisTurnFlags(actualCard) && (actualCard.installed as boolean | "this-turn") === "this-turn") {
+          actualCard.installed = true;
           update(state, side, actualCard);
         }
-        if (actualCard && (actualCard as any).rezzed === "this-turn") {
-          (actualCard as any).rezzed = true;
+        if (thisTurnFlags(actualCard) && (actualCard.rezzed as boolean | "this-turn" | undefined) === "this-turn") {
+          actualCard.rezzed = true;
           update(state, side, actualCard);
         }
       }
@@ -568,23 +573,23 @@ export function endTurnContinue(
     (innerEid) => {
       // Dissoc :cannot-draw and :drawn-this-turn from register
       const player = side === CORP_SIDE ? state.corp : state.runner;
-      const reg = (player as any).register as Record<string, unknown> | null;
+      const reg = player.register;
       if (reg) {
         delete reg["cannot-draw"];
         delete reg["drawn-this-turn"];
       }
-      delete (player as any).turnStarted;
-      (state as any).mark = null;
+      delete player.turnStarted;
+      state.mark = null;
       clearTurnRegister(state);
       effectCompleted(state, side, innerEid);
     },
     (innerEid) => {
       // Handle extra turns
       const player = side === CORP_SIDE ? state.corp : state.runner;
-      const extraTurns = (player as any).extraTurns as number | undefined;
+      const extraTurns = player.extraTurns;
       if (extraTurns && extraTurns > 0) {
         startTurn(state, side, undefined);
-        (player as any).extraTurns = extraTurns - 1;
+        player.extraTurns = extraTurns - 1;
         systemMsg(
           state,
           side,
@@ -609,37 +614,30 @@ export function postDiscardPassPriority(
 ): void {
   const effectiveEid = eid ?? makeEID(state);
 
-  if ((state as any)["corp-post-discard"]) {
-    const bucket = (state as any)["corp-post-discard"];
+  const handlePostDiscard = (key: PostDiscardField, endSide: string): void => {
+    const bucket = state[key];
+    if (!bucket) return;
+    let typed: PhaseState;
     if (typeof bucket !== "object" || bucket === null) {
-      (state as any)["corp-post-discard"] = {};
+      typed = {};
+      state[key] = typed;
+    } else {
+      typed = bucket;
     }
-    ((state as any)["corp-post-discard"] as Record<string, boolean>)[side] =
-      true;
-    const cpd = (state as any)["corp-post-discard"] as Record<string, boolean>;
-    if (cpd[CORP_SIDE] && cpd[RUNNER_SIDE]) {
-      endTurnContinue(state, CORP_SIDE, effectiveEid, undefined);
+    if (side === CORP_SIDE) typed.corp = true;
+    else typed.runner = true;
+    if (typed.corp && typed.runner) {
+      endTurnContinue(state, endSide, effectiveEid, undefined);
     } else {
       systemMsg(state, side, "has no further action");
       effectCompleted(state, side, effectiveEid);
     }
-  } else if ((state as any)["runner-post-discard"]) {
-    const bucket = (state as any)["runner-post-discard"];
-    if (typeof bucket !== "object" || bucket === null) {
-      (state as any)["runner-post-discard"] = {};
-    }
-    ((state as any)["runner-post-discard"] as Record<string, boolean>)[side] =
-      true;
-    const rpd = (state as any)["runner-post-discard"] as Record<
-      string,
-      boolean
-    >;
-    if (rpd[CORP_SIDE] && rpd[RUNNER_SIDE]) {
-      endTurnContinue(state, RUNNER_SIDE, effectiveEid, undefined);
-    } else {
-      systemMsg(state, side, "has no further action");
-      effectCompleted(state, side, effectiveEid);
-    }
+  };
+
+  if (state.corpPostDiscard) {
+    handlePostDiscard("corpPostDiscard", CORP_SIDE);
+  } else if (state.runnerPostDiscard) {
+    handlePostDiscard("runnerPostDiscard", RUNNER_SIDE);
   }
 }
 
@@ -659,27 +657,28 @@ export function endTurn(
     side === RUNNER_SIDE
       ? "runner-action-phase-ends"
       : "corp-action-phase-ends";
-  const postDiscardKey =
-    side === CORP_SIDE ? "corp-post-discard" : "runner-post-discard";
+  const postDiscardField: PostDiscardField =
+    side === CORP_SIDE ? "corpPostDiscard" : "runnerPostDiscard";
 
   chainOps(state, effectiveEid, [
     (innerEid) => {
       triggerEventSimult(state, side, innerEid, actionPhaseEnds, {});
     },
     (innerEid) => {
-      delete (state as any).paidAbilityState;
+      delete state.paidAbilityState;
       effectCompleted(state, side, innerEid);
     },
     (innerEid) => {
       handleEndOfTurnDiscard(state, side, innerEid, undefined);
     },
     (innerEid) => {
-      (state as any)[postDiscardKey] = { active: true };
+      state[postDiscardField] = { active: true };
 
       const oppSide = otherSide(side);
+      const oppPlayer = oppSide === CORP_SIDE ? state.corp : oppSide === RUNNER_SIDE ? state.runner : null;
       if (
-        oppSide &&
-        (state as any)[oppSide]?.properties?.["force-post-discard-opponent"]
+        oppPlayer &&
+        oppPlayer.properties?.["force-post-discard-opponent"]
       ) {
         toast(
           state,
@@ -687,7 +686,8 @@ export function endTurn(
           "players may use abilities between the discard phase and the turn ends phase",
           "info",
         );
-        ((state as any)[postDiscardKey] as any).requiresConsent = true;
+        const bucket = state[postDiscardField];
+        if (bucket) bucket.requiresConsent = true;
       } else if (
         (side === CORP_SIDE ? state.corp : state.runner).properties?.[
           "force-post-discard-self"

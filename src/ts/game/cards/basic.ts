@@ -4,7 +4,7 @@
  * Ported from Clojure cards/basic.clj to TypeScript
  */
 
-import type { Card, EID, Side, State } from "../../types";
+import type { Card, EID, Side, State, Ability, Cost } from "../../types";
 import * as coreAgendas from "../core/agendas";
 import * as coreBoard from "../core/board";
 import * as coreCard from "../core/card";
@@ -25,42 +25,18 @@ import * as coreSay from "../core/say";
 import * as coreTags from "../core/tags";
 import * as coreToString from "../core/to_string";
 import * as utils from "../utils";
-import { req, effect, msg, wait_for } from "../macros";
+import { req, effect, wait_for } from "../macros";
 
-// Helper to build cost string
-function buildCostString(...args: any[]): string {
-  return (corePayment.buildCostString as any)?.(...args);
-}
-
-// Helper to check if can pay
-function canPay(...args: any[]): boolean {
-  return (corePayment.canPay as any)?.(...args);
-}
-
-// Helper to merge costs
-function mergeCosts(...args: any[]): any[] {
-  return (corePayment.mergeCosts as any)?.(...args);
-}
-
-// Helper to create credit cost
-function toC(...args: any[]): any {
-  return (corePayment.toC as any)?.(...args);
-}
-
-// Helper to get effects
-function getEffects(...args: any[]): any[] {
-  return (coreEffects.getEffects as any)?.(...args);
-}
-
-// Helper to get installed cards
-function allActiveInstalled(...args: any[]): Card[] {
-  return (coreBoard.allActiveInstalled as any)?.(...args);
-}
-
-// Helper to get installable servers
-function installableServers(...args: any[]): string[] {
-  return (coreBoard.installableServers as any)?.(...args);
-}
+// Direct re-exports of payment/effect helpers — the previous file wrapped
+// each with a permissive `(...args: any[])` shim for no good reason; the
+// underlying functions are typed.
+const buildCostString = corePayment.buildCostString;
+const canPay = corePayment.canPay;
+const mergeCosts = corePayment.mergeCosts;
+const toC = corePayment.toC;
+const getEffects = coreEffects.getEffects;
+const allActiveInstalled = coreBoard.allActiveInstalled;
+const installableServers = coreBoard.installableServers;
 
 // Helper for in-hand check
 function inHandStar(state: State, card: Card): boolean {
@@ -75,8 +51,15 @@ function isTagged(state: State): boolean {
 }
 
 // Helper to check if untrashable while resources
-function untrashableWhileResources(card: Card): boolean {
+function untrashableWhileResources(card: Card | null): boolean {
+  if (!card) return false;
   return coreFlags.untrashableWhileResources?.(card) ?? false;
+}
+
+// Common shape of the `target` arg passed by the engine to a choices req
+interface ContextWithCardServer {
+  card?: Card | null;
+  server?: string;
 }
 
 // Define Corp Basic Action Card
@@ -95,8 +78,8 @@ export const corpBasicActionCard = {
         side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
         yield wait_for(
           state,
           [
@@ -108,8 +91,11 @@ export const corpBasicActionCard = {
           [coreSay.playSfx, state, side, "click-credit"],
         );
         const stats = state.stats ?? (state.stats = {});
-        const sideStats = (stats[side] ??= {});
-        const clickStats = (sideStats.click ??= {});
+        const sideStats: Record<string, Record<string, number | undefined>> =
+          (stats[side] as Record<string, Record<string, number | undefined>> | undefined) ?? {};
+        stats[side] = sideStats;
+        const clickStats: Record<string, number | undefined> = sideStats.click ?? {};
+        sideStats.click = clickStats;
         clickStats.credit = (clickStats.credit ?? 0) + 1;
         coreSay.playSfx(state, side, "click-credit");
         return coreEid.effectCompleted(state, side, eid);
@@ -124,9 +110,9 @@ export const corpBasicActionCard = {
         side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
-        const deck = (state as any)[side].deck;
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
+        const deck = (side === "corp" || side === ":corp" ? state.corp : state.runner).deck;
         return deck && deck.length > 0;
       }),
       cost: [toC("click")],
@@ -137,19 +123,23 @@ export const corpBasicActionCard = {
         side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
-        const deck = (state as any)[side].deck;
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
+        const deck = (side === "corp" || side === ":corp" ? state.corp : state.runner).deck;
         const firstCard = deck[0];
         coreEngine.triggerEvent(state, side, ":corp-click-draw", {
           card: firstCard,
         });
         const stats1 = state.stats ?? (state.stats = {});
-        const sideStats1 = (stats1[side] ??= {});
-        const clickStats1 = (sideStats1.click ??= {});
+        const sideStats1: Record<string, Record<string, number | undefined>> =
+          (stats1[side] as Record<string, Record<string, number | undefined>> | undefined) ?? {};
+        stats1[side] = sideStats1;
+        const clickStats1: Record<string, number | undefined> = sideStats1.click ?? {};
+        sideStats1.click = clickStats1;
         clickStats1.draw = (clickStats1.draw ?? 0) + 1;
         coreSay.playSfx(state, side, "click-card");
         coreDrawing.draw(state, side, eid, 1);
+        return;
       }),
     },
     // Install 1 agenda, asset, upgrade, or piece of ice from HQ
@@ -162,14 +152,14 @@ export const corpBasicActionCard = {
         side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
-        const context = targets[0] || {};
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
+        const context = (targets[0] as ContextWithCardServer) ?? {};
         const targetCard = context.card
           ? coreCard.getCard(state, context.card)
           : null;
         const server = context.server;
-        const corp = (state as any).corp;
+        const corp = state.corp;
 
         if (!corp.hand || corp.hand.length === 0) return false;
         if (!targetCard || !coreCard.inHand(targetCard)) return false;
@@ -224,9 +214,9 @@ export const corpBasicActionCard = {
         side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
-        const context = targets[0] || {};
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
+        const context = (targets[0] as ContextWithCardServer) ?? {};
         const targetCard = context.card
           ? coreCard.getCard(state, context.card)
           : null;
@@ -235,6 +225,7 @@ export const corpBasicActionCard = {
           baseCost: [toC("click", 1)],
           action: ":corp-click-install",
         });
+        return;
       }),
     },
     // Play 1 operation
@@ -247,13 +238,13 @@ export const corpBasicActionCard = {
         side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
-        const context = targets[0] || {};
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
+        const context = (targets[0] as ContextWithCardServer) ?? {};
         const targetCard = context.card
           ? coreCard.getCard(state, context.card)
           : null;
-        const corp = (state as any).corp;
+        const corp = state.corp;
 
         if (!corp.hand || corp.hand.length === 0) return false;
         if (!targetCard || !coreCard.inHand(targetCard)) return false;
@@ -271,15 +262,16 @@ export const corpBasicActionCard = {
         side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
-        const context = targets[0] || {};
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
+        const context = (targets[0] as ContextWithCardServer) ?? {};
         const targetCard = context.card
           ? coreCard.getCard(state, context.card)
           : null;
         corePlayInstants.playInstant(state, ":corp", eid, targetCard, {
           baseCost: [toC("click", 1)],
         });
+        return;
       }),
     },
     // Advance 1 installed card
@@ -293,9 +285,9 @@ export const corpBasicActionCard = {
         side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
-        const context = targets[0] || {};
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
+        const context = (targets[0] as ContextWithCardServer) ?? {};
         const targetCard = context.card
           ? coreCard.getCard(state, context.card)
           : null;
@@ -309,9 +301,9 @@ export const corpBasicActionCard = {
         side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
-        const context = targets[0] || {};
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
+        const context = (targets[0] as ContextWithCardServer) ?? {};
         const targetCard = context.card
           ? coreCard.getCard(state, context.card)
           : null;
@@ -320,6 +312,7 @@ export const corpBasicActionCard = {
           coreProps.addProp(state, side, eid, targetCard, ":advance-counter", 1);
         }
         coreSay.playSfx("click-advance");
+        return;
       }),
     },
     // Trash 1 resource if the Runner is tagged
@@ -333,8 +326,8 @@ export const corpBasicActionCard = {
         side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
         return isTagged(state);
       }),
       prompt: "Choose a resource to trash",
@@ -343,14 +336,14 @@ export const corpBasicActionCard = {
         side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
-        const target = targets[0];
-        const targetCard =
-          typeof target === "object" && target.uuid
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
+        const target = targets[0] as Card | string | null;
+        const targetCard: Card | null =
+          target && typeof target === "object" && "cid" in target
             ? coreCard.getCard(state, target)
-            : target;
-        return "trash " + (targetCard ? targetCard.title || target : "");
+            : null;
+        return "trash " + (targetCard?.title ?? target ?? "");
       },
       choices: {
         req: req(function* (
@@ -358,13 +351,13 @@ export const corpBasicActionCard = {
           side: Side,
           eid: EID,
           card: Card,
-          targets: any[],
-        ): Generator<any, any, any> {
-          const target = targets[0];
-          const targetCard =
-            typeof target === "object" && target.uuid
+          targets: unknown[],
+        ): Generator<unknown, unknown, unknown> {
+          const target = targets[0] as Card | null;
+          const targetCard: Card | null =
+            target && typeof target === "object" && "cid" in target
               ? coreCard.getCard(state, target)
-              : target;
+              : null;
 
           const runnerResources = allActiveInstalled(state, ":runner").filter(
             (c: Card) => coreCard.resource(c),
@@ -378,16 +371,17 @@ export const corpBasicActionCard = {
           if (isUntrashable) return false;
           if (!coreCard.resource(targetCard)) return false;
 
-          const additionalCosts = mergeCosts([
-            ...(getEffects(
+          const additionalCostsArr: Cost[] = [
+            ...((getEffects(
               state,
               side,
               ":basic-ability-additional-trash-cost",
               targetCard,
-            ) || []),
-            ...(getEffects(state, side, ":additional-trash-cost", targetCard) ||
-              []),
-          ]);
+            ) ?? []) as Cost[]),
+            ...((getEffects(state, side, ":additional-trash-cost", targetCard) ??
+              []) as Cost[]),
+          ];
+          const additionalCosts = mergeCosts(additionalCostsArr);
 
           const eidWithCosts = coreEid.makeEid(state, {
             ...eid,
@@ -400,7 +394,7 @@ export const corpBasicActionCard = {
               side,
               eidWithCosts,
               targetCard,
-              targetCard.title || "",
+              targetCard?.title ?? "",
               additionalCosts,
             )
           );
@@ -411,21 +405,21 @@ export const corpBasicActionCard = {
         side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
-        const target = targets[0];
-        const targetCard =
-          typeof target === "object" && target.uuid
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
+        const target = targets[0] as Card | string | null;
+        const targetCard: Card | null =
+          target && typeof target === "object" && "cid" in target
             ? coreCard.getCard(state, target)
-            : target;
+            : null;
 
         const additionalCosts = mergeCosts(
-          getEffects(
+          (getEffects(
             state,
             side,
             ":basic-ability-additional-trash-cost",
             targetCard,
-          ) || [],
+          ) ?? []) as Cost[],
         );
         const costStrs = buildCostString(additionalCosts);
         const canPayCost = canPay(
@@ -433,29 +427,29 @@ export const corpBasicActionCard = {
           side,
           coreEid.makeEid(state, { ...eid, additionalCosts }),
           targetCard,
-          targetCard.title || "",
+          targetCard?.title ?? "",
           additionalCosts,
         );
 
         if (additionalCosts.length === 0) {
           coreMoving.trash(state, side, eid, targetCard, null);
         } else {
-          const promptAbility: any = {
-            prompt: `Pay the additional cost to trash ${targetCard.title}?`,
-            choices: [canPayCost ? costStrs : null, "No"].filter(Boolean),
+          const promptAbility: Ability = {
+            prompt: `Pay the additional cost to trash ${targetCard?.title ?? ""}?`,
+            choices: [canPayCost ? costStrs : null, "No"].filter(Boolean) as string[],
             async: true,
             effect: req(function* (
               state: State,
               side: Side,
               eid: EID,
               card: Card,
-              targets: any[],
-            ): Generator<any, any, any> {
+              targets: unknown[],
+            ): Generator<unknown, unknown, unknown> {
               if (target === "No") {
                 coreSay.systemMsg(
                   state,
                   side,
-                  `declines to pay the additional cost to trash ${targetCard.title}`,
+                  `declines to pay the additional cost to trash ${targetCard?.title ?? ""}`,
                 );
                 return coreEid.effectCompleted(state, side, eid);
               } else {
@@ -480,7 +474,7 @@ export const corpBasicActionCard = {
                     state,
                     side,
                     "[[msg]] as an additional cost to trash " +
-                      targetCard.title,
+                      (targetCard?.title ?? ""),
                   ],
                 );
                 return coreEid.completeWithResult(state, side, eid, target);
@@ -506,6 +500,7 @@ export const corpBasicActionCard = {
             coreMoving.trash(state, side, eid, targetCard, null);
           }
         }
+        return;
       }),
     },
     // Purge virus counters
@@ -520,10 +515,11 @@ export const corpBasicActionCard = {
         side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
         coreSay.playSfx(state, side, "virus-purge");
         corePurging.purge(state, side, eid);
+        return;
       }),
     },
   ],
@@ -545,8 +541,8 @@ export const runnerBasicActionCard = {
         side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
         yield wait_for(
           state,
           [
@@ -558,8 +554,11 @@ export const runnerBasicActionCard = {
           [coreSay.playSfx, state, side, "click-credit"],
         );
         const stats = state.stats ?? (state.stats = {});
-        const sideStats = (stats[side] ??= {});
-        const clickStats = (sideStats.click ??= {});
+        const sideStats: Record<string, Record<string, number | undefined>> =
+          (stats[side] as Record<string, Record<string, number | undefined>> | undefined) ?? {};
+        stats[side] = sideStats;
+        const clickStats: Record<string, number | undefined> = sideStats.click ?? {};
+        sideStats.click = clickStats;
         clickStats.credit = (clickStats.credit ?? 0) + 1;
         coreSay.playSfx(state, side, "click-credit");
         return coreEid.effectCompleted(state, side, eid);
@@ -574,9 +573,9 @@ export const runnerBasicActionCard = {
         side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
-        const deck = (state as any).runner.deck;
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
+        const deck = state.runner.deck;
         return deck && deck.length > 0;
       }),
       cost: [toC("click")],
@@ -587,22 +586,26 @@ export const runnerBasicActionCard = {
         side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
-        const deck = (state as any).runner.deck;
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
+        const deck = state.runner.deck;
         const firstCard = deck[0];
         coreEngine.triggerEvent(state, side, ":runner-click-draw", {
           card: firstCard,
         });
         const stats2 = state.stats ?? (state.stats = {});
-        const sideStats2 = (stats2[side] ??= {});
-        const clickStats2 = (sideStats2.click ??= {});
+        const sideStats2: Record<string, Record<string, number | undefined>> =
+          (stats2[side] as Record<string, Record<string, number | undefined>> | undefined) ?? {};
+        stats2[side] = sideStats2;
+        const clickStats2: Record<string, number | undefined> = sideStats2.click ?? {};
+        sideStats2.click = clickStats2;
         clickStats2.draw = (clickStats2.draw ?? 0) + 1;
         coreSay.playSfx(state, side, "click-card");
         const bonusDraws = coreDrawing.useBonusClickDraws
           ? coreDrawing.useBonusClickDraws(state)
           : 0;
         coreDrawing.draw(state, side, eid, 1 + bonusDraws);
+        return;
       }),
     },
     // Install 1 program, resource, or piece of hardware from the grip
@@ -612,12 +615,12 @@ export const runnerBasicActionCard = {
       async: true,
       req: req(function* (
         state: State,
-        Side,
+        side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
-        const context = targets[0] || {};
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
+        const context = (targets[0] as ContextWithCardServer) ?? {};
         const targetCard = context.card
           ? coreCard.getCard(state, context.card)
           : null;
@@ -643,9 +646,9 @@ export const runnerBasicActionCard = {
         side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
-        const context = targets[0] || {};
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
+        const context = (targets[0] as ContextWithCardServer) ?? {};
         const targetCard = context.card
           ? coreCard.getCard(state, context.card)
           : null;
@@ -653,6 +656,7 @@ export const runnerBasicActionCard = {
           baseCost: [toC("click", 1)],
           noToast: true,
         });
+        return;
       }),
     },
     // Play 1 event
@@ -665,9 +669,9 @@ export const runnerBasicActionCard = {
         side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
-        const context = targets[0] || {};
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
+        const context = (targets[0] as ContextWithCardServer) ?? {};
         const targetCard = context.card
           ? coreCard.getCard(state, context.card)
           : null;
@@ -687,9 +691,9 @@ export const runnerBasicActionCard = {
         side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
-        const context = targets[0] || {};
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
+        const context = (targets[0] as ContextWithCardServer) ?? {};
         const targetCard = context.card
           ? coreCard.getCard(state, context.card)
           : null;
@@ -700,6 +704,7 @@ export const runnerBasicActionCard = {
           targetCard,
           { baseCost: [toC("click", 1)] },
         );
+        return;
       }),
     },
     // Run any server
@@ -712,10 +717,11 @@ export const runnerBasicActionCard = {
         side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
-        const context = targets[0] || {};
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
+        const context = (targets[0] as ContextWithCardServer) ?? {};
         coreRuns.makeRun(state, side, eid, context.server, null, { clickRun: true });
+        return;
       }),
     },
     // Remove 1 tag
@@ -729,8 +735,8 @@ export const runnerBasicActionCard = {
         side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
         return isTagged(state);
       }),
       async: true,
@@ -739,10 +745,11 @@ export const runnerBasicActionCard = {
         side: Side,
         eid: EID,
         card: Card,
-        targets: any[],
-      ): Generator<any, any, any> {
+        targets: unknown[],
+      ): Generator<unknown, unknown, unknown> {
         coreSay.playSfx("click-remove-tag");
         coreTags.loseTags(eid, 1);
+        return;
       }),
     },
   ],

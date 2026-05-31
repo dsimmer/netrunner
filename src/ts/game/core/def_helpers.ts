@@ -17,7 +17,11 @@ import type { Ability, Card, EID, Side, State } from './types';
 /**
  * Shorthand ability that draws x cards. Mirrors `draw-abi` in clj.
  */
-export function drawAbility(x: number, drawArgs?: any, abBase?: any): any {
+export function drawAbility(
+  x: number,
+  drawArgs?: Record<string, unknown> | null,
+  abBase?: Partial<Ability> | null,
+): Ability {
   return {
     msg: `draw ${quantify(x, "card")}`,
     label: `Draw ${quantify(x, "card")}`,
@@ -34,17 +38,20 @@ export function drawAbility(x: number, drawArgs?: any, abBase?: any): any {
  * Ability to install up to n corp cards from HQ.
  * Mirrors `corp-install-up-to-n-cards` in clj.
  */
-export function corpInstallUpToN(n: number, args?: any): any {
+export function corpInstallUpToN(
+  n: number,
+  args?: Record<string, unknown> | null,
+): Ability {
   return {
     prompt: `install a card from HQ${n > 1 ? ` (${n} remaining)` : ""}`,
     choices: {
-      card: (c: any) => {
+      card: (c: Card) => {
         const { corp, inHand, operation } = require("./card");
         return corp(c) && inHand(c) && !operation(c);
       },
     },
     async: true,
-    effect: req(function* (state: State, side: Side, eid: EID, card: Card, targets: any[]) {
+    effect: req(function* (state: State, side: Side, eid: EID, card: Card, targets: Card[]) {
       const { corpInstall } = require("./installing");
       const { continueAbility } = require("./def_helpers_1");
       const { effectCompleted } = require("./eid");

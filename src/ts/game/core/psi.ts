@@ -34,16 +34,18 @@ function betToKeyword(bet: number): string {
 /**
  * Update stats for psi games. Mirrors the swap! update-in calls in Clojure.
  */
-function updatePsiStats(state: GameState, side: string, bet: number): void {
-  const stats = state.stats ?? {};
-  const sideStats = (stats as any)[side] ?? {};
-  const psiGame = (sideStats as any)["psi-game"] ?? {};
+type PsiStatsMap = Record<string, number>;
+type SideStatsMap = Record<string, PsiStatsMap | Record<string, unknown>>;
+type StatsMap = Record<string, SideStatsMap>;
 
+function updatePsiStats(state: GameState, side: string, bet: number): void {
+  const stats: StatsMap = (state.stats ?? {}) as StatsMap;
+  const sideStats: SideStatsMap = (stats[side] ?? {}) as SideStatsMap;
+  const psiGame = (sideStats["psi-game"] ?? {}) as PsiStatsMap;
   psiGame[betToKeyword(bet)] = (psiGame[betToKeyword(bet)] ?? 0) + 1;
   psiGame["games-played"] = (psiGame["games-played"] ?? 0) + 1;
-
-  (sideStats as any)["psi-game"] = psiGame;
-  (stats as any)[side] = sideStats;
+  sideStats["psi-game"] = psiGame;
+  stats[side] = sideStats;
   state.stats = stats;
 }
 
@@ -51,14 +53,12 @@ function updatePsiStats(state: GameState, side: string, bet: number): void {
  * Update psi win stats for a given side.
  */
 function updatePsiWinStats(state: GameState, winningSide: string): void {
-  const stats = state.stats ?? {};
-  const sideStats = (stats as any)[winningSide] ?? {};
-  const psiGame = (sideStats as any)["psi-game"] ?? {};
-
+  const stats: StatsMap = (state.stats ?? {}) as StatsMap;
+  const sideStats: SideStatsMap = (stats[winningSide] ?? {}) as SideStatsMap;
+  const psiGame = (sideStats["psi-game"] ?? {}) as PsiStatsMap;
   psiGame.wins = (psiGame.wins ?? 0) + 1;
-
-  (sideStats as any)["psi-game"] = psiGame;
-  (stats as any)[winningSide] = sideStats;
+  sideStats["psi-game"] = psiGame;
+  stats[winningSide] = sideStats;
   state.stats = stats;
 }
 
@@ -132,8 +132,8 @@ function resolvePsi(
                 // Clojure: (if (= bet opponent-bet) (:equal psi) (:not-equal psi))
                 const ability =
                   bet === opponentBet
-                    ? ((psi as any).equal ?? (psi as any).notEqual)
-                    : ((psi as any).notEqual ?? (psi as any).unequal);
+                    ? (psi.equal ?? psi.notEqual ?? psi["not-equal"])
+                    : (psi.notEqual ?? psi["not-equal"] ?? psi.unequal);
 
                 if (ability) {
                   updatePsiWinStats(st, cardSide);
@@ -221,7 +221,7 @@ export function psiGame(
     // Mirrors: (remove #(or (any-flag-fn? state :corp :prevent-secretly-spend %)
     //                      (any-flag-fn? state :runner :prevent-secretly-spend %))
     //                     all-amounts)
-    const validAmounts = allAmounts.filter((amount: any) => {
+    const validAmounts = allAmounts.filter((amount: number) => {
       return !(
         anyFlagFn(state, "corp", "prevent-secretly-spend", amount) ||
         anyFlagFn(state, "runner", "prevent-secretly-spend", amount)
@@ -229,7 +229,7 @@ export function psiGame(
     });
 
     // Mirrors: (map #(str % " [Credits]") valid-amounts)
-    const choices = validAmounts.map((n: any) => `${n} [Credits]`);
+    const choices = validAmounts.map((n: number) => `${n} [Credits]`);
 
     showPromptWithDice(
       state,
@@ -259,23 +259,23 @@ function checkPsi(
   targets: unknown[],
 ): void {
   if (!card) {
-    const eid = (ability as any).eid ?? makeEIDFrom(state, null);
+    const eid = (ability.eid as EID | undefined) ?? makeEIDFrom(state, null);
     effectCompleted(state, side, eid as EID);
     return;
   }
   const psi = ability.psi as PsiAbility | undefined;
   if (!psi) {
-    const eid = (ability as any).eid ?? makeEIDFrom(state, null);
+    const eid = (ability.eid as EID | undefined) ?? makeEIDFrom(state, null);
     effectCompleted(state, side, eid as EID);
     return;
   }
 
   // Mirrors: (assert (not (contains? psi :async)) "Put :async in the :equal/:not-equal.")
-  if ((psi as any).async) {
+  if ((psi as { async?: boolean }).async) {
     throw new Error("Put :async in the :equal/:not-equal.");
   }
 
-  const eid = (ability as any).eid ?? makeEIDFrom(state, null);
+  const eid = (ability.eid as EID | undefined) ?? makeEIDFrom(state, null);
 
   if (canTrigger(state, side, eid as EID, ability, card, targets)) {
     // Mirrors: (resolve-ability state side

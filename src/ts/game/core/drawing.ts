@@ -39,7 +39,7 @@ interface DrawOpts {
   noUpdateDrawStats?: boolean;
   suppressCheckpoint?: boolean;
   "suppress-checkpoint"?: boolean;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface DrawUpToArgs extends DrawOpts {
@@ -58,20 +58,20 @@ function waitFor(
   next: (asyncResult: unknown, innerEid: EID) => void,
 ): void {
   const inner = makeEIDFrom(state, parentEid);
-  registerEIDCallback(state, inner, (_s: any, _side: any, completed: any) => {
-    next((completed as EID).result, completed as EID);
+  registerEIDCallback(state, inner, (_s: GameState, _side: string, completed: EID) => {
+    next(completed.result, completed);
   });
   start(inner);
 }
 
-function getRegister(state: GameState, side: string): Record<string, any> {
-  const player = getPlayer(state, side) as any;
+function getRegister(state: GameState, side: string): Record<string, unknown> {
+  const player = getPlayer(state, side);
   if (!player.register) player.register = {};
-  return player.register as Record<string, any>;
+  return player.register;
 }
 
-function getBonus(state: GameState): Record<string, any> {
-  const b = (state.bonus ?? {}) as Record<string, any>;
+function getBonus(state: GameState): Record<string, unknown> {
+  const b = (state.bonus ?? {}) as Record<string, unknown>;
   state.bonus = b;
   return b;
 }
@@ -143,28 +143,38 @@ export function draw(state: GameState, side: string, eid: EID, n: number, opts?:
 export function draw(state: GameState, side: string, n: number, opts?: DrawOpts): void;
 export function draw(eid: EID, n: number): void;
 export function draw(side: string, eid: EID, n: number): void;
-export function draw(...rawArgs: any[]): void {
+export function draw(
+  arg1: GameState | EID | string,
+  arg2?: string | EID | number,
+  arg3?: EID | number,
+  arg4?: number | DrawOpts,
+  arg5?: DrawOpts,
+): void {
   // Shorthand (eid, n) — used inside effect() lambdas; no state, no-op.
-  if (rawArgs.length === 2 && typeof rawArgs[1] === "number") {
+  if (arg1 && typeof arg1 === "object" && "id" in arg1 && typeof arg2 === "number") {
     return;
   }
   // Shorthand (side, eid, n) — used in legacy card ports without state.
-  if (rawArgs.length === 3 && typeof rawArgs[0] === "string" && typeof rawArgs[2] === "number") {
+  if (typeof arg1 === "string" && typeof arg3 === "number") {
     return;
   }
-  let state: GameState, side: string, eid: EID, n: number;
+  if (typeof arg1 !== "object" || !arg1 || !("corp" in arg1)) return;
+  const state: GameState = arg1 as GameState;
+  const side = arg2 as string;
+  let eid: EID;
+  let n: number;
   let opts: DrawOpts = {};
   // Disambiguate by checking 3rd arg type
-  if (typeof rawArgs[2] === "object" && rawArgs[2] !== null && "id" in rawArgs[2]) {
-    [state, side, eid, n] = rawArgs as any;
-    opts = rawArgs[4] ?? {};
-  } else if (typeof rawArgs[2] === "number") {
-    state = rawArgs[0]; side = rawArgs[1]; n = rawArgs[2];
-    opts = rawArgs[3] ?? {};
+  if (arg3 && typeof arg3 === "object" && "id" in arg3) {
+    eid = arg3 as EID;
+    n = arg4 as number;
+    opts = arg5 ?? {};
+  } else if (typeof arg3 === "number") {
+    n = arg3;
+    opts = (arg4 as DrawOpts) ?? {};
     eid = { id: 0, source: null } as unknown as EID;
   } else {
-    [state, side, eid, n] = rawArgs as any;
-    opts = rawArgs[4] ?? {};
+    return;
   }
   if (n === 0) {
     effectCompleted(state, side, eid);
@@ -179,7 +189,7 @@ export function draw(...rawArgs: any[]): void {
     (inner) =>
       triggerEventSimult(state, side, inner, preEvent, {}, { count: n }),
     () => {
-      const bonusDraw = ((state.bonus as any)?.draw as number | undefined) ?? 0;
+      const bonusDraw = ((state.bonus as { draw?: number } | undefined)?.draw) ?? 0;
       const totalN = n + bonusDraw;
       const drawsWanted = totalN;
       const activePlayer = state.activePlayer;
@@ -189,17 +199,17 @@ export function draw(...rawArgs: any[]): void {
         side === activePlayer && activeReg["max-draw"] != null
           ? Math.min(totalN, remainingDraws(state, side) ?? 0)
           : totalN;
-      const player = getPlayer(state, side) as any;
-      const deckCount = (player.deck as Card[]).length;
+      const player = getPlayer(state, side);
+      const deckCount = (player.deck ?? []).length;
 
       // Clear bonus draws
       if (state.bonus && typeof state.bonus === "object") {
-        delete (state.bonus as any).draw;
+        delete (state.bonus as Record<string, unknown>).draw;
       }
 
       if (side === "corp" && deckCount < drawsAfterPrevent) {
         winDecked(state);
-        if (!(state as any).winnerDeclared) {
+        if (!state.winnerDeclared) {
           triggerEvent(state, "runner", "win", { winner: "runner" });
         }
       }
@@ -228,10 +238,12 @@ export function draw(...rawArgs: any[]): void {
         ((reg["drawn-this-turn"] as number | undefined) ?? 0) + drawnCount;
 
       if (!opts.noUpdateDrawStats) {
-        const stats = state.stats as any;
-        if (!stats[side]) stats[side] = {};
-        if (!stats[side].gain) stats[side].gain = {};
-        stats[side].gain.card = (stats[side].gain.card ?? 0) + totalN;
+        const stats = state.stats ?? (state.stats = {});
+        const sideStats = (stats[side] as Record<string, Record<string, number | undefined>> | undefined) ?? {};
+        stats[side] = sideStats;
+        const gainStats: Record<string, number | undefined> = sideStats.gain ?? {};
+        sideStats.gain = gainStats;
+        gainStats.card = (gainStats.card ?? 0) + totalN;
       }
 
       const finishZeroRemaining = () => {
@@ -255,7 +267,7 @@ export function draw(...rawArgs: any[]): void {
       (reg["currently-drawing"] as Card[][]).push(drawn);
 
       for (const c of drawn) {
-        const onDraw = (cardDef(c) as any)?.["on-draw"];
+        const onDraw = (cardDef(c) as { "on-draw"?: unknown })?.["on-draw"];
         if (onDraw) {
           registerPendingEvent(state, drawEvent, c, {
             ...onDraw,
@@ -345,16 +357,28 @@ export function maybeDraw(
 /** Prompt to draw up to n cards. */
 export function drawUpTo(state: GameState, side: string, card: Card | null, n: number): void;
 export function drawUpTo(state: GameState, side: string, eid: EID, card: Card | null, n: number, args?: DrawUpToArgs): void;
-export function drawUpTo(...rawArgs: any[]): void {
-  let state: GameState, side: string, eid: EID, card: Card | null, n: number;
+export function drawUpTo(
+  state: GameState,
+  side: string,
+  arg3: EID | Card | null,
+  arg4: Card | null | number,
+  arg5?: number | DrawUpToArgs,
+  arg6?: DrawUpToArgs,
+): void {
+  let eid: EID;
+  let card: Card | null;
+  let n: number;
   let args: DrawUpToArgs = { allowZeroDraws: true };
-  if (rawArgs.length === 4) {
-    // shorthand (state, side, card, n) — synthesize eid
-    state = rawArgs[0]; side = rawArgs[1]; card = rawArgs[2]; n = rawArgs[3];
+  if (typeof arg4 === "number") {
+    // (state, side, card, n)
+    card = arg3 as Card | null;
+    n = arg4;
     eid = makeEID(state);
   } else {
-    state = rawArgs[0]; side = rawArgs[1]; eid = rawArgs[2]; card = rawArgs[3]; n = rawArgs[4];
-    args = rawArgs[5] ?? args;
+    eid = arg3 as EID;
+    card = arg4 as Card | null;
+    n = arg5 as number;
+    args = arg6 ?? args;
   }
   if (n === 0) {
     draw(state, side, eid, 0, args);
@@ -379,7 +403,7 @@ export function drawUpTo(...rawArgs: any[]): void {
           _sd: string,
           _e: EID,
           _c: Card | null,
-          targets: any[],
+          targets: unknown[],
         ) => `draw ${quantify((targets?.[0] as number) ?? 0, "card")}`,
       ),
       effect: req(
@@ -388,7 +412,7 @@ export function drawUpTo(...rawArgs: any[]): void {
           _sd: string,
           _e: EID,
           _c: Card | null,
-          targets: any[],
+          targets: unknown[],
         ) => {
           const target = targets?.[0] as number | undefined;
           if (!target && !allowZero) {

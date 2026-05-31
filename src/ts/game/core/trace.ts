@@ -114,7 +114,7 @@ function resolveTrace(
   wait_for(
     state,
     [
-      (asyncResult: any) => {
+      (asyncResult: { msg?: string } | null | undefined) => {
         const paymentStr = asyncResult?.msg ?? "";
         const typeStr = corpStart(trace) ? "link" : "trace";
         const newStrength = corpStart(trace) ? runnerStrength : corpStrength;
@@ -167,7 +167,7 @@ function resolveTrace(
             resolveAbility,
             state,
             "corp",
-            (whichAbility as any).eid,
+            whichAbility.eid as EID | undefined,
             whichAbility,
             card,
             [corpStrength, runnerStrength],
@@ -248,7 +248,7 @@ function traceReply(
   wait_for(
     state,
     [
-      (asyncResult: any) => {
+      (asyncResult: { msg?: string } | null | undefined) => {
         const paymentStr = asyncResult?.msg ?? "";
         systemMsg(
           state,
@@ -282,10 +282,10 @@ function traceReply(
       bonus: trace.bonus,
       strength,
       link: trace.link,
-      unbeatable: null,
-      beatTrace: updatedTrace.beatTrace,
+      unbeatable: undefined,
+      beatTrace: updatedTrace.beatTrace ?? undefined,
       targets: undefined,
-    } as any,
+    },
   );
 }
 
@@ -333,10 +333,10 @@ function traceStart(
       bonus: trace.bonus,
       strength: strength ?? baseBonus,
       link: trace.link,
-      unbeatable: trace.unbeatable,
+      unbeatable: trace.unbeatable ?? undefined,
       beatTrace: undefined,
       targets: undefined,
-    } as any,
+    },
   );
 }
 
@@ -523,7 +523,7 @@ function checkTrace(
     throw new Error("Put :async in the :successful/:unsuccessful");
   }
 
-  const eid = (ability as any).eid ?? makeEID(state);
+  const eid = (ability.eid as EID | undefined) ?? makeEID(state);
   if (canTrigger(state, side, eid as EID, ability, card, targets)) {
     const capturedState = state;
     const capturedSide = side;
@@ -540,7 +540,7 @@ function checkTrace(
         async: true,
         effect: req(
           (s: GameState, sd: string, ei: EID, c: Card | null, t: unknown[]) => {
-            initTrace(s, sd, capturedEid, c, capturedTraceData as any);
+            initTrace(s, sd, capturedEid, c, capturedTraceData as { base: number } & Record<string, unknown>);
           },
         ),
       },
@@ -552,4 +552,4 @@ function checkTrace(
   }
 }
 
-registerAbilityType("trace", checkTrace as any);
+registerAbilityType("trace", checkTrace as Parameters<typeof registerAbilityType>[1]);

@@ -383,7 +383,7 @@ function generateCorpQuickDraft(): SideDraft {
   );
   const iceCards = take(
     12,
-    shuffleArray(corpFormatCards.filter((c: any) => isIce(c as unknown as Card))),
+    shuffleArray(corpFormatCards.filter((c: RawCard) => isIce(c as unknown as Card))),
   );
 
   const corpIce: DraftDeckPick = {
@@ -459,13 +459,13 @@ function generateRunnerQuickDraft(): SideDraft {
   const notMainBreaker = (c: RawCard): boolean =>
     !hasAnySubtype(c as unknown as Card, ["Fracter", "Decoder", "Killer"]);
   const nonPrograms = runnerFormatCards.filter(notMainBreaker);
-  const fracters = runnerFormatCards.filter((c: any) =>
+  const fracters = runnerFormatCards.filter((c: RawCard) =>
     hasSubtype(c as unknown as Card, "Fracter"),
   );
-  const decoders = runnerFormatCards.filter((c: any) =>
+  const decoders = runnerFormatCards.filter((c: RawCard) =>
     hasSubtype(c as unknown as Card, "Decoder"),
   );
-  const killers = runnerFormatCards.filter((c: any) =>
+  const killers = runnerFormatCards.filter((c: RawCard) =>
     hasSubtype(c as unknown as Card, "Killer"),
   );
 
@@ -592,7 +592,7 @@ function addCardsList(
   side: string,
   cards: Array<string | RawCard>,
 ): void {
-  const built = cards.map((c: any) => {
+  const built = cards.map((c: string | RawCard) => {
     const card = buildCard(c) as Card & Record<string, unknown>;
     card.zone = ["deck"];
     return card;
@@ -912,7 +912,7 @@ function resolveQuickDraft(
 }
 
 function phases(draftQueue: CombinedItem[], side: "corp" | "runner"): string[] {
-  return draftQueue.map((item: any) => {
+  return draftQueue.map((item: CombinedItem) => {
     const pick = item[side] as SideDraftPick;
     return pick.phase;
   });

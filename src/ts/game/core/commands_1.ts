@@ -169,9 +169,10 @@ export function commandSaveReplay(state: GameState, _side: string): void {
  * Mirrors `command-bug-report`.
  */
 export function commandBugReport(state: GameState, side: string): void {
-  (state as any).bugReported = ((state as any).bugReported ?? -1) + 1;
+  const sExt = state as unknown as { bugReported?: number };
+  sExt.bugReported = (sExt.bugReported ?? -1) + 1;
   const gameid = state.gameId;
-  const bugNum = (state as any).bugReported;
+  const bugNum = sExt.bugReported;
   const title = "[EDITME] Please give a short description of your bug here";
   const body = `Link to bug replay: https://jinteki.net/bug-report/${gameid}?b=${bugNum}\n\nDescription:\n\n[EDITME] Please describe the steps to reproduce your bug and the resulting effect here.`;
   const encodedTitle = title.replace(/ /g, "%20");
@@ -243,17 +244,11 @@ function commandCounterSmart(
                 { timeOut: 0, closeButton: true },
               );
             } else {
-              (update as any)(
-                s,
-                sid,
-                (card: Card) => {
-                  if (!card.counter) card.counter = {};
-                  (card.counter as Record<string, number>)[counterType!] =
-                    value;
-                  return card;
-                },
-                target,
-              );
+              const existingCounters = (target.counter as Record<string, number>) ?? {};
+              update(s, sid, {
+                ...target,
+                counter: { ...existingCounters, [counterType!]: value },
+              });
               systemMsg(
                 s,
                 sid,
@@ -362,16 +357,11 @@ export function commandCounter(
             target: Card,
             _targets: unknown[],
           ): void => {
-            (update as any)(
-              state,
-              _side,
-              (card: Card) => {
-                if (!card.counter) card.counter = {};
-                (card.counter as Record<string, number>)[counterType] = value;
-                return card;
-              },
-              target,
-            );
+            const existingCounters = (target.counter as Record<string, number>) ?? {};
+            update(state, _side, {
+              ...target,
+              counter: { ...existingCounters, [counterType]: value },
+            });
             systemMsg(
               state,
               _side,
@@ -416,7 +406,7 @@ function rezAll(state: GameState, side: string, eid: EID, cards: Card[]): void {
  * Mirrors `rez-all-turn-agendas-faceup`.
  */
 function rezAllTurnAgendasFaceup(cards: Card[]): Ability | null {
-  const agendas = cards.filter((c: any) => isAgenda(c) && !c.seen);
+  const agendas = cards.filter((c: Card) => isAgenda(c) && !(c as Card & { seen?: boolean }).seen);
   if (agendas.length === 0) return null;
 
   return {
@@ -432,15 +422,7 @@ function rezAllTurnAgendasFaceup(cards: Card[]): Ability | null {
             _targets: unknown[],
           ): void => {
             for (const c of agendas) {
-              (update as any)(
-                state,
-                side,
-                (card: Card) => {
-                  card.seen = true;
-                  return card;
-                },
-                c,
-              );
+              update(state, side, { ...c, seen: true } as Card);
             }
           },
         ),
@@ -473,13 +455,13 @@ export function commandRezAll(state: GameState, side: string): void {
               _targets: unknown[],
             ): void => {
               // Mark all discard pile agendas as seen
-              state.corp.discard = state.corp.discard.map((c: any) => ({
+              state.corp.discard = state.corp.discard.map((c: Card) => ({
                 ...c,
                 seen: true,
               }));
 
               const installed = allInstalled(state, side);
-              const toRez = installed.filter((c: any) => !isRezzed(c));
+              const toRez = installed.filter((c: Card) => !isRezzed(c));
 
               wait_for(
                 state,
@@ -578,7 +560,7 @@ export function commandUndoClick(state: GameState, side: string): void {
   if (!state.clickStates || state.clickStates.length === 0) return;
   if (state.activePlayer !== side) return;
 
-  const clicks = state.clickStates as any[];
+  const clicks = state.clickStates as Array<Partial<GameState>>;
   const lastClickState = clicks[clicks.length - 1];
   const previousClickStates = clicks.slice(0, -1);
   const currentLog = state.log;
@@ -614,14 +596,14 @@ export function commandUndoTurn(state: GameState, side: string): void {
 
   // Mark this side as agreeing
   if (side === CORP_SIDE) {
-    (state.corp as any).undoTurn = true;
+    state.corp.undoTurn = true;
   } else {
-    (state.runner as any).undoTurn = true;
+    state.runner.undoTurn = true;
   }
 
   // Check if both agree
-  const corpAgreed = (state.corp as any).undoTurn;
-  const runnerAgreed = (state.runner as any).undoTurn;
+  const corpAgreed = state.corp.undoTurn;
+  const runnerAgreed = state.runner.undoTurn;
 
   if (corpAgreed && runnerAgreed) {
     const currentLog = state.log;
@@ -637,8 +619,8 @@ export function commandUndoTurn(state: GameState, side: string): void {
     Object.assign(state, originalTurnState);
 
     // Clear turn-started flags
-    delete (state.corp as any).turnStarted;
-    delete (state.runner as any).turnStarted;
+    delete state.corp.turnStarted;
+    delete state.runner.turnStarted;
 
     for (const s of [RUNNER_SIDE, CORP_SIDE]) {
       toast(state, s, "Game reset to start of turn");
@@ -699,12 +681,12 @@ export function commandClosePrompt(state: GameState, side: string): void {
 
   // Clear selected
   if (side === CORP_SIDE) {
-    delete (state.corp as any).selected;
+    delete state.corp.selected;
   } else {
-    delete (state.runner as any).selected;
+    delete state.runner.selected;
   }
 
-  const eid = (prompt as any).eid;
+  const eid = prompt.eid as EID | undefined;
   if (eid) {
     effectCompleted(state, side, eid);
   }
@@ -846,11 +828,11 @@ export function commandInstallIce(state: GameState, side: string): void {
                   const chosenServer =
                     typeof target === "string"
                       ? target
-                      : (target as any)?.value;
+                      : (target as { value?: string })?.value;
                   const zone = serverToZone(state, chosenServer as string);
                   const serverZone = zone.length >= 2 ? zone[1] : "";
-                  const iceCount =
-                    (state.corp.servers as any)[serverZone]?.ices?.length ?? 0;
+                  const serversMap = state.corp.servers as unknown as Record<string, { ices?: Card[] }>;
+                  const iceCount = serversMap[String(serverZone)]?.ices?.length ?? 0;
                   const positions = Array.from(
                     { length: iceCount + 1 },
                     (_, i) => String(iceCount - i),
@@ -907,7 +889,7 @@ export function commandInstallIce(state: GameState, side: string): void {
 export function commandPeek(state: GameState, side: string, n: number): void {
   const deck = side === CORP_SIDE ? state.corp.deck : state.runner.deck;
   const topCards = deck.slice(0, n);
-  const titles = topCards.map((c: any) => getTitle(c) ?? "");
+  const titles = topCards.map((c: Card) => getTitle(c) ?? "");
   const isPlural = n > 1;
 
   showPrompt(
@@ -985,7 +967,7 @@ export function commandSummon(
 ): void {
   try {
     const sCard = serverCard(cardName, false);
-    if (!sCard || !sameSide((sCard as any).side, side)) {
+    if (!sCard || !sameSide(sCard.side, side)) {
       toast(state, side, `${cardName} isn't a valid card`);
       return;
     }
@@ -1014,7 +996,7 @@ export function commandReloadId(state: GameState, side: string): void {
 
   try {
     const sCard = serverCard(cardName, false);
-    if (!sCard || !sameSide((sCard as any).side, side)) {
+    if (!sCard || !sameSide(sCard.side, side)) {
       toast(state, side, `${cardName} isn't a valid card`);
       return;
     }
@@ -1053,7 +1035,7 @@ export function commandReplaceId(
 ): void {
   try {
     const sCard = serverCard(cardName, false);
-    if (!sCard || !sameSide((sCard as any).side, side)) {
+    if (!sCard || !sameSide(sCard.side, side)) {
       toast(state, side, `${cardName} isn't a valid card`);
       return;
     }

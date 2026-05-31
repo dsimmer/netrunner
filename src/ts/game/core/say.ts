@@ -42,7 +42,7 @@ export function makeMessage(opts: {
       ? opts.text.trim()
       : Array.isArray(opts.text)
         ? opts.text
-            .map((t: any) => (typeof t === "string" ? t.trim() : String(t)))
+            .map((t: unknown) => (typeof t === "string" ? t.trim() : String(t)))
             .join(" ")
         : "";
   return {
@@ -233,15 +233,17 @@ export function unsafeSay(state: GameState, text: string): void {
  */
 export function systemMsg(state: GameState, side: string, text: string, opts?: SystemMsgOptions | null): void;
 export function systemMsg(text: string): void;
-export function systemMsg(...args: any[]): void {
-  let state: GameState | undefined, side: string, text: string;
-  let opts: SystemMsgOptions | null = null;
-  if (args.length === 1) {
-    text = args[0];
-    return; // No state available — best-effort no-op
-  } else {
-    state = args[0]; side = args[1]; text = args[2]; opts = args[3] ?? null;
-  }
+export function systemMsg(
+  arg1: GameState | string,
+  arg2?: string,
+  arg3?: string,
+  arg4?: SystemMsgOptions | null,
+): void {
+  if (typeof arg1 === "string") return; // legacy 1-arg shim
+  const state = arg1;
+  const side = arg2 ?? "";
+  const text = arg3 ?? "";
+  const opts = arg4 ?? null;
   if (!state) return;
   const user = side === CORP_SIDE ? state.corp.user : state.runner.user;
   const username = (user as Record<string, unknown>)?.username as string;
@@ -319,21 +321,20 @@ export function indicateAction(
  */
 export function playSfx(sfx: string): void;
 export function playSfx(state: GameState, side: string, sfx: string): void;
-export function playSfx(...args: any[]): void;
-export function playSfx(...args: any[]): void {
-  if (args.length === 1) {
-    // single-arg shorthand: ignore state/side
-    return;
-  }
-  const state = args[0] as GameState;
-  const _side = args[1] as string;
-  const sfx = args[2] as string;
+export function playSfx(
+  arg1: GameState | string,
+  arg2?: string,
+  arg3?: string,
+): void {
+  if (typeof arg1 === "string") return; // single-arg shorthand
+  const state = arg1;
+  const sfx = arg3 ?? "";
   const currentId = state.sfxCurrentId;
   if (!currentId && currentId !== 0) return;
-  (state.sfx as any[]).push({ id: currentId + 1, name: sfx });
-  // Keep only the last 3 entries
-  while ((state.sfx as any[]).length > 3) {
-    (state.sfx as any[]).shift();
+  const sfxArr = state.sfx as unknown as Array<{ id: number; name: string }>;
+  sfxArr.push({ id: currentId + 1, name: sfx });
+  while (sfxArr.length > 3) {
+    sfxArr.shift();
   }
   state.sfxCurrentId = currentId + 1;
 }
@@ -356,8 +357,8 @@ export function nLastLogs(
         : state.log.runner;
 
   return logArr
-    .filter((entry: any) => entry.user === "__system__")
-    .map((entry: any) => entry.text ?? "")
+    .filter((entry) => entry.user === "__system__")
+    .map((entry) => entry.text ?? "")
     .slice(-n)
     .join("\n\t");
 }

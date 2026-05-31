@@ -1,10 +1,15 @@
 // Hand size calculations.
-// Mirrors: src/clj/game/core/hand_size.clj + src/go/game/core/hand_size.go
+// Mirrors: src/clj/game/core/hand_size.clj
 
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { ReqFn, Side, State, StaticAbility, ValueFn } from "./types";
+import type {
+  ReqFn,
+  StaticAbility,
+  Targets,
+  ValueFn,
+} from "./types";
 import { CORP_SIDE, RUNNER_SIDE } from "./state";
 import { sumEffects } from "./effects";
 
@@ -36,6 +41,8 @@ export function handSizeTotal(state: GameState, side: string): number {
   return state.runner.handSize.total || 5;
 }
 
+export const handSize = handSizeTotal;
+
 /**
  * Recalculates and stores the hand size total for the given side.
  * Returns true if the value changed.
@@ -58,7 +65,6 @@ export function updateHandSize(state: GameState, side: string): boolean {
 
 /**
  * Returns the live effective hand size including all active static effects.
- * Mirrors: hand-size in hand_size.clj (the computed version)
  */
 export function handSizeEffective(state: GameState, side: string): number {
   return sumHandSizeEffects(state, side);
@@ -68,45 +74,85 @@ export function handSizeEffective(state: GameState, side: string): number {
  * Creates a StaticAbility that grants +value hand size.
  * Mirrors: hand-size+ in hand_size.clj
  */
-export function handSizePlus(reqOrValue: any, value?: any): StaticAbility {
-  const r: any = value === undefined ? null : reqOrValue;
-  const v: any = value === undefined ? reqOrValue : value;
-  return { type: "hand-size", req: r ?? undefined, value: v };
+export function handSizePlus(value: ValueFn): StaticAbility;
+export function handSizePlus(req: ReqFn | null, value: ValueFn): StaticAbility;
+export function handSizePlus(
+  reqOrValue: ReqFn | ValueFn | null,
+  value?: ValueFn,
+): StaticAbility {
+  if (value === undefined) {
+    return { type: "hand-size", value: reqOrValue as ValueFn };
+  }
+  return {
+    type: "hand-size",
+    req: (reqOrValue as ReqFn | null) ?? undefined,
+    value,
+  };
+}
+
+function sideGuardedReq(
+  expectedSide: string,
+  inner: ReqFn | null,
+): ReqFn {
+  return (
+    state: GameState,
+    side: string,
+    eid: EID,
+    card: Card | null,
+    targets: Targets,
+  ) => {
+    if (side !== expectedSide) return false;
+    if (inner == null) return true;
+    if (typeof inner === "function") {
+      return !!inner(state, side, eid, card, targets);
+    }
+    return !!inner;
+  };
 }
 
 /**
  * Creates a Corp-only hand-size+ StaticAbility.
  * Mirrors: corp-hand-size+ in hand_size.clj
  */
+export function corpHandSizePlus(value: ValueFn): StaticAbility;
 export function corpHandSizePlus(
-  reqOrValue: any,
-  value?: any,
+  req: ReqFn | null,
+  value: ValueFn,
+): StaticAbility;
+export function corpHandSizePlus(
+  reqOrValue: ReqFn | ValueFn | null,
+  value?: ValueFn,
 ): StaticAbility {
-  const r: any = value === undefined ? null : reqOrValue;
-  const v: any = value === undefined ? reqOrValue : value;
-  const corpReq: ReqFn = (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
-    if (side !== CORP_SIDE) return false;
-    return r ? (typeof r === 'function' ? r(state, side, eid, card, targets) : r) : true;
-  };
-  return handSizePlus(corpReq, v);
+  if (value === undefined) {
+    return handSizePlus(sideGuardedReq(CORP_SIDE, null), reqOrValue as ValueFn);
+  }
+  return handSizePlus(
+    sideGuardedReq(CORP_SIDE, reqOrValue as ReqFn | null),
+    value,
+  );
 }
 
 /**
  * Creates a Runner-only hand-size+ StaticAbility.
  * Mirrors: runner-hand-size+ in hand_size.clj
  */
+export function runnerHandSizePlus(value: ValueFn): StaticAbility;
 export function runnerHandSizePlus(
-  reqOrValue: any,
-  value?: any,
+  req: ReqFn | null,
+  value: ValueFn,
+): StaticAbility;
+export function runnerHandSizePlus(
+  reqOrValue: ReqFn | ValueFn | null,
+  value?: ValueFn,
 ): StaticAbility {
-  // Permissive: callers may pass just a value (number) or a (req, value) pair.
-  const r: any = value === undefined ? null : reqOrValue;
-  const v: any = value === undefined ? reqOrValue : value;
-  const runnerReq: ReqFn = (state: State, side: Side, eid: EID, card: Card, targets: any[]) => {
-    if (side !== RUNNER_SIDE) return false;
-    return r ? (typeof r === 'function' ? r(state, side, eid, card, targets) : r) : true;
-  };
-  return handSizePlus(runnerReq, v);
+  if (value === undefined) {
+    return handSizePlus(
+      sideGuardedReq(RUNNER_SIDE, null),
+      reqOrValue as ValueFn,
+    );
+  }
+  return handSizePlus(
+    sideGuardedReq(RUNNER_SIDE, reqOrValue as ReqFn | null),
+    value,
+  );
 }
-
-export { handSizeTotal as handSize } from "./hand_size";

@@ -144,7 +144,7 @@ function changeAgendaPoints(
   delta: number,
 ): void {
   const userSide = side;
-  const reqFn: ReqFn = (_s: any, targetSide: any) => targetSide === userSide;
+  const reqFn: ReqFn = (_s: GameState, targetSide: string) => targetSide === userSide;
   const valueFn: ValueFn = () => delta;
   registerLingeringEffect(
     state,
@@ -192,7 +192,7 @@ function changeLink(state: GameState, side: string, delta: number): void {
  */
 function changeHandSize(state: GameState, side: string, delta: number): void {
   const userSide = side;
-  const reqFn: ReqFn = (_s: any, targetSide: any) => targetSide === userSide;
+  const reqFn: ReqFn = (_s: GameState, targetSide: string) => targetSide === userSide;
   const valueFn: ValueFn = () => delta;
   registerLingeringEffect(
     state,
@@ -222,7 +222,7 @@ function changeGeneric(
   delta: number,
 ): void {
   const sideObj: Record<string, number> =
-    side === CORP_SIDE ? (state.corp as any) : (state.runner as any);
+    (side === CORP_SIDE ? state.corp : state.runner) as unknown as Record<string, number>;
 
   if (delta < 0) {
     lose(state, side, toResourceKey(key), Math.abs(delta));

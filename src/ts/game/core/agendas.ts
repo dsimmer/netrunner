@@ -3,6 +3,7 @@
 
 import type { GameState } from "./state";
 import type { Card } from "./card";
+import type { AbilityFn } from "./types";
 import { isAgenda } from "./card";
 import { CORP_SIDE } from "./state";
 import { cardDef } from "./card_defs";
@@ -29,7 +30,8 @@ export function updateCard(
   // Identity cards
   if (card.type === "Identity") {
     if (side === toKeyword(card.side ?? "")) {
-      (state as any)[side].identity = card;
+      const player = side === CORP_SIDE ? state.corp : state.runner;
+      player.identity = card;
     }
     return card;
   }
@@ -43,44 +45,21 @@ export function updateCard(
   const scoringOwner = getScoringOwner(state, card);
   const effectiveSide = scoringOwner || side;
   const z = [toKeyword(effectiveSide), ...(card.zone ?? [])];
-  const zoneArr = z as any;
+  const zoneArr: string[] = z;
 
   // Navigate to the zone array
   let zoneRef: Card[] | null = null;
-  let current: any = state;
-  for (let i = 0; i < zoneArr.length; i++) {
-    if (i === 0) {
-      // First element is side - get corp or runner
-      current = current[zoneArr[i]];
-    } else if (i === 1 && zoneArr[0] === CORP_SIDE) {
-      // Second element is a zone name under corp/runner
-      if (zoneArr[1] === "servers") {
-        // Navigate into servers -> server name -> ices/content
-        if (zoneArr.length > 2) {
-          const serverName = zoneArr[2] as string;
-          const server = current.servers?.[serverName];
-          if (!server) return card;
-          if (zoneArr[3] === "ices") {
-            zoneRef = server.ices;
-          } else {
-            zoneRef = server.content;
-          }
-        }
-      } else {
-        zoneRef = current[zoneArr[1]];
-      }
-    } else if (i >= 2 && zoneArr[0] === CORP_SIDE) {
-      // Handle nested server paths
-      const serverName = zoneArr[1];
-      const server = current.servers?.[serverName];
-      if (zoneArr[2] === "ices") {
-        zoneRef = server?.ices;
-      } else {
-        zoneRef = server?.content;
-      }
-    } else {
-      zoneRef = current[zoneArr[i]];
-    }
+  const sideKey = zoneArr[0];
+  const player = sideKey === CORP_SIDE ? state.corp : state.runner;
+  if (zoneArr[1] === "servers" && sideKey === CORP_SIDE) {
+    const serverName = zoneArr[2];
+    const server = state.corp.servers[serverName as "hq" | "rd" | "archives"]
+      ?? state.corp.servers.remote[serverName];
+    if (!server) return card;
+    zoneRef = zoneArr[3] === "ices" ? server.ices : server.content;
+  } else if (zoneArr.length >= 2) {
+    const playerRec = player as unknown as Record<string, Card[] | undefined>;
+    zoneRef = playerRec[zoneArr[1]] ?? null;
   }
 
   if (!zoneRef) return card;
@@ -137,11 +116,11 @@ function updateHostedCard(
 function advancementRequirement(state: GameState, card: Card): number | null {
   if (!isAgenda(card)) return null;
 
-  const advancementCost = (card as any).advancementcost ?? 0;
+  const advancementCost = card.advancementcost ?? 0;
 
   // Get advancement-requirement function from card def
-  const cdef = cardDef(card);
-  const advanceFn = (cdef as any)["advancement-requirement"];
+  const cdef = cardDef(card) as { "advancement-requirement"?: AbilityFn };
+  const advanceFn = cdef["advancement-requirement"];
 
   let advanceResult = 0;
   if (advanceFn) {
@@ -205,12 +184,12 @@ export function updateAdvancementRequirement(
     a = sideOrAgenda as Card;
   }
 
-  const prevReq = (a as any).currentAdvancementRequirement;
+  const prevReq = a.currentAdvancementRequirement;
   const newReq = advancementRequirement(state, a);
   const changed = prevReq !== newReq;
 
   if (changed) {
-    (a as any).currentAdvancementRequirement = newReq;
+    a.currentAdvancementRequirement = newReq ?? undefined;
     updateCard(state, CORP_SIDE, a);
   }
   return changed;
@@ -264,14 +243,14 @@ export function agendaPoints(
 ): number {
   if (!card) return 0;
 
-  const basePoints = (card as any).agendapoints ?? 0;
-  const cdef = cardDef(card);
+  const basePoints = card.agendapoints ?? 0;
+  const cdef = cardDef(card) as { "agendapoints-corp"?: AbilityFn; "agendapoints-runner"?: AbilityFn };
 
   // Get the points function based on side
   const pointsFn =
     side === CORP_SIDE
-      ? (cdef as any)["agendapoints-corp"]
-      : (cdef as any)["agendapoints-runner"];
+      ? cdef["agendapoints-corp"]
+      : cdef["agendapoints-runner"];
 
   if (typeof pointsFn === "function") {
     const fnResult = pointsFn(state, side, null, card, []);
@@ -294,12 +273,12 @@ function updateAgendaPointsCard(
   side: string,
   card: Card,
 ): boolean {
-  const prevPoints = (card as any).currentPoints;
+  const prevPoints = card.currentPoints;
   const newPoints = agendaPoints(state, side, card);
   const changed = prevPoints !== newPoints;
 
   if (changed) {
-    (card as any).currentPoints = newPoints;
+    card.currentPoints = newPoints;
     updateCard(state, side, card);
   }
   return changed;
@@ -319,7 +298,7 @@ function sumSideAgendaPoints(state: GameState, side: string): boolean {
   const scored = currentPlayer.scored ?? [];
 
   const scoredPoints = scored.reduce(
-    (sum: number, card: Card) => sum + ((card as any).currentPoints ?? 0),
+    (sum: number, card: Card) => sum + (card.currentPoints ?? 0),
     0,
   );
 
@@ -328,7 +307,7 @@ function sumSideAgendaPoints(state: GameState, side: string): boolean {
     side,
     ":user-agenda-points",
     null,
-    [...(side === CORP_SIDE ? ([state.corp] as any) : ([state.runner] as any))],
+    [side === CORP_SIDE ? state.corp : state.runner] as unknown as Card[],
   );
 
   const totalPoints = userAdjustedPoints + scoredPoints;

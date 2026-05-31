@@ -14,11 +14,15 @@ import type { Server } from './types';
  * Returns the server keyword corresponding to the target of a run.
  * Mirrors `target-server`.
  */
-export function targetServer(runOrState: { server?: Zone | null } | { run?: { server?: Zone | null } | null } | any): string | undefined {
+interface RunLike { server?: Zone | string | null | undefined }
+interface StateWithRun { run?: RunLike | null }
+
+export function targetServer(runOrState: RunLike | StateWithRun | null | undefined): string | undefined {
   // Accept either a run object or a state object with `.run`
   if (!runOrState) return undefined;
-  const r = (runOrState as any).run !== undefined ? (runOrState as any).run : runOrState;
-  return r?.server?.[0];
+  const r = "run" in runOrState ? runOrState.run : (runOrState as RunLike);
+  const s = r?.server;
+  return Array.isArray(s) ? s[0] : (s ?? undefined);
 }
 
 /**
@@ -90,7 +94,7 @@ export function nameZone(side: string, zone: unknown): string {
   const s = String(side).toLowerCase().replace(/^:/, "");
   const normalizedSide = s === "corp" ? "Corp" : s === "runner" ? "Runner" : side;
   const z = Array.isArray(zone) ? [...zone] : [zone];
-  const normalized = z.map((k: any) => String(k).replace(/^:/, "").toLowerCase());
+  const normalized = z.map((k: unknown) => String(k).replace(/^:/, "").toLowerCase());
 
   if (normalized.length === 1 && normalized[0] === "hand") {
     return normalizedSide === "Runner" ? "the Grip" : "HQ";
@@ -129,7 +133,7 @@ export function nameZone(side: string, zone: unknown): string {
  * Mirrors `zone->sort-key`.
  */
 export function zoneSortKey(zone: unknown): number {
-  const kw = Array.isArray(zone) ? (zone as any[])[(zone as any[]).length - 1] : zone;
+  const kw = Array.isArray(zone) ? zone[zone.length - 1] : zone;
   const s = String(kw).replace(/^:/, "").toLowerCase();
   if (s === "archives" || s === "discard") return -3;
   if (s === "rd" || s === "deck") return -2;
@@ -149,8 +153,8 @@ export const zoneToSortKey = zoneSortKey;
  */
 export function zonesToSortedNames(zones: unknown[]): string[] {
   return [...zones]
-    .sort((a: any, b: any) => zoneSortKey(a) - zoneSortKey(b))
-    .map((z: any) => zoneToName(z) ?? String(z));
+    .sort((a, b) => zoneSortKey(a as Zone | string) - zoneSortKey(b as Zone | string))
+    .map((z) => zoneToName(z as Zone | string) ?? String(z));
 }
 
 // ---------------------------------------------------------------------------
@@ -268,7 +272,7 @@ export function inSameServer(card1: Card | null, card2: Card | null): boolean {
   const zone2 = getZone(card2);
   return (
     zone1.length === zone2.length &&
-    zone1.every((v: any, i: any) => v === zone2[i]) &&
+    zone1.every((v: string, i: number) => v === zone2[i]) &&
     zone1[zone1.length - 1] === "content"
   );
 }
@@ -287,7 +291,7 @@ export function fromSameServer(upgrade: Card | null, target: Card | null): boole
   const upgradeZoneWithoutLast = upgradeZone.slice(0, -1);
   return (
     upgradeZoneWithoutLast.length === expectedZone.length &&
-    upgradeZoneWithoutLast.every((v: any, i: any) => v === expectedZone[i])
+    upgradeZoneWithoutLast.every((v: string, i: number) => v === expectedZone[i])
   );
 }
 

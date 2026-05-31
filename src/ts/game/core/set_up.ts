@@ -90,7 +90,7 @@ export function mulligan(
       mul(state, side, eid, card, null);
     }
   }
-  (getPlayer(state, side) as any).keep = "mulligan";
+  getPlayer(state, side).keep = "mulligan";
   systemMsg(state, side, "takes a mulligan");
   triggerEvent(state, side, "pre-first-turn", null);
   if (side === "corp" && state.runner.identity?.title) {
@@ -111,7 +111,7 @@ export function keepHand(
   side: string,
   _eid: EID | null,
 ): void {
-  (getPlayer(state, side) as any).keep = "keep";
+  getPlayer(state, side).keep = "keep";
   systemMsg(state, side, "keeps [their] hand");
   triggerEvent(state, side, "pre-first-turn", null);
   if (side === "corp" && state.runner.identity?.title) {
@@ -195,8 +195,8 @@ interface GameData {
  */
 function initGameState(game: GameData): GameState {
   const players = game.players ?? [];
-  const corpPlayer = players.find((p: any) => p.side === "Corp") ?? null;
-  const runnerPlayer = players.find((p: any) => p.side === "Runner") ?? null;
+  const corpPlayer = players.find((p: PlayerData) => p.side === "Corp") ?? null;
+  const runnerPlayer = players.find((p: PlayerData) => p.side === "Runner") ?? null;
 
   const corpDeck = createDeck(corpPlayer?.deck ?? {});
   const runnerDeck = createDeck(runnerPlayer?.deck ?? {});
@@ -223,14 +223,14 @@ function initGameState(game: GameData): GameState {
     },
   );
 
-  const corpQuote = makeQuote(corpIdentity as any, runnerIdentity as any);
-  const runnerQuote = makeQuote(runnerIdentity as any, corpIdentity as any);
+  const corpQuote = makeQuote(corpIdentity, runnerIdentity);
+  const runnerQuote = makeQuote(runnerIdentity, corpIdentity);
 
   const corp = newCorp(
     corpPlayer?.user ?? {},
     corpIdentity,
     corpOptions,
-    corpDeck.map((c: any) => ({ ...c, zone: ["deck"] }) as Card),
+    corpDeck.map((c: Card) => ({ ...c, zone: ["deck"] })),
     corpDeckId,
     corpQuote,
   );
@@ -239,7 +239,7 @@ function initGameState(game: GameData): GameState {
     runnerPlayer?.user ?? {},
     runnerIdentity,
     runnerOptions,
-    runnerDeck.map((c: any) => ({ ...c, zone: ["deck"] }) as Card),
+    runnerDeck.map((c: Card) => ({ ...c, zone: ["deck"] })),
     runnerDeckId,
     runnerQuote,
   );
@@ -310,7 +310,7 @@ function sortDeckForDisplay(deck: Card[]): Array<[string, string | number]> {
   }
 
   // Sort by [type, title]
-  entries.sort((a: any, b: any) => {
+  entries.sort((a, b) => {
     if (a[2] < b[2]) return -1;
     if (a[2] > b[2]) return 1;
     if (a[0] < b[0]) return -1;
@@ -357,7 +357,7 @@ export function initGame(game: GameData): GameState {
   const runnerIdentity = state.runner.identity;
 
   if (game.messages && game.messages.length > 0) {
-    state.log.public = game.messages.map((m: any) => ({
+    state.log.public = game.messages.map((m: string) => ({
       user: "__system__",
       text: m,
     }));

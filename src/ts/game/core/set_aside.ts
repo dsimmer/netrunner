@@ -48,7 +48,7 @@ export function setAside(
   runnerVis: boolean | null = true,
 ): Card[] {
   const tracking = getSetAsideTracking(state, side);
-  tracking[String(eid.id)] = cards.map((c: any) => c.cid);
+  tracking[String(eid.id)] = cards.map((c: Card) => c.cid);
   setSetAsideTracking(state, side, tracking);
 
   const results: Card[] = [];
@@ -109,7 +109,7 @@ export function cleanSetAside(state: GameState, side: string): void {
   const tracking = getSetAsideTracking(state, side);
   const toClear: string[] = [];
   for (const eid of Object.keys(tracking)) {
-    if (getSetAside(state, side, { id: eid } as any).length === 0) {
+    if (getSetAside(state, side, { id: Number(eid) } as EID).length === 0) {
       toClear.push(eid);
     }
   }

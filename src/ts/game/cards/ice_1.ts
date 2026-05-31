@@ -662,7 +662,7 @@ export const addRunnerCardToGrip: any = {
     targets: any[],
   ): Generator<any, any, any> {
     const target = targets[0];
-    coreMoving.move(state, ":runner", target, ":hand", true);
+    coreMoving.move(state, ":runner", target, ":hand", null);
     coreSay.systemMsg(state, side, `adds ${(target as any).title} to the grip`);
   }),
 };

@@ -184,13 +184,14 @@ function setRegister(
   key: string,
   val: unknown,
 ): void {
-  const sideObj: any = (state as any)[side];
+  const sideObj = state[side === "corp" ? "corp" : "runner"];
   if (!sideObj.register) sideObj.register = {};
-  sideObj.register[key] = val;
+  (sideObj.register as Record<string, unknown>)[key] = val;
 }
 
 function canForfeit(card: Card | null): boolean {
-  return !(card as any)?.flags?.["cannot-forfeit"];
+  const flags = (card as Card & { flags?: Record<string, unknown> } | null)?.flags;
+  return !flags?.["cannot-forfeit"];
 }
 
 /**
@@ -201,11 +202,11 @@ export function waitFor(
   state: GameState,
   parentEid: EID,
   start: (innerEid: EID) => void,
-  next: (asyncResult: any, innerEid: EID) => void,
+  next: (asyncResult: unknown, innerEid: EID) => void,
 ): void {
   const inner = makeEIDFrom(state, parentEid);
-  registerEIDCallback(state, inner, (_s: any, _side: any, completed: any) => {
-    next((completed as EID).result, completed as EID);
+  registerEIDCallback(state, inner, (_s: GameState, _side: string, completed: EID) => {
+    next(completed.result, completed);
   });
   start(inner);
 }
@@ -214,8 +215,17 @@ export function waitFor(
 // Pay-credits provider helpers
 // ---------------------------------------------------------------------------
 
-function payCreditsCfg(card: Card): any | null {
-  return (getCardDef(card) as any)?.interactions?.["pay-credits"] ?? null;
+interface PayCreditsCfg {
+  type?: string;
+  req?: (s: GameState, sd: string, e: EID, c: Card, t: (Card | null)[]) => boolean;
+  "while-inactive"?: boolean;
+  "cost-reduction"?: boolean;
+  [k: string]: unknown;
+}
+
+function payCreditsCfg(card: Card): PayCreditsCfg | null {
+  const interactions = (getCardDef(card).interactions ?? {}) as Record<string, PayCreditsCfg | undefined>;
+  return interactions["pay-credits"] ?? null;
 }
 
 function activePayCreditCards(
@@ -228,7 +238,7 @@ function activePayCreditCards(
   const all = Array.from(
     new Set([...allActive(state, side), ...allInstalled(state, side)]),
   );
-  return all.filter((c: any) => {
+  return all.filter((c: Card) => {
     const pc = payCreditsCfg(c);
     if (!pc) return false;
     if (isDisabledReg(state, c)) return false;
@@ -244,7 +254,7 @@ function eligiblePayCreditCards(
   eid: EID,
   card: Card | null,
 ): Card[] {
-  return activePayCreditCards(state, side, eid, card, false).filter((c: any) => {
+  return activePayCreditCards(state, side, eid, card, false).filter((c: Card) => {
     const pc = payCreditsCfg(c);
     switch (pc?.type) {
       case "recurring":
@@ -252,7 +262,7 @@ function eligiblePayCreditCards(
       case "credit":
         return getCounter(getCard(state, c), "credit") > 0;
       case "custom":
-        return !!pc.req(state, side, eid, c, [card]);
+        return !!(pc.req && pc.req(state, side, eid, c, [card]));
       default:
         return false;
     }
@@ -265,7 +275,7 @@ function eligibleReduceCreditCards(
   eid: EID,
   card: Card | null,
 ): Card[] {
-  return activePayCreditCards(state, side, eid, card, true).filter((c: any) => {
+  return activePayCreditCards(state, side, eid, card, true).filter((c: Card) => {
     const pc = payCreditsCfg(c);
     switch (pc?.type) {
       case "recurring":
@@ -273,7 +283,7 @@ function eligibleReduceCreditCards(
       case "credit":
         return getCounter(getCard(state, c), "credit") > 0;
       case "custom":
-        return !!pc.req(state, side, eid, c, [card]);
+        return !!(pc.req && pc.req(state, side, eid, c, [card]));
       default:
         return false;
     }
@@ -286,7 +296,7 @@ function customAmount(
   eid: EID,
   c: Card,
 ): number {
-  const cmt = payCreditsCfg(c)?.["custom-amount"];
+  const cmt = payCreditsCfg(c)?.["custom-amount"] as number | ((s: GameState, sd: string, e: EID, c: Card, t: null) => number) | undefined;
   if (cmt == null) return 0;
   if (typeof cmt === "function") return cmt(state, side, eid, c, null);
   return cmt;
@@ -301,7 +311,7 @@ export function totalAvailableCredits(
   if (anyEffects(state, side, "cannot-pay-credit")) return 0;
   const pool = anyEffects(state, side, "cannot-pay-credits-from-pool")
     ? 0
-    : ((state as any)[side]?.credit ?? 0);
+    : (state[side === "corp" ? "corp" : "runner"]?.credit ?? 0);
   const bp = badPublicityAvailable(state, side);
   const provider = [
     ...eligiblePayCreditCards(state, side, eid, card),
@@ -324,7 +334,7 @@ function eligiblePayStealthCreditCards(
   eid: EID,
   card: Card | null,
 ): Card[] {
-  return eligiblePayCreditCards(state, side, eid, card).filter((c: any) =>
+  return eligiblePayCreditCards(state, side, eid, card).filter((c: Card) =>
     hasSubtype(c, "Stealth"),
   );
 }
@@ -340,7 +350,7 @@ function totalAvailableStealthCredits(
       sum +
       getCounter(c, "recurring") +
       getCounter(c, "credit") +
-      (payCreditsCfg(c)?.["custom-amount"] ?? 0),
+      ((payCreditsCfg(c)?.["custom-amount"] as number | undefined) ?? 0),
     0,
   );
 }
@@ -352,22 +362,28 @@ function totalAvailableStealthCredits(
 valueDispatch.set("click", (c) => c.amount);
 labelDispatch.set("click", (c) => clicks(value(c)));
 payableDispatch.set("click", (c, state, side) => {
-  return ((state as any)[side]?.click ?? 0) - value(c) >= 0;
+  return (state[side === "corp" ? "corp" : "runner"]?.click ?? 0) - value(c) >= 0;
 });
 handlerDispatch.set("click", (c, state, side, eid) => {
-  const a = (eid as any).action;
-  const idx = (eid as any).sourceInfo?.["ability-idx"];
-  const sourceAbilities = (eid as any).source?.abilities;
+  const eidExt = eid as EID & {
+    action?: string;
+    sourceInfo?: { "ability-idx"?: number };
+    source?: Card & { abilities?: (Ability & { action?: unknown })[] };
+    sourceType?: string;
+  };
+  const a = eidExt.action;
+  const idx = eidExt.sourceInfo?.["ability-idx"];
+  const sourceAbilities = eidExt.source?.abilities;
   const isGameAction =
-    (eid as any).sourceType === "ability" &&
+    eidExt.sourceType === "ability" &&
     typeof idx === "number" &&
     Array.isArray(sourceAbilities) &&
     sourceAbilities.length > 0
       ? sourceAbilities[idx]?.action
       : undefined;
-  const source: any = (eid as any).source ?? {};
+  const source = (eidExt.source ?? {}) as Partial<Card>;
   bumpStat(state, side, ["lose", "click"], value(c));
-  deduct(state, side, ["click", value(c)] as any);
+  deduct(state, side, ["click", value(c)] as unknown as Parameters<typeof deduct>[2]);
   queueEvent(
     state,
     side === "corp" ? ":corp-spent-click" : ":runner-spent-click",
@@ -380,8 +396,8 @@ handlerDispatch.set("click", (c, state, side, eid) => {
         type: source.type,
       },
       value: value(c),
-      "ability-idx": (eid as any).sourceInfo?.["ability-idx"],
-    } as any,
+      "ability-idx": eidExt.sourceInfo?.["ability-idx"],
+    },
   );
   setRegister(state, side, "spent-click", true);
   completeWithResult(state, side, eid, {
@@ -402,15 +418,15 @@ function loseClickLabel(cost: Cost): string {
 valueDispatch.set("lose-click", (c) => c.amount);
 labelDispatch.set("lose-click", (c) => `Lose ${loseClickLabel(c)}`);
 payableDispatch.set("lose-click", (c, state, side) => {
-  return ((state as any)[side]?.click ?? 0) - value(c) >= 0;
+  return (state[side === "corp" ? "corp" : "runner"]?.click ?? 0) - value(c) >= 0;
 });
 handlerDispatch.set("lose-click", (c, state, side, eid) => {
   bumpStat(state, side, ["lose", "click"], value(c));
-  deduct(state, side, ["click", value(c)] as any);
+  deduct(state, side, ["click", value(c)] as unknown as Parameters<typeof deduct>[2]);
   queueEvent(
     state,
     side === "corp" ? ":corp-spent-click" : ":runner-spent-click",
-    { value: value(c) } as any,
+    { value: value(c) },
   );
   setRegister(state, side, "spent-click", true);
   completeWithResult(state, side, eid, {
@@ -438,7 +454,7 @@ payableDispatch.set("credit", (c, state, side, eid, card) => {
   const valueOk = value(c) - stealthValue(c) >= 0;
   if (!stealthOk || !valueOk) return false;
   if (!anyEffects(state, side, "cannot-pay-credits-from-pool")) {
-    if (((state as any)[side]?.credit ?? 0) - value(c) >= 0) return true;
+    if ((state[side === "corp" ? "corp" : "runner"]?.credit ?? 0) - value(c) >= 0) return true;
   }
   return totalAvailableCredits(state, side, eid, card) - value(c) >= 0;
 });
@@ -455,12 +471,12 @@ handlerDispatch.set("credit", (c, state, side, eid, card) => {
         {
           ...pickCreditReducers(reducerFn, innerEid, value(c), stealthValue(c)),
           eid: innerEid,
-        } as any,
+        } as Ability,
         card,
         [],
       ),
     (reduceResult) => {
-      const reduction = (reduceResult as any)?.reduction ?? 0;
+      const reduction = (reduceResult as { reduction?: number } | null | undefined)?.reduction ?? 0;
       const updated = Math.max(0, value(c) - reduction);
       const event =
         side === "corp" ? ":corp-spent-credits" : ":runner-spent-credits";
@@ -487,24 +503,25 @@ handlerDispatch.set("credit", (c, state, side, eid, card) => {
                   badPublicityAvailable(state, side),
                 ),
                 eid: innerEid,
-              } as any,
+              } as Ability,
               card,
               [],
             ),
           (payRes) => {
-            queueEvent(state, event, { value: updated } as any);
+            const pr = payRes as { msg?: string; number?: number; targets?: unknown[] } | null | undefined;
+            queueEvent(state, event, { value: updated });
             bumpStat(state, side, ["spent", "credit"], updated);
             completeWithResult(state, side, eid, {
-              "paid/msg": `pays ${(payRes as any)?.msg ?? ""}`,
+              "paid/msg": `pays ${pr?.msg ?? ""}`,
               "paid/type": "credit",
-              "paid/value": (payRes as any)?.number,
-              "paid/targets": (payRes as any)?.targets,
+              "paid/value": pr?.number,
+              "paid/targets": pr?.targets,
             });
           },
         );
       } else if (updated > 0) {
-        lose(state, side, "credit" as any, updated);
-        queueEvent(state, event, { value: updated } as any);
+        lose(state, side, "credit", updated);
+        queueEvent(state, event, { value: updated });
         bumpStat(state, side, ["spent", "credit"], updated);
         completeWithResult(state, side, eid, {
           "paid/msg": `pays ${updated} [Credits]`,
@@ -558,17 +575,17 @@ handlerDispatch.set("x-credits", (c, state, side, eid, card) => {
             return Math.min(totalAvailableCredits(s, sd, ei, ca), offset + m);
           }
           return totalAvailableCredits(s, sd, ei, ca);
-        }) as any,
-      } as any,
-      effect: ((
+        }),
+      },
+      effect: (
         s: GameState,
         sd: string,
         ei: EID,
         ca: Card | null,
-        targets: any[],
+        targets: unknown[],
       ) => {
-        const stealthForCall =
-          stealthValue(c) === -1 ? c : (stealthValue(c) as any);
+        const stealthForCall: Cost | number =
+          stealthValue(c) === -1 ? c : (stealthValue(c) as number);
         const cost = targets[0] as number;
         const providerFn = () => eligiblePayCreditCards(s, sd, ei, ca);
         const event =
@@ -586,27 +603,28 @@ handlerDispatch.set("x-credits", (c, state, side, eid, card) => {
                     providerFn,
                     innerEid,
                     cost,
-                    stealthForCall,
+                    stealthForCall as unknown as Parameters<typeof pickCreditProvidingCards>[3],
                   ),
                   eid: innerEid,
-                } as any,
+                } as Ability,
                 ca,
                 [],
               ),
             (payRes) => {
+              const pr = payRes as { msg?: string; number?: number; targets?: unknown[] } | null | undefined;
               bumpStat(s, sd, ["spent", "credit"], cost);
               completeWithResult(s, sd, ei, {
-                "paid/msg": `pays ${(payRes as any)?.msg ?? ""}`,
+                "paid/msg": `pays ${pr?.msg ?? ""}`,
                 "paid/type": "x-credits",
-                "paid/x-value": ((payRes as any)?.number ?? 0) - offset,
-                "paid/value": (payRes as any)?.number,
-                "paid/targets": (payRes as any)?.targets,
+                "paid/x-value": (pr?.number ?? 0) - offset,
+                "paid/value": pr?.number,
+                "paid/targets": pr?.targets,
               });
             },
           );
         } else if (cost > 0) {
-          lose(s, sd, "credit" as any, cost);
-          queueEvent(s, event, { value: cost } as any);
+          lose(s, sd, "credit", cost);
+          queueEvent(s, event, { value: cost });
           bumpStat(s, sd, ["spent", "credit"], cost);
           completeWithResult(s, sd, ei, {
             "paid/msg": `pays ${cost} [Credits]`,
@@ -622,8 +640,8 @@ handlerDispatch.set("x-credits", (c, state, side, eid, card) => {
             "paid/value": 0,
           });
         }
-      }) as any,
-    } as any,
+      },
+    } as Ability,
     card,
     [],
   );
@@ -692,7 +710,7 @@ function registerSelfTrash(type: string): void {
         }),
       () => {
         completeWithResult(state, side, eid, {
-          "paid/msg": `trashes ${(card as any)["printed-title"] ?? card.title}`,
+          "paid/msg": `trashes ${(card as Card & { "printed-title"?: string })["printed-title"] ?? card.title}`,
           "paid/type": type,
           "paid/value": 1,
           "paid/targets": [card],
@@ -711,8 +729,8 @@ registerSelfTrash("trash-self");
 valueDispatch.set("forfeit", (c) => c.amount);
 labelDispatch.set("forfeit", (c) => `forfeit ${quantify(value(c), "Agenda")}`);
 payableDispatch.set("forfeit", (c, state, side) => {
-  const scored: Card[] = (state as any)[side]?.scored ?? [];
-  return scored.filter((s: any) => canForfeit(s)).length - value(c) >= 0;
+  const scored: Card[] = state[side === "corp" ? "corp" : "runner"]?.scored ?? [];
+  return scored.filter((s: Card) => canForfeit(s)).length - value(c) >= 0;
 });
 handlerDispatch.set("forfeit", (c, state, side, eid, card) => {
   continue_ability(
@@ -729,12 +747,12 @@ handlerDispatch.set("forfeit", (c, state, side, eid, card) => {
           sd: string,
           _e: EID,
           _ca: Card | null,
-          targets: any[],
+          targets: unknown[],
         ) => {
           const t = targets[0] as Card;
           return isScored(s, sd, t) && canForfeit(t);
-        }) as any,
-      } as any,
+        }),
+      },
       effect: ((
         s: GameState,
         sd: string,
@@ -754,8 +772,8 @@ handlerDispatch.set("forfeit", (c, state, side, eid, card) => {
           "paid/value": value(c),
           "paid/targets": targets,
         });
-      }) as any,
-    } as any,
+      }),
+    },
     card,
     [],
   );
@@ -802,11 +820,11 @@ labelDispatch.set(
     `forfeit an agenda or reveal and trash ${quantify(value(c), "card")} from hand`,
 );
 payableDispatch.set("forfeit-or-trash-x-from-hand", (c, state, side) => {
-  const hand = ((state as any)[side]?.hand ?? []) as Card[];
-  const scored = ((state as any)[side]?.scored ?? []) as Card[];
+  const hand = (state[side === "corp" ? "corp" : "runner"]?.hand ?? []) as Card[];
+  const scored = (state[side === "corp" ? "corp" : "runner"]?.scored ?? []) as Card[];
   return (
     hand.length - value(c) >= 0 ||
-    scored.filter((s: any) => canForfeit(s)).length > 0
+    scored.filter((s: Card) => canForfeit(s)).length > 0
   );
 });
 handlerDispatch.set(
@@ -817,7 +835,7 @@ handlerDispatch.set(
       (side === "corp" ? isCorp(x) : isRunner(x)) && inHand(x);
     const trashAbility: Ability = {
       prompt: `Choose ${quantify(value(c), "card")} to reveal and trash`,
-      choices: { all: true, max: value(c), card: selectFn } as any,
+      choices: { all: true, max: value(c), card: selectFn },
       async: true,
       effect: ((
         s: GameState,
@@ -839,7 +857,7 @@ handlerDispatch.set(
                   s,
                   sd,
                   innerEid,
-                  targets.map((t: any) => ({ ...t, seen: true })),
+                  targets.map((t: Card) => ({ ...t, seen: true })),
                   {
                     unpreventable: true,
                     cause: "ability-cost",
@@ -858,7 +876,7 @@ handlerDispatch.set(
             );
           },
         );
-      }) as any,
+      }),
     };
 
     const forfeitAbility: Ability = {
@@ -872,12 +890,12 @@ handlerDispatch.set(
           sd: string,
           _e: EID,
           _ca: Card | null,
-          targets: any[],
+          targets: unknown[],
         ) => {
           const t = targets[0] as Card;
           return isScored(s, sd, t) && canForfeit(t);
-        }) as any,
-      } as any,
+        }),
+      },
       effect: ((
         s: GameState,
         sd: string,
@@ -897,11 +915,11 @@ handlerDispatch.set(
           "paid/value": 1,
           "paid/targets": targets,
         });
-      }) as any,
+      }),
     };
 
-    const scored = ((state as any)[side]?.scored ?? []) as Card[];
-    const hand2 = ((state as any)[side]?.hand ?? []) as Card[];
+    const scored = (state[side === "corp" ? "corp" : "runner"]?.scored ?? []) as Card[];
+    const hand2 = (state[side === "corp" ? "corp" : "runner"]?.hand ?? []) as Card[];
     let chosen: Ability;
     if (scored.length === 0) chosen = trashAbility;
     else if (hand2.length - value(c) < 0) chosen = forfeitAbility;
@@ -918,7 +936,7 @@ handlerDispatch.set(
           sd: string,
           ei: EID,
           ca: Card | null,
-          targets: any[],
+          targets: unknown[],
         ) => {
           const t = targets[0] as string;
           continue_ability(
@@ -928,7 +946,7 @@ handlerDispatch.set(
             ca,
             [],
           );
-        }) as any,
+        }),
       };
     continue_ability(state, side, chosen, card, []);
   },

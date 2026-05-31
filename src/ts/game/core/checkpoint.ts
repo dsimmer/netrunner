@@ -60,15 +60,15 @@ import { toKeyword } from "../utils";
 export function fakeCheckpoint(state: GameState): void {
   for (let i = 0; i < 10; i++) {
     const changed: boolean[] = [
-      updateAllIce(state, "Corp"),
-      updateAllIcebreakers(state, "Runner"),
+      updateAllIce(state, "corp"),
+      updateAllIcebreakers(state, "runner"),
       updateAllCardLabels(state),
       updateAllAdvancementRequirements(state),
       updateAllAgendaPoints(state),
       updateLink(state),
       updateMu(state),
-      updateHandSize(state, "Corp"),
-      updateHandSize(state, "Runner"),
+      updateHandSize(state, "corp"),
+      updateHandSize(state, "runner"),
       updateAllSubtypes(state),
       updateTagStatus(state),
     ];

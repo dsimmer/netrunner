@@ -321,14 +321,29 @@ export function ordinal(n: number): string {
 export const faceupArchivesTypes: string[] = ["Agenda", "Operation"];
 
 /** Hand size of a side. Mirrors `hand-size`. */
-export function handSize(state: any, side: any): number {
+export function handSize(state: GameState, side: unknown): number {
   const sideKey = String(side).replace(":", "");
-  return (state as any)?.[sideKey]?.handSize?.total ?? 0;
+  if (sideKey === "corp" || sideKey === "Corp") {
+    return state.corp?.handSize?.total ?? 0;
+  }
+  if (sideKey === "runner" || sideKey === "Runner") {
+    return state.runner?.handSize?.total ?? 0;
+  }
+  return 0;
 }
 
 
-/** Split a string by a delimiter, returning an empty array for empty string. */
-export function safeSplit(s: string | null | undefined, delim: string | RegExp): string[] {
-  if (!s) return [];
-  return s.split(delim as any);
+/**
+ * Split a string by a delimiter. Mirrors clj `(def safe-split (fnil str/split ""))` —
+ * nil/undefined coerces to an empty string, which `str/split` then yields as
+ * `[""]`. The TS overload accepts either a string or RegExp delimiter; native
+ * `String.split` accepts both.
+ */
+export function safeSplit(
+  s: string | null | undefined,
+  delim: string | RegExp,
+): string[] {
+  if (s == null) return [""];
+  // Native String#split accepts either a string or a RegExp pattern.
+  return typeof delim === "string" ? s.split(delim) : s.split(delim);
 }

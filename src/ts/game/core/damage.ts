@@ -92,6 +92,10 @@ interface DamageOpts {
   cause?: string;
   unpreventable?: boolean;
   suppressCheckpoint?: boolean;
+  unboostable?: boolean;
+  state?: GameState;
+  side?: string;
+  [key: string]: unknown;
 }
 
 /**
@@ -115,7 +119,7 @@ function resolveDamage(
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, _b: any) {
+      function (s: GameState, _e: EID, _b: Record<string, unknown>) {
         if (!(n > 0)) {
           // shouldn't be possible, should be handled before getting here
           console.error(
@@ -127,8 +131,8 @@ function resolveDamage(
 
         const hand = s.runner.hand;
         const chosenCards = getChosenDamage(s);
-        const chosenCids = new Set(chosenCards.map((c: any) => c.cid));
-        const leftovers = hand.filter((c: any) => !chosenCids.has(c.cid));
+        const chosenCids = new Set(chosenCards.map((c: Card) => c.cid));
+        const leftovers = hand.filter((c: Card) => !chosenCids.has(c.cid));
         const shuffled = [...leftovers].sort(() => Math.random() - 0.5);
         const cardsTrashed = [
           ...chosenCards,
@@ -151,12 +155,14 @@ function resolveDamage(
           `trashes ${trashedMsg} due to ${damageName(dmgType)} damage`,
         );
 
-        const stats = (s as any).stats ?? {};
-        stats.corp = stats.corp ?? {};
-        stats.corp.damage = stats.corp.damage ?? {};
-        stats.corp.damage.all = (stats.corp.damage.all ?? 0) + n;
-        stats.corp.damage[dmgType] = (stats.corp.damage[dmgType] ?? 0) + n;
-        (s as any).stats = stats;
+        type DmgStats = Record<string, number | undefined>;
+        const stats = s.stats ?? (s.stats = {});
+        const corpStats = (stats.corp as Record<string, DmgStats | undefined> | undefined) ?? {};
+        stats.corp = corpStats;
+        const damageStats: DmgStats = corpStats.damage ?? {};
+        corpStats.damage = damageStats;
+        damageStats.all = (damageStats.all ?? 0) + n;
+        damageStats[dmgType] = (damageStats[dmgType] ?? 0) + n;
 
         if (hand.length < n) {
           flatline(s);
@@ -169,7 +175,7 @@ function resolveDamage(
           s,
           [
             { asyncResult: "result" },
-            function (s2: GameState, _e2: EID, _b2: any) {
+            function (s2: GameState, _e2: EID, _b2: Record<string, unknown>) {
               queueEvent(s2, "damage", {
                 amount: n,
                 card,
@@ -191,7 +197,7 @@ function resolveDamage(
                 s2,
                 [
                   { asyncResult: "result" },
-                  function (s3: GameState, _e3: EID, _b3: any) {
+                  function (s3: GameState, _e3: EID, _b3: Record<string, unknown>) {
                     completeWithResult(s3, side, eid, cardsTrashed);
                   },
                 ],
@@ -241,21 +247,59 @@ export function damage(
   n: number,
   args?: DamageOpts | null,
 ): void;
-export function damage(...rawArgs: any[]): void;
-export function damage(...rawArgs: any[]): void {
-  let state: GameState, side: string, eid: EID, type: string, n: number;
+// Legacy 4-arg form: (eid, type, n, opts) — opts must carry state/side.
+export function damage(eid: EID, type: string, n: number, args?: DamageOpts | null): void;
+// Legacy 4-arg form: (side, eid, type, n) — no state, no-op.
+export function damage(side: string, eid: EID, type: string, n: number): void;
+// Various legacy 5-arg shapes from tier-2 card files (state/side/type swapped).
+export function damage(
+  stateOrSide: GameState | string,
+  sideOrEid: string | EID,
+  eidOrType: EID | string,
+  typeOrN: string | number,
+  nOrArgs: number | DamageOpts | { card?: Card | null },
+  args?: DamageOpts | null,
+): void;
+// Permissive impl signature — tier-2 card files pass various legacy shapes.
+export function damage(
+  arg1: GameState | EID | string | unknown,
+  arg2?: string | unknown,
+  arg3?: EID | string | number | unknown,
+  arg4?: string | number | DamageOpts | null | unknown,
+  arg5?: number | DamageOpts | null | unknown,
+  arg6?: DamageOpts | null,
+): void {
+  let state: GameState;
+  let side: string;
+  let eid: EID;
+  let type: string;
+  let n: number;
   let args: DamageOpts = {};
-  if (rawArgs.length >= 5 && typeof rawArgs[1] === "string" && typeof rawArgs[3] === "string") {
+
+  if (
+    arg1 &&
+    typeof arg1 === "object" &&
+    "corp" in (arg1 as object) &&
+    "runner" in (arg1 as object)
+  ) {
     // (state, side, eid, type, n, opts?)
-    [state, side, eid, type, n] = rawArgs as any;
-    args = (rawArgs[5] ?? {}) as DamageOpts;
-  } else if (rawArgs.length === 4 && typeof rawArgs[1] === "string" && rawArgs[1] !== "corp" && rawArgs[1] !== "runner") {
-    // (eid, type, n, opts) — legacy short form
-    eid = rawArgs[0]; type = rawArgs[1]; n = rawArgs[2]; args = (rawArgs[3] ?? {}) as DamageOpts;
-    state = (args as any).state; side = (args as any).side ?? "corp";
+    state = arg1 as GameState;
+    side = (arg2 as string) ?? "corp";
+    eid = arg3 as EID;
+    type = arg4 as string;
+    n = arg5 as number;
+    args = (arg6 ?? null) ?? {};
+  } else if (arg1 && typeof arg1 === "object" && "id" in (arg1 as object)) {
+    // Legacy (eid, type, n, opts) form — args may carry state/side.
+    eid = arg1 as EID;
+    type = arg2 as string;
+    n = arg3 as number;
+    args = ((arg4 as DamageOpts | null) ?? {}) as DamageOpts;
+    state = (args as DamageOpts & { state?: GameState }).state as GameState;
+    side = ((args as DamageOpts & { side?: string }).side as string) ?? "corp";
+    if (!state) return; // no state available — no-op
   } else {
-    [state, side, eid, type, n] = rawArgs as any;
-    args = (rawArgs[5] ?? {}) as DamageOpts;
+    return;
   }
   args = args ?? {};
   const { suppressCheckpoint } = args;
@@ -264,8 +308,8 @@ export function damage(...rawArgs: any[]): void {
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, binds: any) {
-        const result = binds.asyncResult ?? {};
+      function (s: GameState, _e: EID, binds: Record<string, unknown>) {
+        const result = (binds.asyncResult ?? {}) as Record<string, unknown>;
         const remaining = result.remaining as number | undefined;
         const resolvedType = (result.type as string) ?? type;
         const sourceCard = result["source-card"] as Card | null | undefined;

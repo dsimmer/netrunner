@@ -66,18 +66,15 @@ export function remove(state: GameState, side: string, card: Card): void {
   const hostCard = getCard(state, (card.host as Card | null | undefined) ?? null);
   if (!hostCard) return;
 
-  const updatedHost = (update as any)(
-    state,
-    side,
-    (h: Card) => {
-      h.hosted = removeOnce((c: Card) => c.cid === card.cid, h.hosted ?? []);
-      return h;
-    },
-    hostCard,
-  ) ?? hostCard;
+  const newHost: Card = {
+    ...hostCard,
+    hosted: removeOnce((c: Card) => c.cid === card.cid, hostCard.hosted ?? []) as Card[],
+  };
+  update(state, side, newHost);
+  const updatedHost = newHost;
 
-  const cdef = cardDef(updatedHost);
-  const hostedLost = (cdef as any).hostedLost as HostedLostCallback | undefined;
+  const cdef = cardDef(updatedHost) as { hostedLost?: HostedLostCallback };
+  const hostedLost = cdef.hostedLost;
   if (hostedLost) {
     const cardWithoutHost: Card = { ...card, host: undefined };
     hostedLost(
@@ -120,8 +117,8 @@ function handleCardIsUninstalled(
   _hostCard: Card,
   target: Card,
 ): void {
-  const tdef = cardDef(target);
-  const leavePlay = (tdef as any).leavePlay as LeavePlayFn | undefined;
+  const tdef = cardDef(target) as { leavePlay?: LeavePlayFn };
+  const leavePlay = tdef.leavePlay;
   if (!leavePlay) return;
 
   const currentCard = getCard(state, target);
@@ -201,17 +198,24 @@ interface HostOpts {
  */
 export function host(card: Card, target: Card, opts?: HostOpts | null): Card | null;
 export function host(state: GameState, side: string, card: Card, target: Card, opts?: HostOpts | null): Card | null;
-export function host(...args: any[]): Card | null {
+export function host(card: Card, target: Card, opts?: HostOpts | null): Card | null;
+export function host(
+  arg1: GameState | Card,
+  arg2: string | Card,
+  arg3: Card | HostOpts | null | undefined,
+  arg4?: Card,
+  arg5?: HostOpts | null,
+): Card | null {
   // Shorthand form: (card, target, opts?) — used inside effect() lambdas.
   // No state/side available — best-effort no-op returning null.
-  if (args.length <= 3 && args[0] && typeof args[0] === "object" && "title" in args[0]) {
+  if (arg1 && typeof arg1 === "object" && "title" in (arg1 as object)) {
     return null;
   }
-  const state = args[0] as GameState;
-  const side = args[1] as string;
-  const card = args[2] as Card;
-  const target = args[3] as Card;
-  const opts = (args[4] as HostOpts | null | undefined) ?? {};
+  const state = arg1 as GameState;
+  const side = arg2 as string;
+  const card = arg3 as Card;
+  const target = arg4 as Card;
+  const opts = arg5 ?? {};
   return hostInternal(state, side, card, target, opts);
 }
 
@@ -240,15 +244,11 @@ function hostInternal(
     if (existingHost) {
       const hostCard = getCard(state, existingHost);
       if (hostCard) {
-        (update as any)(
-          state,
-          side,
-          (h: Card) => {
-            h.hosted = removeOnce((c: Card) => c.cid === cid, h.hosted ?? []);
-            return h;
-          },
-          hostCard,
-        );
+        const newHost: Card = {
+          ...hostCard,
+          hosted: removeOnce((c: Card) => c.cid === cid, hostCard.hosted ?? []) as Card[],
+        };
+        update(state, side, newHost);
       }
     } else {
       const path = [s, ...zone.map((z: string) => String(z))];
@@ -286,17 +286,13 @@ function hostInternal(
   }
 
   // Add target to host card's hosted array
-  (update as any)(
-    state,
-    side,
-    (h: Card) => {
-      h.hosted = [...(h.hosted ?? []), newTarget];
-      return h;
-    },
-    updatedHost,
-  );
+  const updatedHostWithNew: Card = {
+    ...updatedHost,
+    hosted: [...(updatedHost.hosted ?? []), newTarget],
+  };
+  update(state, side, updatedHostWithNew);
 
-  const cdef = cardDef(updatedHost);
+  const cdef = cardDef(updatedHostWithNew) as { hostedGained?: HostedGainedCallback };
   const tdef = cardDef(newTarget);
 
   // Check if the target should be fully initialized (active)
@@ -307,7 +303,7 @@ function hostInternal(
   if (shouldBeActive) {
     if (
       tdef.recurring ||
-      (tdef as any).prevent ||
+      (tdef as { prevent?: unknown }).prevent ||
       tdef.corpAbilities ||
       tdef.runnerAbilities
     ) {
@@ -328,7 +324,7 @@ function hostInternal(
   } else if (newTarget.installed !== true) {
     // Not installed - only register hosted-location events
     const events = (tdef.events ?? []).filter(
-      (e) => (e as any).location === "hosted",
+      (e) => (e as { location?: string }).location === "hosted",
     );
     if (events.length > 0) {
       registerEvents(
@@ -341,29 +337,26 @@ function hostInternal(
   }
 
   // Call hosted-gained callback on the host card def
-  const hostedGained = (cdef as any).hostedGained as
-    | HostedGainedCallback
-    | undefined;
+  const hostedGained = cdef.hostedGained;
   if (hostedGained) {
     hostedGained(
       state,
       side,
       makeEID(state),
-      (getCard(state, updatedHost as Card) ?? updatedHost) as Card,
+      (getCard(state, updatedHost) ?? updatedHost),
       [newTarget],
     );
   }
 
   // Update all static abilities and floating effects to reflect the new target
   const effects = state.effects ?? [];
-  const newEffects = effects.map((currentEffect: any) => {
-    const effectCard = currentEffect.card as Card | undefined;
+  state.effects = effects.map((currentEffect) => {
+    const effectCard = currentEffect.card;
     if (effectCard && effectCard.cid === cid) {
       return { ...currentEffect, card: newTarget };
     }
     return currentEffect;
   });
-  state.effects = newEffects as any;
 
   return getCard(state, newTarget);
 }
@@ -417,17 +410,18 @@ function removeHostedFromCard(card: Card): Card {
 }
 
 /** The host card that this card is currently hosted on, looked up in state. */
-export function getHost(state: any, card: any): any | null {
-  const cur = state?.cardEffects?.[card?.cid]?.host ?? card?.host;
+export function getHost(state: GameState, card: Card | null | undefined): Card | null {
+  const cardEffects = (state as GameState & { cardEffects?: Record<string, { host?: Card }> }).cardEffects;
+  const cur = cardEffects?.[card?.cid ?? ""]?.host ?? card?.host;
   return cur ?? null;
 }
 
 /** All cards hosted on the given card. */
-export function getHosts(_state: any, card: any): any[] {
-  return (card?.hosted ?? []) as any[];
+export function getHosts(_state: GameState, card: Card | null | undefined): Card[] {
+  return card?.hosted ?? [];
 }
 
 /** Remove `card` from its host. Mirrors `unhost`. */
-export function unhost(state: any, side: any, card: any, _opts?: any): void {
+export function unhost(state: GameState, side: string, card: Card, _opts?: Record<string, unknown> | null): void {
   removeFromHost(state, side, card);
 }

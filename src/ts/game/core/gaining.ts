@@ -51,18 +51,24 @@ function bumpStat(
   delta: number,
 ): void {
   const root = state.stats ?? (state.stats = {});
-  let cur: any = (root[side] ??= {});
+  type Node = Record<string, unknown>;
+  let cur: Node = (root[side] as Node | undefined) ?? {};
+  root[side] = cur;
   for (let i = 0; i < path.length - 1; i++) {
-    cur = cur[path[i]] ??= {};
+    const step = path[i];
+    const next: Node = (cur[step] as Node | undefined) ?? {};
+    cur[step] = next;
+    cur = next;
   }
   const last = path[path.length - 1];
-  cur[last] = (cur[last] ?? 0) + delta;
+  cur[last] = ((cur[last] as number | undefined) ?? 0) + delta;
 }
 
 /** Get current value of a resource for the given side. */
 function getResourceValue(state: GameState, side: string, resource: string): number {
-  const player: any = side === CORP_SIDE ? state.corp : state.runner;
-  return player[resource] ?? 0;
+  const player = side === CORP_SIDE ? state.corp : state.runner;
+  const rec = player as unknown as Record<string, number | undefined>;
+  return rec[resource] ?? 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -76,13 +82,20 @@ function getResourceValue(state: GameState, side: string, resource: string): num
  * When `amount` is a number the flat value is added.
  * When `amount` is a map the individual sub-attrs are added.
  */
-export function gain(state: any, side?: any, resource?: any, amount?: any): any;
+export function gain(...args: unknown[]): void;
+export function gain(state: GameState, side: string, resource: string, amount: GainAmount): void;
 export function gain(
-  state: GameState,
-  side: string,
-  resource: string,
-  amount: GainAmount,
+  stateArg: unknown,
+  sideArg?: unknown,
+  resourceArg?: unknown,
+  amountArg?: unknown,
 ): void {
+  if (!stateArg || typeof stateArg !== "object" || !("corp" in (stateArg as object))) return;
+  const state = stateArg as GameState;
+  const side = sideArg as string;
+  const resource = resourceArg as string;
+  const amount = amountArg as GainAmount | undefined;
+  if (amount === undefined) return;
   // Handle map-style amounts: iterate sub-attrs
   if (typeof amount === "object" && amount !== null) {
     for (const [subattr, val] of Object.entries(amount)) {
@@ -193,19 +206,20 @@ function gainSubAttr(
  * 
  * When `amount` is the string "all", loses the entire current value of the resource.
  */
-export function lose(...args: any[]): any;
+export function lose(...args: unknown[]): void;
+export function lose(state: GameState, side: string, resource: string, amount: number | "all"): void;
 export function lose(
-  state: any,
-  side?: any,
-  resource?: any,
-  amount?: any,
-): any;
-export function lose(
-  state: GameState,
-  side: string,
-  resource: string,
-  amount: number | "all",
+  stateArg: unknown,
+  sideArg?: unknown,
+  resourceArg?: unknown,
+  amountArg?: unknown,
 ): void {
+  if (!stateArg || typeof stateArg !== "object" || !("corp" in (stateArg as object))) return;
+  const state = stateArg as GameState;
+  const side = sideArg as string;
+  const resource = resourceArg as string;
+  const amount = amountArg as number | "all" | undefined;
+  if (amount === undefined) return;
   const loseAmount: number =
     amount === "all" ? getResourceValue(state, side, resource) : amount;
 
@@ -369,21 +383,40 @@ function deductSubAttr(
 export function gainCredits(
   state: GameState,
   side: string,
+  amount: number,
+  card?: Card | Record<string, unknown> | null,
+): void;
+export function gainCredits(
+  state: GameState,
+  side: string,
   eid: EID,
   amount: number,
-  card?: Card | null,
+  card?: Card | Record<string, unknown> | null,
 ): void;
-export function gainCredits(...args: any[]): void;
-export function gainCredits(...args: any[]): void {
-  let state: GameState, side: string, eid: EID, amount: number, card: Card | null = null;
-  // Detect (state, side, eid, amount, card?) vs (state, side, amount, opts?)
-  if (args.length >= 4 && typeof args[2] === "object" && args[2] !== null && "id" in args[2]) {
-    state = args[0]; side = args[1]; eid = args[2]; amount = args[3];
-    if (args[4] && typeof args[4] === "object" && "cid" in args[4]) card = args[4];
+export function gainCredits(...args: unknown[]): void;
+export function gainCredits(
+  arg1?: unknown,
+  arg2?: unknown,
+  arg3?: unknown,
+  arg4?: unknown,
+  arg5?: unknown,
+): void {
+  // Detect (side, eid, amount) legacy shape — no state available, no-op.
+  if (typeof arg1 === "string") return;
+  if (!arg1 || typeof arg1 !== "object" || !("corp" in (arg1 as object))) return;
+  const state = arg1 as GameState;
+  const side = (arg2 as string) ?? "corp";
+  let eid: EID;
+  let amount: number;
+  let card: Card | null = null;
+  if (arg3 && typeof arg3 === "object" && "id" in arg3) {
+    eid = arg3 as EID;
+    amount = arg4 as number;
+    if (arg5 && typeof arg5 === "object" && "cid" in arg5) card = arg5 as Card;
   } else {
-    state = args[0]; side = args[1]; amount = args[2] ?? 0;
+    amount = (arg3 as number) ?? 0;
     eid = { id: 0, source: null } as unknown as EID;
-    if (args[3] && typeof args[3] === "object" && "cid" in args[3]) card = args[3];
+    if (arg4 && typeof arg4 === "object" && "cid" in arg4) card = arg4 as Card;
   }
   if (amount <= 0) {
     effectCompleted(state, side, eid);
@@ -399,17 +432,36 @@ export function gainCredits(...args: any[]): void {
  * Removes credits and queues a :credit-lost event.
  * Mirrors: lose-credits in gaining.clj
  */
-export function loseCredits(state: GameState, side: string, eid: EID, amount: number, card?: Card | null): void;
-export function loseCredits(...args: any[]): void;
-export function loseCredits(...args: any[]): void {
-  let state: GameState, side: string, eid: EID, amount: number, card: Card | null = null;
-  if (args.length >= 4 && typeof args[2] === "object" && args[2] !== null && "id" in args[2]) {
-    state = args[0]; side = args[1]; eid = args[2]; amount = args[3];
-    if (args[4] && typeof args[4] === "object" && "cid" in args[4]) card = args[4];
+export function loseCredits(state: GameState, side: string, amount: number, card?: Card | Record<string, unknown> | null): void;
+export function loseCredits(state: GameState, side: string, eid: EID, amount: number | "all" | ":all", card?: Card | Record<string, unknown> | null): void;
+export function loseCredits(...args: unknown[]): void;
+export function loseCredits(
+  arg1?: unknown,
+  arg2?: unknown,
+  arg3?: unknown,
+  arg4?: unknown,
+  arg5?: unknown,
+): void {
+  if (typeof arg1 === "string") return;
+  if (!arg1 || typeof arg1 !== "object" || !("corp" in (arg1 as object))) return;
+  const state = arg1 as GameState;
+  const side = (arg2 as string) ?? "corp";
+  let eid: EID;
+  let amount: number;
+  let card: Card | null = null;
+  if (arg3 && typeof arg3 === "object" && "id" in arg3) {
+    eid = arg3 as EID;
+    amount = arg4 as number;
+    if (arg5 && typeof arg5 === "object" && "cid" in arg5) card = arg5 as Card;
   } else {
-    state = args[0]; side = args[1]; amount = args[2] ?? 0;
+    amount = (arg3 as number) ?? 0;
     eid = { id: 0, source: null } as unknown as EID;
-    if (args[3] && typeof args[3] === "object" && "cid" in args[3]) card = args[3];
+    if (arg4 && typeof arg4 === "object" && "cid" in arg4) card = arg4 as Card;
+  }
+  // Normalise legacy ":all" string keyword to numeric all-of-credit
+  if ((amount as unknown as string) === "all" || (amount as unknown as string) === ":all") {
+    amount = state.corp.credit;
+    if (side !== CORP_SIDE) amount = state.runner.credit;
   }
   if (amount <= 0) {
     effectCompleted(state, side, eid);
@@ -421,23 +473,35 @@ export function loseCredits(...args: any[]): void {
 }
 
 /** Gives clicks to the given side. */
-export function gainClicks(state: any, side?: any, amount?: any): any;
+export function gainClicks(state: unknown, side?: unknown, amount?: unknown): void;
 export function gainClicks(
   state: GameState,
   side: string,
   amount: number,
+): void;
+export function gainClicks(
+  stateArg?: unknown,
+  sideArg?: unknown,
+  amountArg?: unknown,
 ): void {
-  gain(state, side, "click", amount);
+  if (!stateArg || typeof stateArg !== "object") return;
+  gain(stateArg as GameState, sideArg as string, "click", amountArg as number);
 }
 
 /** Removes clicks (clamped at 0). */
-export function loseClicks(state: any, side?: any, amount?: any): any;
+export function loseClicks(state: unknown, side?: unknown, amount?: unknown): void;
 export function loseClicks(
   state: GameState,
   side: string,
   amount: number,
+): void;
+export function loseClicks(
+  stateArg?: unknown,
+  sideArg?: unknown,
+  amountArg?: unknown,
 ): void {
-  lose(state, side, "click", amount);
+  if (!stateArg || typeof stateArg !== "object") return;
+  lose(stateArg as GameState, sideArg as string, "click", amountArg as number);
 }
 
 /** Returns the current credit total for the given side. */
@@ -459,8 +523,8 @@ export function baseModSize(
   side: string,
   prop: string,
 ): number {
-  const player: any = side === CORP_SIDE ? state.corp : state.runner;
-  const obj = player?.[prop];
+  const player = side === CORP_SIDE ? state.corp : state.runner;
+  const obj = (player as unknown as Record<string, { base?: number; mod?: number } | undefined>)[prop];
   if (obj && typeof obj === "object") {
     return (obj.base ?? 0) + (obj.mod ?? 0);
   }

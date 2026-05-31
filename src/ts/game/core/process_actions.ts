@@ -108,10 +108,11 @@ export function setProperty(
   }
 
   const player = getPlayer(state, side);
-  if (!(player as any).properties) {
-    (player as any).properties = {};
+  const playerRec = player as unknown as { properties?: Record<string, unknown> };
+  if (!playerRec.properties) {
+    playerRec.properties = {};
   }
-  (player as any).properties[opts.key] = opts.value;
+  playerRec.properties[opts.key] = opts.value;
 }
 
 // ---------------------------------------------------------------------------
@@ -125,7 +126,7 @@ function shouldProcessCommand(
   side: string,
   command: string,
 ): boolean {
-  const promptType = (getSidePrompt(state, side) as any)?.promptType;
+  const promptType = (getSidePrompt(state, side) as { promptType?: string } | null | undefined)?.promptType;
 
   // These commands can always be processed (admin/fix commands)
   const alwaysAllowed = new Set([
@@ -156,7 +157,7 @@ export function commandParser(
   side: string,
   args: { user?: Record<string, unknown> | null; text: string },
 ): void {
-  const user = args.user ?? (getPlayer(state, side) as any).user;
+  const user = args.user ?? getPlayer(state, side).user;
   let text = args.text;
   if (text.trim() === "null") {
     text = " null";
@@ -195,26 +196,26 @@ type CommandFn = (
 // ---------------------------------------------------------------------------
 
 const commands: Record<string, CommandFn> = {
-  ability: (state, side, args) => playAbility(state, side, args as any),
-  advance: (state, side, args) => clickAdvance(state, side, args as any),
+  ability: (state, side, args) => playAbility(state, side, args as unknown as never),
+  advance: (state, side, args) => clickAdvance(state, side, args as unknown as never),
   "bad-pub-choice": (state, side, args) =>
-    resolveBadPubChoice(state, side, args as any),
+    resolveBadPubChoice(state, side, args as unknown as never),
   change: (state, side, args) =>
     change(state, side, args as { key: string; delta: number }),
-  choice: (state, side, args) => resolvePrompt(state, side, args as any),
-  "close-deck": (state, side, args) => closeDeck(state, side, args as any),
+  choice: (state, side, args) => resolvePrompt(state, side, args as unknown as never),
+  "close-deck": (state, side, args) => closeDeck(state, side, args as unknown as never),
   concede: (state, side, args) => concede(state, side),
   continue: (state, side, args) => runContinue(state, side, null),
-  "corp-ability": (state, side, args) => playCorpAbility(state, side, args as any),
-  credit: (state, side, args) => clickCredit(state, side, args as any),
+  "corp-ability": (state, side, args) => playCorpAbility(state, side, args as unknown as never),
+  credit: (state, side, args) => clickCredit(state, side, args as unknown as never),
   derez: (state, side, args) => {
-    derez(state, side, makeEID(state), (args as any).card as Card, {
+    derez(state, side, makeEID(state), (args as Record<string, unknown>).card as Card, {
       noEvent: true,
     });
   },
-  draw: (state, side, args) => clickDraw(state, side, args as any),
+  draw: (state, side, args) => clickDraw(state, side, args as unknown as never),
   "dynamic-ability": (state, side, args) =>
-    playDynamicAbility(state, side, args as any),
+    playDynamicAbility(state, side, args as unknown as never),
   "end-phase-12": (state, side, args) =>
     endPhase12(state, side, undefined, undefined),
   "phase-12-pass-priority": (state, side, args) =>
@@ -225,50 +226,50 @@ const commands: Record<string, CommandFn> = {
     postDiscardPassPriority(state, side, undefined, undefined),
   "end-post-discard": (state, side, args) =>
     endTurnContinue(state, side, undefined, undefined),
-  flashback: (state, side, args) => flashback(state, side, args as any),
+  flashback: (state, side, args) => flashback(state, side, args as unknown as never),
   "generate-install-list": (state, side, args) =>
-    generateInstallList(state, side, args as any),
+    generateInstallList(state, side, args as unknown as never),
   "generate-runnable-zones": (state, side, args) =>
-    generateRunnableZones(state, side, args as any),
+    generateRunnableZones(state, side, args as unknown as never),
   "indicate-action": (state, side, args) =>
-    indicateAction(state, side, (args as any).card as Card),
+    indicateAction(state, side, (args as Record<string, unknown>).card as Card),
   "jack-out": (state, side, args) => jackOut(state, side, makeEID(state)),
   keep: (state, side, args) => keepHand(state, side, null),
-  move: (state, side, args) => moveCard(state, side, args as any),
+  move: (state, side, args) => moveCard(state, side, args as unknown as never),
   mulligan: (state, side, args) => mulligan(state, side, null),
-  play: (state, side, args) => play(state, side, args as any),
-  expend: (state, side, args) => expendAbility(state, side, args as any),
-  purge: (state, side, args) => doPurge(state, side, args as any),
-  "remove-tag": (state, side, args) => removeTag(state, side, args as any),
+  play: (state, side, args) => play(state, side, args as unknown as never),
+  expend: (state, side, args) => expendAbility(state, side, args as unknown as never),
+  purge: (state, side, args) => doPurge(state, side, args as unknown as never),
+  "remove-tag": (state, side, args) => removeTag(state, side, args as unknown as never),
   rez: (state, side, args) => {
-    const card = (args as any).card as Card;
+    const card = (args as Record<string, unknown>).card as Card;
     const rezArgs = { ...args };
-    delete (rezArgs as any).card;
-    rez(state, side, makeEID(state), card, rezArgs as any);
+    delete (rezArgs as Record<string, unknown>).card;
+    rez(state, side, makeEID(state), card, rezArgs as Parameters<typeof rez>[4]);
   },
-  run: (state, side, args) => clickRun(state, side, args as any),
-  "runner-ability": (state, side, args) => playRunnerAbility(state, side, args as any),
+  run: (state, side, args) => clickRun(state, side, args as unknown as never),
+  "runner-ability": (state, side, args) => playRunnerAbility(state, side, args as unknown as never),
   score: (state, side, args) => {
-    const card = getCard(state, (args as any).card as Card | null);
+    const card = getCard(state, (args as Record<string, unknown>).card as Card | null);
     if (card) {
       score(state, side, makeEID(state), card, null);
     }
   },
-  select: (state, side, args) => select(state, side, args as any),
+  select: (state, side, args) => select(state, side, args as unknown as never),
   "set-property": (state, side, args) =>
     setProperty(state, side, args as { key: string; value: unknown }),
   shuffle: (state, side, args) =>
     shuffleDeck(
       state,
       side,
-      (args as any)?.close ? { close: true } : undefined,
+      (args as Record<string, unknown>)?.close ? { close: true } : undefined,
     ),
-  "start-turn": (state, side, args) => startTurn(state, side, args as any),
-  subroutine: (state, side, args) => playSubroutine(state, side, args as any),
+  "start-turn": (state, side, args) => startTurn(state, side, args as unknown as never),
+  subroutine: (state, side, args) => playSubroutine(state, side, args as unknown as never),
   "system-msg": (state, side, args) =>
-    systemMsg(state, side, (args as any).msg as string),
+    systemMsg(state, side, (args as Record<string, unknown>).msg as string),
   toast: (state, side, args) =>
-    ackToast(state, side, (args as any).id as string),
+    ackToast(state, side, (args as Record<string, unknown>).id as string),
   "toggle-auto-no-action": (state, side, args) =>
     toggleAutoNoAction(state, side, null),
   trash: (state, side, args) => {
@@ -276,13 +277,13 @@ const commands: Record<string, CommandFn> = {
       state,
       side,
       makeEID(state),
-      (getCard(state, (args as any).card as Card | null) ?? null) as Card,
+      (getCard(state, (args as Record<string, unknown>).card as Card | null) ?? null) as Card,
     );
   },
-  "trash-resource": (state, side, args) => trashResource(state, side, args as any),
+  "trash-resource": (state, side, args) => trashResource(state, side, args as unknown as never),
   "unbroken-subroutines": (state, side, args) =>
-    playUnbrokenSubroutines(state, side, args as any),
-  "view-deck": (state, side, args) => viewDeck(state, side, args as any),
+    playUnbrokenSubroutines(state, side, args as unknown as never),
+  "view-deck": (state, side, args) => viewDeck(state, side, args as unknown as never),
 };
 
 // ---------------------------------------------------------------------------

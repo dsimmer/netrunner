@@ -71,14 +71,27 @@ import {
   waitFor,
 } from "./def_helpers_1";
 
-export function moveToBottom(targetCard: any, actingSide: string): any {
+// ---------------------------------------------------------------------------
+// Local helpers
+// ---------------------------------------------------------------------------
+
+import type { Corp, Runner } from "./state";
+
+function getPlayerBySide(state: GameState, side: string): Corp | Runner {
+  if (side === "corp" || side === ":corp") return state.corp;
+  if (side === "runner" || side === ":runner") return state.runner;
+  // Default to corp for unknown side strings (matches legacy implicit reads)
+  return state.corp;
+}
+
+export function moveToBottom(targetCard: Card, actingSide: string): Ability {
   const dest = isRunner(targetCard) ? "the Stack" : "R&D";
   return {
     msg: {
       public: (state: GameState) =>
-        `add ${cardStr(state, targetCard)} from ${nameZone(targetCard.side, targetCard.zone)} to the bottom of ${dest}`,
+        `add ${cardStr(state, targetCard)} from ${nameZone(targetCard.side ?? "", targetCard.zone ?? [])} to the bottom of ${dest}`,
       [actingSide]: (state: GameState) =>
-        `add ${cardStr(state, targetCard, { maybeVisible: true })} from ${nameZone(targetCard.side, targetCard.zone)} to the bottom of ${dest}`,
+        `add ${cardStr(state, targetCard, { maybeVisible: true })} from ${nameZone(targetCard.side ?? "", targetCard.zone ?? [])} to the bottom of ${dest}`,
     },
     effect: (state: GameState, side: string) =>
       move(state, side, targetCard, "deck"),
@@ -86,21 +99,21 @@ export function moveToBottom(targetCard: any, actingSide: string): any {
 }
 
 export function moveCardToTopOrBottom(
-  targetCard: any,
+  targetCard: Card,
   actingSide: string,
-): any {
+): Ability {
   const zone = isRunner(targetCard) ? "the Stack" : "R&D";
   return chooseOneHelper(
-    { prompt: `Move ${(targetCard as any).title} where?` } as any,
+    { prompt: `Move ${targetCard.title ?? ""} where?` },
     [
       {
         option: `Top of ${zone}`,
         ability: moveToTop(targetCard, actingSide),
-      } as any,
+      },
       {
         option: `Bottom of ${zone}`,
         ability: moveToBottom(targetCard, actingSide),
-      } as any,
+      },
     ],
   );
 }
@@ -113,11 +126,15 @@ export function trashOrRfg(
   state: GameState,
   _side: string,
   eid: EID,
-  card: any,
+  card: Card | null,
 ): void {
-  const cardSide = toKeyword(card?.side);
-  const title = card?.title;
-  if (card?.["rfg-instead-of-trashing"]) {
+  if (!card) {
+    effectCompleted(state, _side, eid);
+    return;
+  }
+  const cardSide = toKeyword(card.side ?? "");
+  const title = card.title ?? "";
+  if (card["rfg-instead-of-trashing"]) {
     systemSay(state, cardSide, `${title} is removed from the game.`);
     asyncRfg(state, cardSide, eid, card);
   } else {
@@ -133,7 +150,14 @@ export function trashOrRfg(
 // offer-jack-out
 // ---------------------------------------------------------------------------
 
-export function offerJackOut(args: { req?: any; once?: any } = {}): any {
+import type { ReqFn } from "./types";
+
+interface OfferJackOutArgs {
+  req?: ReqFn;
+  once?: string;
+}
+
+export function offerJackOut(args: OfferJackOutArgs = {}): Ability {
   const { req: jackOutReq, once } = args;
   return {
     optional: {
@@ -143,8 +167,13 @@ export function offerJackOut(args: { req?: any; once?: any } = {}): any {
         side: string,
         eid: EID,
         card: Card | null,
-        targets: any[],
-      ) => (jackOutReq ? jackOutReq(state, side, eid, card, targets) : true),
+        targets: unknown[],
+      ) =>
+        jackOutReq
+          ? typeof jackOutReq === "function"
+            ? jackOutReq(state, side, eid, card, targets)
+            : jackOutReq
+          : true,
       once,
       prompt: "Jack out?",
       "waiting-prompt": true,
@@ -159,7 +188,7 @@ export function offerJackOut(args: { req?: any; once?: any } = {}): any {
           systemMsg(
             state,
             "runner",
-            `uses ${(card as any)?.title} to jack out`,
+            `uses ${card?.title ?? ""} to jack out`,
           );
           jackOut(state, "runner", eid);
         },
@@ -174,7 +203,7 @@ export function offerJackOut(args: { req?: any; once?: any } = {}): any {
           systemMsg(
             state,
             "runner",
-            `uses ${(card as any)?.title} to continue the run`,
+            `uses ${card?.title ?? ""} to continue the run`,
           ),
       },
     },
@@ -185,16 +214,19 @@ export function offerJackOut(args: { req?: any; once?: any } = {}): any {
 // get-x-fn
 // ---------------------------------------------------------------------------
 
-export function getXFn(): (
+type XFnReader = (
   state: GameState,
   side: string,
   eid: EID,
-  card: any,
-  targets: any[],
-) => number {
+  card: Card | null,
+  targets: unknown[],
+) => number;
+
+export function getXFn(): XFnReader {
   return function getXFnInner(state, side, eid, card, targets) {
-    if (!isDisabledReg(state, card) && card?.["x-fn"]) {
-      return card["x-fn"](state, side, eid, card, targets);
+    const xFn = card?.["x-fn"];
+    if (!isDisabledReg(state, card) && typeof xFn === "function") {
+      return (xFn as XFnReader)(state, side, eid, card, targets);
     }
     return 0;
   };
@@ -204,8 +236,13 @@ export function getXFn(): (
 // make-current-event-handler
 // ---------------------------------------------------------------------------
 
-export function makeCurrentEventHandler(title: string, ability: any): any {
-  const card = serverCard(title, false) as any;
+interface CurrentEventContext {
+  event?: string;
+  card?: Card | null;
+}
+
+export function makeCurrentEventHandler(title: string, ability: Ability): Ability {
+  const card = serverCard(title, false) as Card | null;
   if (!hasSubtype(card, "Current")) return ability;
   const eventKeyword = isCorp(card) ? "agenda-stolen" : "agenda-scored";
   const staticAb = {
@@ -215,16 +252,17 @@ export function makeCurrentEventHandler(title: string, ability: any): any {
       _side: string,
       _eid: EID,
       _c: Card | null,
-      targets: any[],
+      targets: unknown[],
     ) => {
-      return (targets ?? []).some((entry: any) => {
-        const event = entry?.event;
-        const contextCard = entry?.card;
+      return (targets ?? []).some((entry: unknown) => {
+        const ctx = entry as CurrentEventContext | null;
+        const event = ctx?.event;
+        const contextCard = ctx?.card ?? null;
         return (
           event === eventKeyword ||
           ((event === "play-event" || event === "play-operation") &&
             !sameCard(card, contextCard) &&
-            hasSubtype(contextCard, "Current"))
+            hasSubtype(contextCard, "Current") !== undefined)
         );
       });
     },
@@ -233,7 +271,7 @@ export function makeCurrentEventHandler(title: string, ability: any): any {
   return {
     ...ability,
     "static-abilities": [
-      ...((ability["static-abilities"] as any[]) ?? []),
+      ...((ability["static-abilities"] as unknown[]) ?? []),
       staticAb,
     ],
   };
@@ -243,7 +281,7 @@ export function makeCurrentEventHandler(title: string, ability: any): any {
 // add-default-abilities
 // ---------------------------------------------------------------------------
 
-export function addDefaultAbilities(title: string, ability: any): any {
+export function addDefaultAbilities(title: string, ability: Ability): Ability {
   return makeRecurringAbility(makeCurrentEventHandler(title, ability));
 }
 
@@ -253,7 +291,7 @@ export function addDefaultAbilities(title: string, ability: any): any {
 
 export function somethingCanBeAdvanced(state: GameState): boolean {
   return allInstalled(state, "corp").some(
-    (c: any) => !isFaceup(c) || canBeAdvanced(state, c),
+    (c: Card) => !isFaceup(c) || canBeAdvanced(state, c),
   );
 }
 
@@ -261,11 +299,14 @@ export function somethingCanBeAdvanced(state: GameState): boolean {
 // corp-install-up-to-n-cards
 // ---------------------------------------------------------------------------
 
-export function corpInstallUpToNCards(n: number, args: any = null): any {
+export function corpInstallUpToNCards(
+  n: number,
+  args: Record<string, unknown> | null = null,
+): Ability {
   return {
     prompt: `install a card from HQ${n > 1 ? ` (${n} remaining)` : ""}`,
     choices: {
-      card: (c: any) => isCorp(c) && inHand(c) && !isOperation(c),
+      card: (c: Card) => isCorp(c) && inHand(c) && !isOperation(c),
     },
     async: true,
     effect: (
@@ -273,9 +314,9 @@ export function corpInstallUpToNCards(n: number, args: any = null): any {
       side: string,
       eid: EID,
       card: Card | null,
-      targets: any[],
+      targets: unknown[],
     ) => {
-      const target = targets?.[0];
+      const target = targets[0] as Card;
       waitFor(
         state,
         eid,
@@ -286,7 +327,7 @@ export function corpInstallUpToNCards(n: number, args: any = null): any {
             target,
             null,
             { ...(args ?? {}), "msg-keys": { "install-source": card } },
-            inner as any,
+            inner,
           ),
         () => {
           if (n > 1) {
@@ -311,7 +352,7 @@ export function corpInstallUpToNCards(n: number, args: any = null): any {
 // gain-credits-ability
 // ---------------------------------------------------------------------------
 
-export function gainCreditsAbility(x: number): any {
+export function gainCreditsAbility(x: number): Ability {
   return {
     msg: `gain ${x} [Credits]`,
     label: `gain ${x} [Credits]`,
@@ -325,27 +366,30 @@ export function gainCreditsAbility(x: number): any {
 // drain-credits
 // ---------------------------------------------------------------------------
 
+type DrainCreditsQty =
+  | number
+  | ((
+      state: GameState,
+      side: string,
+      eid: EID,
+      card: Card | null,
+      targets: unknown[],
+    ) => number);
+
 export function drainCredits(
   drainingSide: string,
   victimSide: string,
-  qty:
-    | number
-    | ((
-        state: GameState,
-        side: string,
-        eid: EID,
-        card: Card | null,
-        targets: any[],
-      ) => number),
+  qty: DrainCreditsQty,
   multiplier: number = 1,
   tagsToGain: number = 0,
-): any {
+): Ability {
   const toDrain = (state: GameState): number => {
     const q =
       typeof qty === "function"
         ? qty(state, drainingSide, makeEID(state), null, [])
         : qty;
-    return Math.min((state as any)[victimSide]?.credit ?? 0, q);
+    const victim = getPlayerBySide(state, victimSide);
+    return Math.min(victim.credit ?? 0, q);
   };
   const toGain = (state: GameState): number => toDrain(state) * multiplier;
 
@@ -381,7 +425,7 @@ export function drainCredits(
         waitFor(
           state,
           eid,
-          (inner) => gainTags(state, drainingSide as any, inner, tagsToGain),
+          (inner) => gainTags(state, drainingSide, inner, tagsToGain),
           () =>
             waitFor(
               state,
@@ -406,16 +450,16 @@ export function drainCredits(
 // corp-recur
 // ---------------------------------------------------------------------------
 
-export function corpRecur(pred: (c: any) => boolean = () => true): any {
+export function corpRecur(pred: (c: Card) => boolean = () => true): Ability {
   return {
     label: "add card from Archives to HQ",
     prompt: "Choose a card to add to HQ",
     "does-something": (state: GameState) =>
-      ((state.corp as any)?.discard ?? []).length > 0,
+      (state.corp.discard ?? []).length > 0,
     "waiting-prompt": true,
     "show-discard": true,
     choices: {
-      card: (c: any) => isCorp(c) && inDiscard(c) && pred(c),
+      card: (c: Card) => isCorp(c) && inDiscard(c) && pred(c),
     },
     msg: {
       public: (
@@ -423,19 +467,19 @@ export function corpRecur(pred: (c: any) => boolean = () => true): any {
         _sd: string,
         _e: EID,
         _c: Card | null,
-        targets: any[],
+        targets: unknown[],
       ) => {
-        const target = targets?.[0];
-        return `add ${cardStr(state, target, { visible: !!(target as any)?.faceup })} to HQ`;
+        const target = targets[0] as Card;
+        return `add ${cardStr(state, target, { visible: target?.faceup === true })} to HQ`;
       },
       corp: (
         state: GameState,
         _sd: string,
         _e: EID,
         _c: Card | null,
-        targets: any[],
+        targets: unknown[],
       ) => {
-        const target = targets?.[0];
+        const target = targets[0] as Card;
         return `add ${cardStr(state, target, { maybeVisible: true })} to HQ`;
       },
     },
@@ -444,8 +488,8 @@ export function corpRecur(pred: (c: any) => boolean = () => true): any {
       _side: string,
       _eid: EID,
       _c: Card | null,
-      targets: any[],
-    ) => move(state, "corp", targets?.[0], "hand"),
+      targets: unknown[],
+    ) => move(state, "corp", targets[0] as Card, "hand"),
   };
 }
 
@@ -455,22 +499,21 @@ export function corpRecur(pred: (c: any) => boolean = () => true): any {
 
 export function tutorAbi(
   reveal_: boolean,
-  restriction: ((c: any) => boolean) | null = null,
-): any {
+  restriction: ((c: Card) => boolean) | null = null,
+): Ability {
   return {
     "change-in-game-state": {
       req: (state: GameState, side: string) =>
-        ((state as any)[side]?.deck ?? []).length > 0,
+        (getPlayerBySide(state, side).deck ?? []).length > 0,
     },
     prompt: "Choose a card",
-    label: (_s: GameState, side: string) =>
-      side === "corp"
-        ? "Search R&D and add 1 card to HQ"
-        : "Search the Stack and add 1 card to the Grip",
+    // clj uses a side-dispatched label function; flatten to the more common
+    // generic phrasing here. Caller can override via the merged-in transformer.
+    label: "Search your deck and add 1 card to your hand",
     choices: (state: GameState, side: string) =>
       cancellable(
-        ((state as any)[side]?.deck ?? []).filter(
-          (c: any) => !restriction || restriction(c),
+        (getPlayerBySide(state, side).deck ?? []).filter(
+          (c: Card) => !restriction || restriction(c),
         ),
         true,
       ),
@@ -479,9 +522,11 @@ export function tutorAbi(
       side: string,
       _e: EID,
       _c: Card | null,
-      targets: any[],
-    ) =>
-      `search ${side === "corp" ? "R&D" : "[their] Stack"} for ${reveal_ ? (targets?.[0] as any)?.title : "a card"} and add it to ${side === "corp" ? "HQ" : "[their] Grip"}`,
+      targets: unknown[],
+    ) => {
+      const target = targets[0] as Card | undefined;
+      return `search ${side === "corp" ? "R&D" : "[their] Stack"} for ${reveal_ ? target?.title ?? "" : "a card"} and add it to ${side === "corp" ? "HQ" : "[their] Grip"}`;
+    },
     cancel: failToFind,
     async: true,
     effect: (
@@ -489,9 +534,9 @@ export function tutorAbi(
       side: string,
       eid: EID,
       _c: Card | null,
-      targets: any[],
+      targets: unknown[],
     ) => {
-      const target = targets?.[0];
+      const target = targets[0] as Card;
       if (side === "runner") triggerEvent(state, side, "searched-stack");
       if (reveal_) {
         waitFor(
@@ -517,9 +562,11 @@ export function tutorAbi(
 // card-defs cache + defcard
 // ---------------------------------------------------------------------------
 
-export const cardDefsCache = new Map<string, any>();
+export const cardDefsCache = new Map<string, Ability>();
 
 import { cardDefRegistry } from "./types";
+
+type DefcardTransformer = ((a: Ability) => Ability) | Partial<Ability>;
 
 /**
  * Define a card to be returned from card-def. Mirrors `defcard` macro.
@@ -527,12 +574,12 @@ import { cardDefRegistry } from "./types";
  */
 export function defcard(
   title: string,
-  ability: any,
-  ...transformers: any[]
+  ability: Ability,
+  ...transformers: DefcardTransformer[]
 ): void {
   cardDefsCache.delete(title);
   // Apply transformers right-to-left (mirroring `(reverse (cons body more))`).
-  let result = ability;
+  let result: Ability = ability;
   for (const t of transformers) {
     result = typeof t === "function" ? t(result) : { ...t, ...result };
   }
@@ -545,7 +592,7 @@ export function defcard(
 // trash-on-purge
 // ---------------------------------------------------------------------------
 
-export const trashOnPurge: any = {
+export const trashOnPurge: Ability = {
   event: "purge",
   async: true,
   msg: "trash itself",
@@ -568,13 +615,13 @@ export function scry(
   targetSide: string,
   quant: number,
 ): void {
-  const player = (state as any)[targetSide];
-  const targetCards = ((player?.deck ?? []) as any[]).slice(0, quant);
+  const player = getPlayerBySide(state, targetSide);
+  const targetCards = (player.deck ?? []).slice(0, quant);
   const zoneName = targetSide === "corp" ? "R&D" : "the stack";
   const scrySide = side;
   const scryFn =
     targetCards.length === 1
-      ? `the top card of ${zoneName} is ${(targetCards[0] as any)?.title}`
+      ? `the top card of ${zoneName} is ${targetCards[0]?.title ?? ""}`
       : `the top ${quantify(quant, "card")} of ${zoneName} are (top->bottom): ${enumerateCards(targetCards)}`;
 
   resolveAbility(
@@ -586,9 +633,9 @@ export function scry(
       "waiting-prompt": true,
       req: () => targetCards.length > 0,
       choices: ["OK"],
-      msg: { [scrySide]: scryFn } as any,
+      msg: { [scrySide]: scryFn },
       prompt: scryFn,
-    } as Ability,
+    },
     card,
     [],
   );
@@ -598,20 +645,31 @@ export function scry(
 // with-revealed-hand
 // ---------------------------------------------------------------------------
 
+interface WithRevealedHandArgs {
+  eventSide?: string;
+  forced?: boolean;
+  skipReveal?: boolean;
+  [key: string]: unknown;
+}
+
+interface CardMovedContext {
+  "moved-card"?: Card;
+}
+
 export function withRevealedHand(
   targetSide: string,
-  argsOrAbi: any,
-  abi?: any,
-): any {
-  let args: any = {};
-  let ability: any;
+  argsOrAbi: WithRevealedHandArgs | Ability,
+  abi?: Ability,
+): Ability {
+  let args: WithRevealedHandArgs = {};
+  let ability: Ability;
   if (abi === undefined) {
-    ability = argsOrAbi;
+    ability = argsOrAbi as Ability;
   } else {
-    args = argsOrAbi ?? {};
+    args = (argsOrAbi as WithRevealedHandArgs) ?? {};
     ability = abi;
   }
-  const { eventSide, forced, skipReveal } = args;
+  const { eventSide, skipReveal } = args;
 
   function maybeRegisterEv(
     state: GameState,
@@ -619,31 +677,28 @@ export function withRevealedHand(
     card: Card | null,
     wasOpen: boolean,
   ): () => void {
-    if (wasOpen) return () => undefined;
-    const events = registerEvents(
-      state,
-      side,
-      card as Card,
-      [
-        {
-          event: "card-moved",
-          req: (
-            _s: GameState,
-            _sd: string,
-            _e: EID,
-            _c: Card | null,
-            targets: any[],
-          ) => {
-            const sidefn = targetSide === "corp" ? isCorp : isRunner;
-            const moved = targets?.[0]?.["moved-card"];
-            return sidefn(moved) && inHand(moved);
-          },
-          silent: true,
-          effect: (state2: GameState) => concealHand(state2, targetSide),
+    if (wasOpen || !card) return () => undefined;
+    const events = registerEvents(state, side, card, [
+      {
+        event: "card-moved",
+        req: (
+          _s: GameState,
+          _sd: string,
+          _e: EID,
+          _c: Card | null,
+          targets: unknown[],
+        ) => {
+          const sidefn = targetSide === "corp" ? isCorp : isRunner;
+          const ctx = targets[0] as CardMovedContext | undefined;
+          const moved = ctx?.["moved-card"];
+          return Boolean(moved && sidefn(moved) && inHand(moved));
         },
-      ] as any,
-    );
-    const uuid = (events?.[0] as any)?.uuid;
+        silent: true,
+        effect: (state2: GameState) => concealHand(state2, targetSide),
+      },
+    ]);
+    const first = events?.[0] as { uuid?: string } | undefined;
+    const uuid = first?.uuid;
     return () => uuid && unregisterEventByUUID(state, side, uuid);
   }
 
@@ -653,12 +708,12 @@ export function withRevealedHand(
     eid: EID,
     card: Card | null,
   ): void {
-    if (skipReveal) {
+    if (skipReveal || !card) {
       effectCompleted(state, side, eid);
       return;
     }
-    const player = (state as any)[targetSide];
-    revealLoud(state, eventSide ?? side, eid, card as Card, args, player?.hand ?? []);
+    const player = getPlayerBySide(state, targetSide);
+    revealLoud(state, eventSide ?? side, eid, card, args, player.hand ?? []);
   }
 
   return {
@@ -668,14 +723,14 @@ export function withRevealedHand(
       side: string,
       eid: EID,
       card: Card | null,
-      targets: any[],
+      targets: unknown[],
     ) => {
       waitFor(
         state,
         eid,
         (inner) => maybeReveal(state, side, inner, card),
         () => {
-          const wasOpen = !!(state as any)[targetSide]?.openhand;
+          const wasOpen = Boolean(getPlayerBySide(state, targetSide).openhand);
           const unregister = maybeRegisterEv(state, side, card, wasOpen);
           if (!wasOpen) revealHand(state, targetSide);
           waitFor(
@@ -709,8 +764,8 @@ export function placeAdvancementCounter(
   advanceableOnly: boolean | null,
   qty: number = 1,
   cardLine: string = "a card",
-  pred: ((c: any) => boolean) | null = null,
-): any {
+  pred: ((c: Card) => boolean) | null = null,
+): Ability {
   const onlyAdvanceable = advanceableOnly === true;
   const label = `Place ${quantify(qty, "advancement counter")} on ${cardLine}${onlyAdvanceable ? " that can be advanced" : ""}`;
   return {
@@ -722,9 +777,10 @@ export function placeAdvancementCounter(
         _sd: string,
         _e: EID,
         _c: Card | null,
-        targets: any[],
+        targets: unknown[],
       ) => {
-        const target = targets?.[0];
+        const target = targets[0] as Card | undefined;
+        if (!target) return false;
         return (
           isCorp(target) &&
           isInstalled(target) &&
@@ -739,17 +795,17 @@ export function placeAdvancementCounter(
         _sd: string,
         _e: EID,
         _c: Card | null,
-        targets: any[],
+        targets: unknown[],
       ) =>
-        `place ${quantify(qty, "advancement counter")} on ${cardStr(state, targets?.[0])}`,
+        `place ${quantify(qty, "advancement counter")} on ${cardStr(state, targets[0] as Card)}`,
       corp: (
         state: GameState,
         _sd: string,
         _e: EID,
         _c: Card | null,
-        targets: any[],
+        targets: unknown[],
       ) =>
-        `place ${quantify(qty, "advancement counter")} on ${cardStr(state, targets?.[0], { maybeVisible: true })}`,
+        `place ${quantify(qty, "advancement counter")} on ${cardStr(state, targets[0] as Card, { maybeVisible: true })}`,
     },
     async: true,
     effect: (
@@ -757,9 +813,9 @@ export function placeAdvancementCounter(
       _side: string,
       eid: EID,
       _c: Card | null,
-      targets: any[],
+      targets: unknown[],
     ) =>
-      addProp(state, _side, eid, targets?.[0], "advance-counter", qty, {
+      addProp(state, _side, eid, targets[0] as Card, "advance-counter", qty, {
         placed: true,
       }),
   };
@@ -773,19 +829,16 @@ export function lookAtTheTop(
   lookingSide: string,
   deckSide: string,
   qty: number,
-): any {
+): Ability {
   const zone = lookingSide === "corp" ? "R&D" : "the stack";
   const seen = (state: GameState): number =>
-    Math.min(qty, (((state as any)[deckSide]?.deck ?? []) as any[]).length);
+    Math.min(qty, (getPlayerBySide(state, deckSide).deck ?? []).length);
   return {
     msg: {
       public: (state: GameState) =>
         `look at the top ${quantify(seen(state), "card")} of ${zone}`,
       [lookingSide]: (state: GameState) => {
-        const top = (((state as any)[deckSide]?.deck ?? []) as any[]).slice(
-          0,
-          qty,
-        );
+        const top = (getPlayerBySide(state, deckSide).deck ?? []).slice(0, qty);
         return `look at the top ${quantify(seen(state), "card")} of ${zone} (top->bottom): ${enumerateCards(top)}`;
       },
     },
@@ -794,13 +847,10 @@ export function lookAtTheTop(
     "change-in-game-state": {
       silent: true,
       req: (state: GameState) =>
-        (((state as any)[deckSide]?.deck ?? []) as any[]).length > 0,
+        (getPlayerBySide(state, deckSide).deck ?? []).length > 0,
     },
     effect: (state: GameState, side: string, eid: EID, card: Card | null) => {
-      const top = (((state as any)[deckSide]?.deck ?? []) as any[]).slice(
-        0,
-        qty,
-      );
+      const top = (getPlayerBySide(state, deckSide).deck ?? []).slice(0, qty);
       resolveAbility(
         state,
         side,
@@ -808,7 +858,7 @@ export function lookAtTheTop(
           eid,
           prompt: `The top cards of ${zone} are (top->bottom): ${enumerateCards(top)}`,
           choices: ["OK"],
-        } as Ability,
+        },
         card,
         [],
       );
@@ -820,6 +870,6 @@ export function lookAtTheTop(
 // make-icon
 // ---------------------------------------------------------------------------
 
-export function makeIcon(text: string, card: any): [string, string, string] {
-  return [text, card?.cid, factionLabel(card)];
+export function makeIcon(text: string, card: Card): [string, string, string] {
+  return [text, card.cid ?? "", factionLabel(card)];
 }

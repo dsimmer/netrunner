@@ -122,12 +122,43 @@ export interface Prompt {
   card?: Card | null;
   message?: string;
   promptType?: string;
-  choices?: string[] | "*" | "credit" | "counter" | ChoicesMap | number;
+  choices?: string[] | "*" | "credit" | "counter" | ChoicesMap | number | unknown[];
   effect?: AbilityFn;
   cancel?: AbilityFn;
   priority?: number;
   buttons?: string[];
   waiting?: string;
+  // Optional metadata attached by show-prompt / show-trace-prompt / show-select.
+  // These mirror keys present on the Clojure prompt map but kept narrow here.
+  selectable?: string[];
+  offerBadPub?: boolean;
+  showDiscard?: boolean;
+  showOpponentDiscard?: boolean;
+  endEffect?: AbilityFn;
+  corpCredits?: number;
+  runnerCredits?: number;
+  player?: string;
+  other?: string;
+  base?: number;
+  bonus?: number;
+  strength?: number;
+  link?: number;
+  unbeatable?: number;
+  beatTrace?: number;
+}
+
+// Per-side selection entry (mirrors `[side :selected]` in Clojure).
+// `ability` is optional because some callers (notably actions_1.ts) construct
+// entries lazily before binding an ability handle.
+export interface SelectionEntry {
+  ability?: Record<string, unknown>;
+  cards?: Card[];
+  card?: (c: Card) => boolean;
+  req?: ReqFn;
+  notSelf?: string;
+  max?: number;
+  all?: boolean;
+  [key: string]: unknown;
 }
 
 export interface RunEffectEntry {
@@ -276,9 +307,19 @@ export interface GameStats {
     ended?: Date;
     elapsed?: number;
   };
-  corp?: Record<string, unknown>;
-  runner?: Record<string, unknown>;
+  // Side stat nodes are a free-form nested map (e.g. `corp.click.credit = 3`).
+  corp?: StatNode;
+  runner?: StatNode;
+  // Index signature uses `any` to support arbitrary nested mutation by card-side
+  // code (e.g. `stats[side].click.rashidaCount`). This is the canonical escape
+  // hatch for the runtime stats bag; narrowing it cascades into ~6 card files.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
+}
+
+/** Recursive nested-record used for free-form stat tracking. */
+export interface StatNode {
+  [key: string]: StatNode | number | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -321,6 +362,7 @@ export interface Corp {
   undoTurn?: unknown;
   promptState?: Prompt | null;
   openhand?: boolean;
+  selected?: SelectionEntry[];
 }
 
 export interface Runner {
@@ -367,6 +409,7 @@ export interface Runner {
   undoTurn?: unknown;
   promptState?: Prompt | null;
   openhand?: boolean;
+  selected?: SelectionEntry[];
 }
 
 // ---------------------------------------------------------------------------
@@ -466,10 +509,10 @@ export interface GameState {
   trace?: TraceState | null;
 
   // Undo state
-  trash?: any;
+  trash?: unknown;
   clickState?: unknown;
   endRun?: { ended?: boolean } & Record<string, unknown>;
-  bonus?: any;
+  bonus?: unknown;
 
   // Per-encounter scratch space (cleared between encounters).
   perEncounter?: Record<string, unknown> | null;
@@ -477,8 +520,8 @@ export interface GameState {
   forcedEncounter?: number;
 
   // Prevention state — shape varies per category (trash/damage/tag/encounter/etc.)
-  // Each entry carries `remaining`, `count`, `uses`, and category-specific keys,
-  // so we use a loose record here pending full typing of the prevention engine.
+  // Each entry carries `remaining`, `count`, `uses`, and category-specific keys.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   prevent?: any;
 
   // Breach state (set during a server breach; reset to null on end-breach-server)
@@ -486,6 +529,11 @@ export interface GameState {
 
   // Typing indicators
   typing: string[];
+
+  // Computed run-targeting metadata refreshed by checkpoint
+  runnableServers?: string[];
+  remotes?: string[];
+  access?: boolean;
 
   // Deck lists
   decklists?: Record<string, unknown>;

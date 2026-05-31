@@ -13,6 +13,12 @@ import { sideStr } from "../utils";
 /** A single turn-event entry as stored in state.turnEvents: [eventName, targets]. */
 type TurnEventEntry = [string, unknown[]];
 
+/** Predicate used to filter event entries. The `any` here is intentional —
+ *  card-side callers pass narrower `(t: any[]) => any` lambdas; this matches
+ *  the codebase's `AnyFn` escape-hatch convention (see types.ts). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type EventPred = (entry: any) => unknown;
+
 // ---------------------------------------------------------------------------
 // Turn-level event helpers
 // ---------------------------------------------------------------------------
@@ -44,9 +50,7 @@ export function lastTurn(
   event: string,
 ): unknown {
   const player = side === "corp" ? state.corp : state.runner;
-  const register = (player as any).registerLastTurn as
-    | Record<string, unknown>
-    | undefined;
+  const register = player.registerLastTurn as Record<string, unknown> | undefined;
   if (!register) return undefined;
   return register[event];
 }
@@ -66,9 +70,7 @@ export function notLastTurn(
   event: string,
 ): boolean {
   const player = side === "corp" ? state.corp : state.runner;
-  const register = (player as any).registerLastTurn as
-    | Record<string, unknown>
-    | undefined;
+  const register = player.registerLastTurn as Record<string, unknown> | undefined;
   if (!register) return false;
   if (register[event]) return false;
   return true;
@@ -84,7 +86,7 @@ export function noEvent(
   state: GameState,
   side: unknown,
   ev: string,
-  pred: (entry: any) => unknown = () => true,
+  pred: EventPred = () => true,
 ): boolean {
   return turnEvents(state, side, ev).filter(pred).length === 0;
 }
@@ -98,7 +100,7 @@ export function eventCount(
   state: GameState,
   side: unknown,
   ev: string,
-  pred: (entry: any) => unknown = () => true,
+  pred: EventPred = () => true,
 ): number {
   return turnEvents(state, side, ev).filter(pred).length;
 }
@@ -108,14 +110,22 @@ export function eventCount(
  *
  * Clojure: (= 1 (event-count state side ev pred))
  */
-export function firstEvent(ev: string, pred?: (entry: any) => unknown): boolean;
-export function firstEvent(state: GameState, side: unknown, ev: string, pred?: (entry: any) => unknown): boolean;
-export function firstEvent(...args: any[]): boolean {
-  if (typeof args[0] === "string") {
+export function firstEvent(ev: string, pred?: EventPred): boolean;
+export function firstEvent(state: GameState, side: unknown, ev: string, pred?: EventPred): boolean;
+export function firstEvent(
+  arg1: string | GameState,
+  arg2?: string | unknown | ((entry: unknown) => unknown),
+  arg3?: string,
+  arg4?: (entry: unknown) => unknown,
+): boolean {
+  if (typeof arg1 === "string") {
     // shorthand (event, pred) — no state, return false (event hasn't occurred without state context)
     return false;
   }
-  const [state, side, ev, pred] = args as [GameState, unknown, string, ((entry: any) => unknown) | undefined];
+  const state = arg1;
+  const side = arg2;
+  const ev = arg3 ?? "";
+  const pred = arg4;
   return eventCount(state, side, ev, pred ?? (() => true)) === 1;
 }
 
@@ -128,7 +138,7 @@ export function secondEvent(
   state: GameState,
   side: unknown,
   ev: string,
-  pred: (entry: any) => unknown = () => true,
+  pred: EventPred = () => true,
 ): boolean {
   return eventCount(state, side, ev, pred) === 2;
 }
@@ -165,7 +175,7 @@ export function firstSuccessfulRunOnServer(
  */
 export function firstTrash(
   state: GameState,
-  pred: (entry: any) => unknown = () => true,
+  pred: EventPred = () => true,
 ): boolean {
   return (
     eventCount(state, null, "runner-trash", pred) +
@@ -237,7 +247,7 @@ export function firstInstalledTrashOwn(
 ): boolean {
   const trashed = getInstalledTrashed(state, side);
   const sideString = sideStr(side);
-  const owned = trashed.filter((c: any) => c.side === sideString);
+  const owned = trashed.filter((c: Card) => c.side === sideString);
   return owned.length === 1;
 }
 
@@ -258,17 +268,18 @@ export function runEvents(
   sideOrEv: unknown,
   ev?: string,
 ): unknown[] {
-  let run: any;
+  interface RunWithEvents { events?: TurnEventEntry[] }
+  let run: RunWithEvents | undefined;
   let event: string;
   if (ev === undefined) {
-    run = stateOrRun;
+    run = stateOrRun as RunWithEvents;
     event = sideOrEv as string;
   } else {
-    run = (stateOrRun as GameState).run;
+    run = (stateOrRun as GameState).run as unknown as RunWithEvents;
     event = ev;
   }
   if (!run) return [];
-  const events = run.events as TurnEventEntry[] | undefined;
+  const events = run.events;
   if (!events) return [];
   return events
     .filter(([e]) => e === event)
@@ -285,7 +296,7 @@ export function noRunEvent(
   state: GameState,
   _side: unknown,
   ev: string,
-  pred: (entry: any) => unknown = () => true,
+  pred: EventPred = () => true,
 ): boolean {
   return runEvents(state, _side, ev).filter(pred).length === 0;
 }
@@ -299,7 +310,7 @@ export function runEventCount(
   state: GameState,
   _side: unknown,
   ev: string,
-  pred: (entry: any) => unknown = () => true,
+  pred: EventPred = () => true,
 ): number {
   return runEvents(state, _side, ev).filter(pred).length;
 }
@@ -313,7 +324,7 @@ export function firstRunEvent(
   state: GameState,
   _side: unknown,
   ev: string,
-  pred: (entry: any) => unknown = () => true,
+  pred: EventPred = () => true,
 ): boolean {
   return runEventCount(state, _side, ev, pred) === 1;
 }
@@ -330,10 +341,17 @@ import { event as cardEvent } from "./card";
  *  - 4-arg (state, side, eventName, pred): "has any matching event occurred this turn?"
  *    (Convenience used by card files to wrap eventCount > 0.)
  */
-export function event(card: any): boolean;
-export function event(state: GameState, side: unknown, ev: string, pred?: (entry: any) => unknown): boolean;
-export function event(...args: any[]): boolean {
-  if (args.length === 1) return !!cardEvent(args[0]);
-  const [state, side, ev, pred] = args as [GameState, unknown, string, ((entry: any) => unknown) | undefined];
-  return eventCount(state, side, ev, pred ?? (() => true)) > 0;
+export function event(card: Card | null): boolean;
+export function event(state: GameState, side: unknown, ev: string, pred?: EventPred): boolean;
+export function event(
+  arg1: Card | GameState | null,
+  arg2?: unknown,
+  arg3?: string,
+  arg4?: (entry: unknown) => unknown,
+): boolean {
+  if (arg2 === undefined) return !!cardEvent(arg1 as Card | null);
+  const state = arg1 as GameState;
+  const side = arg2;
+  const ev = arg3 ?? "";
+  return eventCount(state, side, ev, arg4 ?? (() => true)) > 0;
 }

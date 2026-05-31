@@ -49,7 +49,26 @@ import {
   resolveUnbrokenSubsEx as resolveUnbrokenSubs,
   substituteXCreditCosts,
 } from "./ice";
-const breakSubsEventContext: any = (..._a: any[]) => undefined;
+const breakSubsEventContext: (...args: unknown[]) => unknown = (..._a: unknown[]) => undefined;
+
+interface HeapBreakerAbility extends Ability {
+  "heap-breaker-pump"?: number | "x";
+  "heap-breaker-break"?: number | "x";
+}
+
+interface AutoBreakAbility extends Ability {
+  "auto-pump-ignore"?: boolean;
+  "auto-pump-sort"?: number;
+  "auto-break-sort"?: number;
+  "auto-break-creds-per-sub"?: number;
+  "break-req"?: AbilityFn;
+  "additional-ability"?: Ability;
+  pump?: number;
+  break?: number;
+  once?: string;
+}
+
+import type { AbilityFn, Subroutine } from "./types";
 import { cardInit } from "./initializing";
 import { move, trash } from "./moving";
 import { buildSpendMsg, canPay, mergeCosts, buildCostString } from "./payment";
@@ -104,28 +123,27 @@ export function playHeapBreakerAutoPumpAndBreak(
   const currentIce = getCurrentIce(state);
   if (!currentIce) return;
 
-  const canPump = (ability: Ability): boolean => {
-    if (!(ability as any)["heap-breaker-pump"]) return false;
+  const canPump = (ability: HeapBreakerAbility): boolean => {
+    if (!ability["heap-breaker-pump"]) return false;
     if (
       anyEffects(state, side, "prevent-paid-ability", (v) => v === true, card, [
-        ability as any,
-      ])
+        ability,
+      ] as unknown as Card[])
     ) {
       return false;
     }
-    const reqFn = (ability as any).req ?? (() => true);
-    return reqFn(state, side, eid, card, null);
+    const reqFn = ability.req;
+    if (typeof reqFn === "function") {
+      return reqFn(state, side, eid, card, null);
+    }
+    return reqFn !== false;
   };
 
-  const breakerAbility = ((cardDef(card) as any).abilities ?? []).find(
+  const breakerAbility = ((cardDef(card).abilities ?? []) as HeapBreakerAbility[]).find(
     canPump,
-  ) as Ability | undefined;
-  const pumpStrengthAtOnce = breakerAbility
-    ? (breakerAbility as any)["heap-breaker-pump"]
-    : null;
-  const subsBrokenAtOnce = breakerAbility
-    ? (breakerAbility as any)["heap-breaker-break"]
-    : null;
+  );
+  const pumpStrengthAtOnce = breakerAbility?.["heap-breaker-pump"] ?? null;
+  const subsBrokenAtOnce = breakerAbility?.["heap-breaker-break"] ?? null;
 
   const ciStrength = getStrength(currentIce);
   const cardStrength = getStrength(card);
@@ -133,8 +151,8 @@ export function playHeapBreakerAutoPumpAndBreak(
     ciStrength != null && cardStrength != null
       ? Math.max(0, ciStrength - cardStrength)
       : null;
-  const subroutines: any[] = (currentIce as any).subroutines ?? [];
-  const unbrokenSubs = subroutines.filter((s: any) => !s.broken).length;
+  const subroutines: Subroutine[] = (currentIce.subroutines as Subroutine[] | undefined) ?? [];
+  const unbrokenSubs = subroutines.filter((s: Subroutine) => !s.broken).length;
   const xNumber =
     strengthDiff != null && unbrokenSubs != null
       ? Math.max(strengthDiff, unbrokenSubs)
@@ -145,13 +163,13 @@ export function playHeapBreakerAutoPumpAndBreak(
     strengthDiff != null && pumpStrengthAtOnce != null
       ? xBreaker
         ? 1
-        : Math.ceil(strengthDiff / pumpStrengthAtOnce)
+        : Math.ceil(strengthDiff / (pumpStrengthAtOnce as number))
       : null;
   const breaksNeeded =
     unbrokenSubs != null && subsBrokenAtOnce != null
       ? xBreaker
         ? 1
-        : Math.ceil(unbrokenSubs / subsBrokenAtOnce)
+        : Math.ceil(unbrokenSubs / (subsBrokenAtOnce as number))
       : null;
   const abilityUsesNeeded =
     pumpsNeeded != null && breaksNeeded != null
@@ -164,7 +182,7 @@ export function playHeapBreakerAutoPumpAndBreak(
     breakerAbility && abilityUsesNeeded != null
       ? xBreaker
         ? [c("credit", xNumber as number)]
-        : new Array(abilityUsesNeeded).fill((breakerAbility as any).cost).flat()
+        : new Array(abilityUsesNeeded).fill(breakerAbility.cost).flat()
       : null;
 
   if (
@@ -177,7 +195,7 @@ export function playHeapBreakerAutoPumpAndBreak(
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, binds: any) {
+      function (s: GameState, _e: EID, binds: { asyncResult?: { msg?: string } }) {
         if (xBreaker) {
           pump(s, side, getCard(s, card) as Card, xNumber as number);
         } else {
@@ -185,28 +203,28 @@ export function playHeapBreakerAutoPumpAndBreak(
             s,
             side,
             getCard(s, card) as Card,
-            pumpStrengthAtOnce * (abilityUsesNeeded as number),
+            (pumpStrengthAtOnce as number) * (abilityUsesNeeded as number),
           );
         }
-        const paymentStr = (binds.asyncResult as any)?.msg as string;
-        const subGroupsToBreak: any[][] =
+        const paymentStr = binds.asyncResult?.msg as string;
+        const subGroupsToBreak: Subroutine[][] =
           typeof subsBrokenAtOnce === "number" && subsBrokenAtOnce > 0
             ? partition(
                 subsBrokenAtOnce,
-                subroutines.filter((x: any) => !x.broken),
-              )
-            : [subroutines.filter((x: any) => !x.broken)];
+                subroutines.filter((x: Subroutine) => !x.broken),
+              ) as Subroutine[][]
+            : [subroutines.filter((x: Subroutine) => !x.broken)];
         wait_for(
           s,
           [
             { asyncResult: "result" },
-            function (s2: GameState, _e2: EID, _b2: any) {
+            function (s2: GameState, _e2: EID, _b2: unknown) {
               systemMsg(
                 s2,
                 side,
-                `${buildSpendMsg(paymentStr, "increase")}the strength of ${card.title} to ${getStrength(getCard(s2, card))} and break all subroutines on ${(currentIce as any).title}`,
+                `${buildSpendMsg(paymentStr, "increase")}the strength of ${card.title} to ${getStrength(getCard(s2, card))} and break all subroutines on ${currentIce.title}`,
               );
-              continueRun(s2, side, null as any);
+              continueRun(s2, side, null);
             },
           ],
           [
@@ -236,13 +254,13 @@ function playAutoPumpAndBreakImpl(
   state: GameState,
   side: string,
   paymentEid: EID,
-  subGroupsToBreak: any[][],
+  subGroupsToBreak: Subroutine[][],
   currentIce: Card,
-  breakAbility: Ability,
+  breakAbility: AutoBreakAbility,
 ): Ability {
   return {
     async: true,
-    effect: function (s: any, _side: any, eid: any, card: any, _targets: any) {
+    effect: function (s: GameState, _side: string, eid: EID, card: Card | null, _targets: unknown[]) {
       const subsToBreak = subGroupsToBreak[0];
       const rest = subGroupsToBreak.slice(1);
       for (const sub of subsToBreak) {
@@ -250,7 +268,7 @@ function playAutoPumpAndBreakImpl(
       }
       const ice = getCard(s, currentIce);
       const onBreakSubs = ice
-        ? (cardDef(currentIce) as any)["on-break-subs"]
+        ? (cardDef(currentIce)["on-break-subs"] as Ability | undefined)
         : null;
       const eventArgs = onBreakSubs
         ? { "card-abilities": abilityAsHandler(ice as Card, onBreakSubs) }
@@ -259,12 +277,12 @@ function playAutoPumpAndBreakImpl(
         s,
         [
           { asyncResult: "result" },
-          function (s2: GameState, _e2: EID, _b: any) {
+          function (s2: GameState, _e2: EID, _b: unknown) {
             wait_for(
               s2,
               [
                 { asyncResult: "result" },
-                function (s3: GameState, _e3: EID, _b3: any) {
+                function (s3: GameState, _e3: EID, _b3: unknown) {
                   if (rest.length === 0) {
                     effectCompleted(s3, side, eid);
                   } else {
@@ -280,7 +298,7 @@ function playAutoPumpAndBreakImpl(
                         breakAbility,
                       ),
                       card,
-                      null as any,
+                      null,
                     );
                   }
                 },
@@ -302,7 +320,7 @@ function playAutoPumpAndBreakImpl(
           s,
           side,
           {
-            ...(breakAbility as any)["additional-ability"],
+            ...breakAbility["additional-ability"],
             eid: makeEIDFrom(s, paymentEid),
           } as Ability,
           getCard(s, card),
@@ -311,7 +329,7 @@ function playAutoPumpAndBreakImpl(
         { eid },
       );
     },
-  } as any;
+  };
 }
 
 /** Returns successive subsequences of size n. Mirrors `(partition n n nil coll)`. */
@@ -329,9 +347,8 @@ export function playAutoPumpAndBreak(
 ): void {
   const baseCard = getCard(state, args.card);
   if (!baseCard) return;
-  const baseAbilities: Ability[] = ((cardDef(baseCard) as any).abilities ??
-    []) as Ability[];
-  if (baseAbilities.some((a: any) => (a as any)["heap-breaker-break"])) {
+  const baseAbilities: AutoBreakAbility[] = (cardDef(baseCard).abilities ?? []) as AutoBreakAbility[];
+  if (baseAbilities.some((a: AutoBreakAbility) => (a as HeapBreakerAbility)["heap-breaker-break"])) {
     playHeapBreakerAutoPumpAndBreak(state, side, args);
     return;
   }
@@ -341,31 +358,29 @@ export function playAutoPumpAndBreak(
   const currentIce = getCurrentIce(state);
   if (!currentIce) return;
 
+  type CandidatePair = [AutoBreakAbility, CostData[]];
+
   // Pump
-  const canPump = (ability: Ability): boolean => {
-    if (!(ability as any).pump) return false;
-    return ((ability as any).req as Function)(state, side, eid, card, null);
+  const canPump = (ability: AutoBreakAbility): boolean => {
+    if (!ability.pump) return false;
+    const reqFn = ability.req;
+    if (typeof reqFn === "function") return reqFn(state, side, eid, card, null);
+    return reqFn !== false;
   };
-  const pumpCandidates = baseAbilities
-    .filter((a: any) => !(a as any)["auto-pump-ignore"])
-    .flatMap((a: any) => {
+  const pumpCandidates: CandidatePair[] = baseAbilities
+    .filter((a: AutoBreakAbility) => !a["auto-pump-ignore"])
+    .flatMap((a: AutoBreakAbility) => {
       if (!canPump(a)) return [];
-      return [
-        [a, cardAbilityCost(state, side, a, card, currentIce as any)] as [
-          Ability,
-          CostData[],
-        ],
-      ];
+      return [[a, cardAbilityCost(state, side, a, card, currentIce ? [currentIce] : [])] as CandidatePair];
     });
   let pumpAbility: Ability | undefined;
   let pumpCost: CostData[] | undefined;
   if (pumpCandidates.length > 0) {
     pumpCandidates.sort(
-      (a: any, b: any) =>
-        ((a[0] as any)["auto-pump-sort"] ?? 0) -
-        ((b[0] as any)["auto-pump-sort"] ?? 0),
+      (a: CandidatePair, b: CandidatePair) =>
+        (a[0]["auto-pump-sort"] ?? 0) - (b[0]["auto-pump-sort"] ?? 0),
     );
-    const best = pumpCandidates.reduce((acc: any, cur: any) =>
+    const best = pumpCandidates.reduce((acc: CandidatePair, cur: CandidatePair) =>
       sumCostAmount(cur[1]) < sumCostAmount(acc[1]) ? cur : acc,
     );
     pumpAbility = best[0];
@@ -390,53 +405,40 @@ export function playAutoPumpAndBreak(
       : null;
 
   // Break
-  const canBreak = (ability: Ability): boolean => {
-    if (!(ability as any)["break-req"]) return false;
+  const canBreak = (ability: AutoBreakAbility): boolean => {
+    if (!ability["break-req"]) return false;
     if (
       anyEffects(state, side, "prevent-paid-ability", (v) => v === true, card, [
-        ability as any,
-      ])
+        ability,
+      ] as unknown as Card[])
     ) {
       return false;
     }
-    return ((ability as any)["break-req"] as Function)(
-      state,
-      side,
-      eid,
-      card,
-      null,
-    );
+    const breakReq = ability["break-req"]!;
+    return breakReq(state, side, eid, card, null);
   };
-  const breakCandidates = baseAbilities.flatMap((a: any) => {
+  const breakCandidates: CandidatePair[] = baseAbilities.flatMap((a: AutoBreakAbility) => {
     if (!canBreak(a)) return [];
-    return [
-      [a, breakSubAbilityCost(state, side, a, card, currentIce ? [currentIce] : [])] as [
-        Ability,
-        CostData[],
-      ],
-    ];
+    return [[a, breakSubAbilityCost(state, side, a, card, currentIce ? [currentIce] : [])] as CandidatePair];
   });
-  let breakAbility: Ability | undefined;
+  let breakAbility: AutoBreakAbility | undefined;
   let breakCost: CostData[] | undefined;
   if (breakCandidates.length > 0) {
     breakCandidates.sort(
-      (a: any, b: any) =>
-        ((a[0] as any)["auto-break-sort"] ?? 0) -
-        ((b[0] as any)["auto-break-sort"] ?? 0),
+      (a: CandidatePair, b: CandidatePair) =>
+        (a[0]["auto-break-sort"] ?? 0) - (b[0]["auto-break-sort"] ?? 0),
     );
-    const best = breakCandidates.reduce((acc: any, cur: any) =>
+    const best = breakCandidates.reduce((acc: CandidatePair, cur: CandidatePair) =>
       sumCostAmount(cur[1]) < sumCostAmount(acc[1]) ? cur : acc,
     );
     breakAbility = best[0];
     breakCost = best[1];
   }
-  const onceKey = breakAbility ? (breakAbility as any).once : undefined;
-  const subsBrokenAtOnce = breakAbility
-    ? ((breakAbility as any).break ?? 1)
-    : null;
-  const subroutines: any[] = (currentIce as any).subroutines ?? [];
+  const onceKey = breakAbility?.once;
+  const subsBrokenAtOnce = breakAbility ? (breakAbility.break ?? 1) : null;
+  const subroutines: Subroutine[] = (currentIce.subroutines as Subroutine[] | undefined) ?? [];
   const unbrokenSubsCount =
-    subroutines.length > 0 ? subroutines.filter((s: any) => !s.broken).length : null;
+    subroutines.length > 0 ? subroutines.filter((s: Subroutine) => !s.broken).length : null;
   const someAlreadyBroken = unbrokenSubsCount !== subroutines.length;
   const timesBreak =
     unbrokenSubsCount != null && subsBrokenAtOnce != null
@@ -445,9 +447,9 @@ export function playAutoPumpAndBreak(
         : 1
       : null;
   const adjustedBreakCost = substituteXCreditCosts(
-    breakCost as any,
-    unbrokenSubsCount as any,
-    breakAbility ? (breakAbility as any)["auto-break-creds-per-sub"] : null,
+    (breakCost ?? []) as unknown as (Record<string, unknown> | undefined)[],
+    unbrokenSubsCount ?? undefined,
+    breakAbility ? (breakAbility["auto-break-creds-per-sub"] ?? undefined) : undefined,
   );
   const totalBreakCost: CostData[] | null =
     adjustedBreakCost && timesBreak != null
@@ -456,7 +458,7 @@ export function playAutoPumpAndBreak(
   const totalCost = mergeCosts([
     ...(totalPumpCost ?? []),
     ...(totalBreakCost ?? []),
-  ] as any);
+  ]);
 
   if (
     !breakAbility ||
@@ -469,43 +471,43 @@ export function playAutoPumpAndBreak(
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, binds: any) {
+      function (s: GameState, _e: EID, binds: { asyncResult?: EID & { msg?: string } }) {
         for (let i = 0; i < timesPump; i++) {
-          const ab = { ...(pumpAbility as Ability) };
-          delete (ab as any).cost;
-          delete (ab as any).msg;
-          resolveAbility(s, side, ab, getCard(s, card), null as any);
+          const ab = { ...(pumpAbility as Ability) } as Ability & Record<string, unknown>;
+          delete ab.cost;
+          delete ab.msg;
+          resolveAbility(s, side, ab, getCard(s, card), null);
         }
-        const paymentEid = binds.asyncResult as EID;
-        const paymentStr = (paymentEid as any)?.msg as string;
-        const subGroupsToBreak: any[][] =
+        const paymentEid = binds.asyncResult as EID & { msg?: string };
+        const paymentStr = paymentEid?.msg as string;
+        const subGroupsToBreak: Subroutine[][] =
           (subsBrokenAtOnce as number) > 0
-            ? partition(
+            ? (partition(
                 subsBrokenAtOnce as number,
-                subroutines.filter((x: any) => !x.broken),
-              )
-            : [subroutines.filter((x: any) => !x.broken)];
+                subroutines.filter((x: Subroutine) => !x.broken),
+              ) as Subroutine[][])
+            : [subroutines.filter((x: Subroutine) => !x.broken)];
         wait_for(
           s,
           [
             { asyncResult: "result" },
-            function (s2: GameState, _e2: EID, _b2: any) {
+            function (s2: GameState, _e2: EID, _b2: unknown) {
               if (timesPump > 0) {
                 systemMsg(
                   s2,
                   side,
-                  `${buildSpendMsg(paymentStr, "increase")}the strength of ${card.title} to ${getStrength(getCard(s2, card))} and break all ${(unbrokenSubsCount as number) > 1 ? unbrokenSubsCount : ""} subroutines on ${(currentIce as any).title}`,
+                  `${buildSpendMsg(paymentStr, "increase")}the strength of ${card.title} to ${getStrength(getCard(s2, card))} and break all ${(unbrokenSubsCount as number) > 1 ? unbrokenSubsCount : ""} subroutines on ${currentIce.title}`,
                 );
               } else {
                 systemMsg(
                   s2,
                   side,
-                  `${buildSpendMsg(paymentStr, "use")}${card.title} to break ${someAlreadyBroken ? "the remaining " : "all "}${unbrokenSubsCount} subroutines on ${(currentIce as any).title}`,
+                  `${buildSpendMsg(paymentStr, "use")}${card.title} to break ${someAlreadyBroken ? "the remaining " : "all "}${unbrokenSubsCount} subroutines on ${currentIce.title}`,
                 );
               }
               if (onceKey)
-                registerOnce(s2, side, { once: onceKey } as any, card);
-              continueRun(s2, side, null as any);
+                registerOnce(s2, side, { once: onceKey }, card);
+              continueRun(s2, side, null);
             },
           ],
           [
@@ -538,10 +540,10 @@ export function playAutoPumpAndBreak(
 
 const dynamicAbilities: Record<
   string,
-  (state: GameState, side: string, args: any) => void
+  (state: GameState, side: string, args: { card: Card } & Record<string, unknown>) => void
 > = {
-  "auto-pump": playAutoPump,
-  "auto-pump-and-break": playAutoPumpAndBreak,
+  "auto-pump": playAutoPump as (state: GameState, side: string, args: { card: Card } & Record<string, unknown>) => void,
+  "auto-pump-and-break": playAutoPumpAndBreak as (state: GameState, side: string, args: { card: Card } & Record<string, unknown>) => void,
 };
 
 /** Mirrors `play-dynamic-ability`. */
@@ -552,7 +554,7 @@ export function playDynamicAbility(
 ): void {
   if (noBlockingOrPreventPrompt(state, side)) {
     const fn = dynamicAbilities[args.dynamic];
-    if (fn) fn(state, toKeyword(side), args);
+    if (fn) fn(state, toKeyword(side), args as unknown as { card: Card } & Record<string, unknown>);
   } else {
     toast(
       state,
@@ -589,17 +591,16 @@ export function playCorpAbility(
   const args = (maybeArgs ?? eidOrArgs) as { card: Card; ability: number };
   const card = getCard(state, args.card);
   if (!card) return;
-  const cdef = cardDef(card) as any;
+  const cdef = cardDef(card);
   const abilityIdx = args.ability;
-  const ability = (cdef.corpAbilities ?? cdef["corp-abilities"] ?? [])[
-    abilityIdx
-  ] as Ability;
+  const corpAbs = (cdef.corpAbilities ?? cdef["corp-abilities"] ?? []) as Ability[];
+  const ability = corpAbs[abilityIdx];
   const cannotPlay =
     card.disabled === true ||
     anyEffects(state, side, "prevent-paid-ability", (v) => v === true, card, [
-      ability as any,
-      abilityIdx as any,
-    ]);
+      ability,
+      abilityIdx,
+    ] as unknown as Card[]);
   if (cannotPlay) return;
   doPlayAbility(state, side, eid, {
     ability,
@@ -635,17 +636,16 @@ export function playRunnerAbility(
   };
   const card = getCard(state, args.card);
   if (!card) return;
-  const cdef = cardDef(card) as any;
+  const cdef = cardDef(card);
   const abilityIdx = args.ability;
-  const ability = (cdef.runnerAbilities ?? cdef["runner-abilities"] ?? [])[
-    abilityIdx
-  ] as Ability;
+  const runnerAbs = (cdef.runnerAbilities ?? cdef["runner-abilities"] ?? []) as Ability[];
+  const ability = runnerAbs[abilityIdx];
   const cannotPlay =
     card.disabled === true ||
     anyEffects(state, side, "prevent-paid-ability", (v) => v === true, card, [
-      ability as any,
-      abilityIdx as any,
-    ]);
+      ability,
+      abilityIdx,
+    ] as unknown as Card[]);
   if (cannotPlay) return;
   doPlayAbility(state, side, eid, {
     card,
@@ -758,16 +758,28 @@ export function removeTag(state: GameState, side: string, _: unknown): void {
   playAbility(state, side, { card: basic, ability: 5 });
 }
 
+interface SideViewBag {
+  viewDeck?: boolean;
+}
+
+interface CorpInstallBag {
+  installList?: string[];
+}
+
+interface RunnerRunnableBag {
+  runnableList?: string[];
+}
+
 /** View deck. Mirrors `view-deck`. */
 export function viewDeck(state: GameState, side: string, _: unknown): void {
   systemMsg(state, side, "looks at [their] deck");
-  (side_(state, side) as any).viewDeck = true;
+  (side_(state, side) as unknown as SideViewBag).viewDeck = true;
 }
 
 /** Close deck view. Mirrors `close-deck`. */
 export function closeDeck(state: GameState, side: string, _: unknown): void {
   systemMsg(state, side, "stops looking at [their] deck");
-  delete (side_(state, side) as any).viewDeck;
+  delete (side_(state, side) as unknown as SideViewBag).viewDeck;
 }
 
 // ---------------------------------------------------------------------------
@@ -781,17 +793,18 @@ export function generateInstallList(
   args: { card: Card | null },
 ): void {
   const card = args.card ? getCard(state, args.card) : null;
+  const corpExt = state.corp as unknown as CorpInstallBag;
   if (card) {
     if (expendable(state, card)) {
-      (state.corp as any).installList = [
+      corpExt.installList = [
         ...installableServers(state, card),
         "Expend",
       ];
     } else {
-      (state.corp as any).installList = installableServers(state, card);
+      corpExt.installList = installableServers(state, card);
     }
   } else {
-    delete (state.corp as any).installList;
+    delete corpExt.installList;
   }
 }
 
@@ -801,7 +814,7 @@ export function generateRunnableZones(
   _side: unknown,
   _args: unknown,
 ): void {
-  (state.runner as any).runnableList = zonesToSortedNames(
+  (state.runner as unknown as RunnerRunnableBag).runnableList = zonesToSortedNames(
     getRunnableZones(state),
   );
 }
@@ -859,17 +872,17 @@ export function advance(
     effectCompleted(state, side, eid);
     return;
   }
-  (eid as any).sourceType = "advance";
+  (eid as EID & { sourceType?: string }).sourceType = "advance";
 
   if (canAdvance(state, side, card)) {
-    const payEid = makeEIDFrom(state, eid);
-    (payEid as any).action = "corp-advance";
+    const payEid = makeEIDFrom(state, eid) as EID & { action?: string };
+    payEid.action = "corp-advance";
     wait_for(
       state,
       [
         { asyncResult: "result" },
-        function (s: GameState, _e: EID, binds: any) {
-          const paymentStr = (binds.asyncResult as any)?.msg as string;
+        function (s: GameState, _e: EID, binds: { asyncResult?: { msg?: string } }) {
+          const paymentStr = binds.asyncResult?.msg as string;
           if (paymentStr) {
             systemMsg(
               s,
@@ -881,7 +894,7 @@ export function advance(
               s,
               [
                 { asyncResult: "result" },
-                function (s2: GameState, _e2: EID, _b2: any) {
+                function (s2: GameState, _e2: EID, _b2: unknown) {
                   playSfx(s2, side, "click-advance");
                   effectCompleted(s2, side, eid);
                 },
@@ -939,7 +952,7 @@ export function resolveScore(
   const initialised = cardInit(state, CORP_SIDE, moved, {
     "resolve-effect": false,
     "init-data": true,
-  } as any) as unknown as Card;
+  } as unknown as Parameters<typeof cardInit>[3]) as unknown as Card;
   updateAllAdvancementRequirements(state);
   updateAllAgendaPoints(state);
   const c2 = getCard(state, initialised) as Card;
@@ -949,7 +962,7 @@ export function resolveScore(
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, _b: any) {
+      function (s: GameState, _e: EID, _b: unknown) {
         systemMsg(
           s,
           CORP_SIDE,
@@ -957,12 +970,12 @@ export function resolveScore(
         );
         implementationMsg(s, card);
         setProp(s, CORP_SIDE, getCard(s, c2) as Card, "advance-counter", 0);
-        const reg = (s.corp.register ?? {}) as any;
-        reg["scored-agenda"] = (reg["scored-agenda"] ?? 0) + points;
+        const reg = (s.corp.register ?? {}) as Record<string, unknown>;
+        reg["scored-agenda"] = ((reg["scored-agenda"] as number) ?? 0) + points;
         s.corp.register = reg;
         playSfx(s, side, "agenda-score");
         const onScore =
-          (cardDef(c2) as any)["on-score"] ?? (cardDef(c2) as any).onScore;
+          (cardDef(c2)["on-score"] ?? cardDef(c2).onScore) as Ability | undefined;
         if (onScore) registerPendingEvent(s, "agenda-scored", c2, onScore);
         queueEvent(s, "agenda-scored", {
           card: c2,
@@ -970,8 +983,8 @@ export function resolveScore(
           "advancement-requirement": advancementRequirement,
           "advancement-tokens": advancementTokens,
           points,
-        } as any);
-        checkpoint(s, null, eid, { duration: "agenda-scored" } as any);
+        });
+        checkpoint(s, null, eid, { duration: "agenda-scored" } as unknown as Parameters<typeof checkpoint>[3]);
       },
     ],
     [
@@ -992,27 +1005,35 @@ export function resolveScore(
   );
 }
 
+interface ScoreOpts {
+  noReq?: boolean;
+  ignoreTurn?: boolean;
+  ignoreAdv?: boolean;
+  [k: string]: unknown;
+}
+
 /** Score an agenda. Mirrors `score`. */
-export function score(eid: EID, card: Card | null, opts?: any): void;
+export function score(eid: EID, card: Card | null, opts?: ScoreOpts): void;
 export function score(state: GameState, side: string, eid: EID, card: Card): void;
-export function score(state: GameState, side: string, eid: EID, card: Card, opts: { noReq?: boolean; ignoreTurn?: boolean; ignoreAdv?: boolean; [k: string]: any } | null): void;
-export function score(...rawArgs: any[]): void {
+export function score(state: GameState, side: string, eid: EID, card: Card, opts: ScoreOpts | null): void;
+export function score(...rawArgs: unknown[]): void {
   // shorthand (eid, card, opts?) — no state, no-op
-  if (rawArgs.length <= 3 && rawArgs[0] && "id" in (rawArgs[0] as any) && !("title" in (rawArgs[0] as any))) {
+  const arg0 = rawArgs[0] as { id?: unknown; title?: unknown } | null;
+  if (rawArgs.length <= 3 && arg0 && "id" in arg0 && !("title" in arg0)) {
     return;
   }
   const state = rawArgs[0] as GameState;
   const side = rawArgs[1] as string;
   const eid = rawArgs[2] as EID;
   const card = rawArgs[3] as Card;
-  const opts = (rawArgs[4] as any) ?? undefined;
+  const opts = (rawArgs[4] as ScoreOpts | null | undefined) ?? undefined;
   if (!card) return;
   void opts;
   const noReq = opts?.noReq ?? false;
   const ignoreTurn = opts?.ignoreTurn ?? false;
   const ignoreAdv = opts?.ignoreAdv ?? false;
 
-  if (!canScore(state, side, card, { noReq, ignoreTurn, ignoreAdv } as any)) {
+  if (!canScore(state, side, card, { noReq, ignoreTurn } as { noReq?: boolean; ignoreTurn?: boolean })) {
     effectCompleted(state, side, eid);
     return;
   }
@@ -1025,7 +1046,7 @@ export function score(...rawArgs: any[]): void {
   const additionalEid = makeEIDFrom(state, {
     ...eid,
     additionalCosts: cost,
-  } as any);
+  } as EID & { additionalCosts?: CostData[] });
   const canPayResult = canPay(
     state,
     side,
@@ -1047,16 +1068,20 @@ export function score(...rawArgs: any[]): void {
     return;
   }
 
-  const payEid = makeEIDFrom(state, eid);
-  (payEid as any).additionalCosts = cost;
-  (payEid as any).source = card;
-  (payEid as any).sourceType = "corp-score";
+  const payEid = makeEIDFrom(state, eid) as EID & {
+    additionalCosts?: CostData[];
+    source?: Card;
+    sourceType?: string;
+  };
+  payEid.additionalCosts = cost;
+  payEid.source = card;
+  payEid.sourceType = "corp-score";
   wait_for(
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, binds: any) {
-        const paymentResult = binds.asyncResult as any;
+      function (s: GameState, _e: EID, binds: { asyncResult?: { msg?: string } }) {
+        const paymentResult = binds.asyncResult;
         const msg = paymentResult?.msg as string;
         if (!msg || msg.trim() === "") {
           effectCompleted(s, side, eid);

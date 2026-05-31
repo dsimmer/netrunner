@@ -17,6 +17,11 @@ export function factionLabel(card: { faction?: string }): string {
   return card.faction.toLowerCase().replace(/ /g, "-");
 }
 
+// Clojure form returns `nil` for unknown sides. We return "" so callers that
+// pipe through into string concatenation don't crash; the relevant card sites
+// (e.g. agendas_5.ts) always pass a known side. When the affected card files
+// are verified the call sites can be tightened and this can become `null`.
+// Tracked as a behavioural-gap in the prompts/jinteki-utils findings.
 export function otherSide(side: string): string {
   if (side === "corp" || side === ":corp") return "runner";
   if (side === "runner" || side === ":runner") return "corp";
@@ -98,28 +103,60 @@ export function selectNonNilKeys<T extends Record<string, unknown>>(
   return ret;
 }
 
-/** Counts bad publicity corp has (base + additional). */
-export function countBadPub(state: any): number {
-  return (state?.corp?.badPublicity?.base ?? state?.corp?.["bad-publicity"]?.base ?? 0) +
-         (state?.corp?.badPublicity?.additional ?? state?.corp?.["bad-publicity"]?.additional ?? 0);
+// Narrow read-only shape interfaces. Kept local to keep jinteki/* free of
+// the heavier `GameState` import (the .cljc namespace is shared between
+// server engine and client lobby, so it cannot pull from game/core).
+
+interface BadPubShape {
+  base?: number;
+  additional?: number;
 }
 
-export function hasBadPub(state: any): boolean {
+interface TagShape {
+  base?: number;
+  total?: number;
+  "is-tagged"?: boolean;
+  isTagged?: boolean;
+}
+
+interface CorpReadable {
+  badPublicity?: BadPubShape;
+  "bad-publicity"?: BadPubShape;
+}
+
+interface RunnerReadable {
+  tag?: TagShape;
+}
+
+interface StateReadable {
+  corp?: CorpReadable;
+  runner?: RunnerReadable;
+}
+
+/** Counts bad publicity corp has (base + additional). */
+export function countBadPub(state: StateReadable): number {
+  const corp = state?.corp;
+  const bp = corp?.badPublicity ?? corp?.["bad-publicity"];
+  return (bp?.base ?? 0) + (bp?.additional ?? 0);
+}
+
+export function hasBadPub(state: StateReadable): boolean {
   return countBadPub(state) > 0;
 }
 
 /** Counts total tags runner has. */
-export function countTags(state: any): number {
+export function countTags(state: StateReadable): number {
   return state?.runner?.tag?.total ?? 0;
 }
 
 /** Counts non-additional (base) tags runner has. */
-export function countRealTags(state: any): number {
+export function countRealTags(state: StateReadable): number {
   return state?.runner?.tag?.base ?? 0;
 }
 
-export function isTagged(state: any): boolean {
-  return !!(state?.runner?.tag?.["is-tagged"] || countTags(state) > 0);
+export function isTagged(state: StateReadable): boolean {
+  const tag = state?.runner?.tag;
+  return !!(tag?.["is-tagged"] || tag?.isTagged || countTags(state) > 0);
 }
 
 export interface CommandInfo {

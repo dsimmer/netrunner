@@ -30,8 +30,8 @@ function waitFor(
   next: (asyncResult: unknown, innerEid: EID) => void,
 ): void {
   const inner = makeEIDFrom(state, parentEid);
-  registerEIDCallback(state, inner, (_s: any, _side: any, completed: any) => {
-    next((completed as EID).result, completed as EID);
+  registerEIDCallback(state, inner, (_s: GameState, _side: string, completed: EID) => {
+    next(completed.result, completed);
   });
   start(inner);
 }
@@ -58,29 +58,25 @@ export function optionalAbility(
   targets: unknown[],
 ): void {
   const yesAbility =
-    (ability as any).yesAbility ?? (ability as any)["yes-ability"];
+    (ability.yesAbility as Ability | undefined) ??
+    (ability["yes-ability"] as Ability | undefined);
   const noAbility =
-    (ability as any).noAbility ?? (ability as any)["no-ability"];
+    (ability.noAbility as Ability | undefined) ??
+    (ability["no-ability"] as Ability | undefined);
   const endEffect =
-    (ability as any).endEffect ?? (ability as any)["end-effect"];
+    (ability.endEffect as AbilityFn | undefined) ??
+    (ability["end-effect"] as AbilityFn | undefined);
 
   const promptFn = (promptChoice: { value: string } | string): void => {
     const value =
       typeof promptChoice === "string" ? promptChoice : promptChoice?.value;
     const newEid = makeEIDFrom(state, eid);
     const canPayYes = yesAbility
-      ? canPay(
-          state,
-          side,
-          eid,
-          card,
-          card?.title ?? null,
-          (yesAbility as any).cost,
-        )
+      ? canPay(state, side, eid, card, card?.title ?? null, yesAbility.cost)
       : null;
     const abilityToDo =
       value === "Yes" && yesAbility && canPayYes
-        ? { ...(yesAbility as Ability), once: (ability as any).once }
+        ? { ...yesAbility, once: ability.once as string | undefined }
         : noAbility;
 
     waitFor(
@@ -91,7 +87,7 @@ export function optionalAbility(
           resolveAbility(
             state,
             side,
-            { ...(abilityToDo as Ability), eid: innerEid },
+            { ...abilityToDo, eid: innerEid },
             card,
             targets,
           );
@@ -101,37 +97,30 @@ export function optionalAbility(
       },
       () => {
         if (typeof endEffect === "function") {
-          (endEffect as AbilityFn)(
-            state,
-            side,
-            newEid,
-            card,
-            targets as Card[],
-          );
+          endEffect(state, side, newEid, card, targets as Card[]);
         }
         effectCompleted(state, side, eid);
       },
     );
   };
 
-  const autoresolveFn = (ability as any).autoresolve as
-    | ((
-        state: GameState,
-        side: string,
-        eid: EID,
-        card: Card | null,
-        targets: Card[],
-      ) => string | null | undefined)
-    | undefined;
+  type AutoresolveFn = (
+    state: GameState,
+    side: string,
+    eid: EID,
+    card: Card | null,
+    targets: Card[],
+  ) => string | null | undefined;
+  const autoresolveFn = ability.autoresolve as AutoresolveFn | undefined;
   const autoresolveAnswer = autoresolveFn
     ? autoresolveFn(state, side, eid, card, targets as Card[])
     : null;
 
-  const yesReq = (yesAbility as any)?.req as ReqFn | undefined;
+  const yesReq = yesAbility?.req as ReqFn | undefined;
   const yesReqOk = yesReq
-    ? (typeof yesReq === "function"
-        ? (yesReq as (...a: any[]) => any)(state, side, eid, card, targets as Card[])
-        : !!yesReq)
+    ? typeof yesReq === "function"
+      ? !!(yesReq as AbilityFn)(state, side, eid, card, targets as Card[])
+      : !!yesReq
     : true;
   const yesPayable = canPay(
     state,
@@ -139,7 +128,7 @@ export function optionalAbility(
     eid,
     card,
     card?.title ?? null,
-    (yesAbility as any)?.cost,
+    yesAbility?.cost,
   );
   const choices: string[] = [];
   if (yesPayable && yesReqOk) choices.push("Yes");
@@ -165,11 +154,11 @@ export function optionalAbility(
   showPrompt(
     state,
     side,
-    card as any,
-    message as any,
-    choices as any,
-    promptFn as any,
-    { eid, ...(ability as any), targets } as any,
+    card,
+    message ?? "",
+    choices,
+    promptFn as AbilityFn,
+    { eid, ...ability, targets },
   );
 }
 
@@ -185,19 +174,19 @@ function checkOptional(
   card: Card | null,
   targets: unknown[],
 ): void {
-  const eid = (ability as any).eid as EID;
-  const optional = (ability as any).optional as Ability;
-  if (optional && "async" in (optional as any)) {
+  const eid = ability.eid as EID;
+  const optional = ability.optional as Ability;
+  if (optional && "async" in optional) {
     throw new Error("Put :async in the :yes-ability");
   }
 
   if (canTrigger(state, side, eid, optional, card, targets)) {
     const stripped: Ability = { ...ability };
-    delete (stripped as any).optional;
-    delete (stripped as any).once;
-    delete (stripped as any).req;
+    delete stripped.optional;
+    delete stripped.once;
+    delete stripped.req;
 
-    const resolveSide = (optional as any).player ?? side;
+    const resolveSide = (optional.player as string | undefined) ?? side;
     const wrapped: Ability = {
       ...stripped,
       async: true,
@@ -213,7 +202,7 @@ function checkOptional(
           resolveSide,
           e,
           c,
-          (optional as any).prompt,
+          optional.prompt as string | undefined,
           optional,
           t,
         );
@@ -238,7 +227,7 @@ export function isNever(x: unknown): boolean {
 
 type AutoresolvePred =
   | Record<string, string | undefined>
-  | ((value: any) => any);
+  | ((value: unknown) => string | boolean | undefined);
 
 /**
  * Makes a card ability which lets the user toggle auto-resolve on an ability.
@@ -268,24 +257,17 @@ export function setAutoresolve(toggleKw: string, abilityName: string): Ability {
       const target = (targets?.[0] as unknown as string) ?? "";
       const newSetting = target.toLowerCase();
       if (card) {
-        (update as any)(
-          state,
-          side,
-          (c: Card) => {
-            const updated = { ...c };
-            (updated as any).special = {
-              ...((updated as any).special ?? {}),
-              [toggleKw]: newSetting,
-            };
-            return updated;
+        const updated: Card = {
+          ...card,
+          special: {
+            ...(card.special ?? {}),
+            [toggleKw]: newSetting,
           },
-          card,
-        );
+        };
+        update(state, side, updated);
       }
       const refreshed = card ? getCard(state, card) : null;
-      const setting = (refreshed as any)?.special?.[toggleKw] as
-        | string
-        | undefined;
+      const setting = refreshed?.special?.[toggleKw] as string | undefined;
       const verb = setting ? (labels[setting] ?? setting) : "";
       toast(
         state,
@@ -294,7 +276,7 @@ export function setAutoresolve(toggleKw: string, abilityName: string): Ability {
         "info",
       );
     },
-  } as unknown as Ability;
+  };
 }
 
 /**
@@ -305,28 +287,36 @@ export function setAutoresolve(toggleKw: string, abilityName: string): Ability {
  *
  * Mirrors `get-autoresolve`.
  */
-export function getAutoresolve(toggleKw: string, pred?: AutoresolvePred): (state: GameState, side: string, eid: EID, card: Card | null, targets: Card[]) => string | undefined;
-export function getAutoresolve(state: GameState, side: string, card: Card | null, toggleKw: string): (state: GameState, side: string, eid: EID, card: Card | null, targets: Card[]) => string | undefined;
-export function getAutoresolve(...rawArgs: any[]): any {
-  // 4-arg form: (state, side, card, toggleKw) — drop the state/side/card and use just the kw
-  if (rawArgs.length === 4 && typeof rawArgs[3] === "string") {
-    return _getAutoresolveImpl(rawArgs[3]);
-  }
-  return _getAutoresolveImpl(rawArgs[0], rawArgs[1]);
-}
-function _getAutoresolveImpl(
-  toggleKw: string,
-  pred: AutoresolvePred = { always: "Yes", never: "No" },
-): (
+type AutoresolveReader = (
   state: GameState,
   side: string,
   eid: EID,
   card: Card | null,
   targets: Card[],
-) => string | undefined {
+) => string | boolean | undefined;
+
+export function getAutoresolve(toggleKw: string, pred?: AutoresolvePred): AutoresolveReader;
+export function getAutoresolve(state: GameState, side: string, card: Card | null, toggleKw: string): AutoresolveReader;
+export function getAutoresolve(
+  arg1: string | GameState,
+  arg2?: string | AutoresolvePred,
+  arg3?: Card | null,
+  arg4?: string,
+): AutoresolveReader {
+  // 4-arg form: (state, side, card, toggleKw)
+  if (typeof arg4 === "string") {
+    return _getAutoresolveImpl(arg4);
+  }
+  return _getAutoresolveImpl(arg1 as string, arg2 as AutoresolvePred | undefined);
+}
+
+function _getAutoresolveImpl(
+  toggleKw: string,
+  pred: AutoresolvePred = { always: "Yes", never: "No" },
+): AutoresolveReader {
   return (state, _side, _eid, card, _targets) => {
     const refreshed = card ? getCard(state, card) : null;
-    const value = (refreshed as any)?.special?.[toggleKw];
+    const value = refreshed?.special?.[toggleKw];
     if (typeof pred === "function") {
       return pred(value);
     }

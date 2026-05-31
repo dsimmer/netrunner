@@ -5,7 +5,7 @@
 import type { GameState } from "./state";
 import type { Card } from "./card";
 import type { EID } from "./eid";
-import type { Ability, AbilityFn, CardDef, Server, Subroutine } from "./types";
+import type { Ability, AbilityFn, CardDef, Cost, Server, Subroutine } from "./types";
 import {
   isRunner,
   isProgram,
@@ -74,20 +74,22 @@ function updateInState(state: GameState, side: string, card: Card): void {
   const z = card.zone ?? [];
   if (z.length === 0) return;
 
-  const player: any = side === RUNNER_SIDE ? state.runner : state.corp;
+  const player = side === RUNNER_SIDE ? state.runner : state.corp;
   const zoneName = z[0];
 
-  // Facedown cards live in rig.facedown
-  if (zoneName === "rig" && isFacedown(card)) {
-    const idx = player.rig.facedown.findIndex((c: Card) => c.cid === card.cid);
-    if (idx !== -1) mergeProps(player.rig.facedown[idx], card);
+  // Facedown cards live in rig.facedown (runner-only)
+  if (zoneName === "rig" && isFacedown(card) && "rig" in player) {
+    const rig = (player as { rig: { facedown: Card[] } }).rig;
+    const idx = rig.facedown.findIndex((c: Card) => c.cid === card.cid);
+    if (idx !== -1) mergeProps(rig.facedown[idx], card);
     return;
   }
 
-  // Rig sub-zones
-  if (zoneName === "rig" && z.length >= 2) {
+  // Rig sub-zones (runner-only)
+  if (zoneName === "rig" && z.length >= 2 && "rig" in player) {
     const subzone = z[1];
-    const arr = (player.rig as Record<string, Card[]>)[subzone];
+    const rig = (player as unknown as { rig: Record<string, Card[]> }).rig;
+    const arr = rig[subzone];
     if (arr) {
       const idx = arr.findIndex((c) => c.cid === card.cid);
       if (idx !== -1) mergeProps(arr[idx], card);
@@ -123,7 +125,7 @@ function updateInState(state: GameState, side: string, card: Card): void {
     | "play-area"
     | "current"
     | "set-aside";
-  const arr = (player as any as Record<string, Card[]>)[zoneKey];
+  const arr = (player as unknown as Record<string, Card[]>)[zoneKey];
   if (arr && Array.isArray(arr)) {
     const idx = arr.findIndex((c) => c.cid === card.cid);
     if (idx !== -1) mergeProps(arr[idx], card);
@@ -148,7 +150,7 @@ function subroutinesInit(
   const subroutinesDef = cdef.subroutines ?? [];
   if (!state) {
     // No state available (e.g. during makeCard) - create basic wrappers
-    return subroutinesDef.map((sub: any) => ({
+    return subroutinesDef.map((sub: Subroutine) => ({
       ...sub,
       printed: true,
       broken: false,
@@ -158,7 +160,7 @@ function subroutinesInit(
   }
   // Full initialization with state
   const baseCard = { ...card, subroutines: undefined };
-  return subroutinesDef.map((sub: any) => buildSub(sub as any, baseCard.cid ?? "", { printed: true }) as any);
+  return subroutinesDef.map((sub: Subroutine) => buildSub(sub, baseCard.cid ?? "", { printed: true }));
 }
 
 // ---------------------------------------------------------------------------
@@ -171,7 +173,7 @@ function subroutinesInit(
  */
 export function abilityInit(cdef: CardDef): Ability[] {
   const abilities = cdef.abilities ?? [];
-  return abilities.map((ab: any) => {
+  return abilities.map((ab: Ability) => {
     const withLabel = { ...ab, label: makeLabel(ab) };
     return addCostLabelToAbility(withLabel) as unknown as Ability;
   }) as Ability[];
@@ -183,7 +185,7 @@ export function abilityInit(cdef: CardDef): Ability[] {
  */
 export function corpAbilityInit(cdef: CardDef): Ability[] {
   const abilities = cdef.corpAbilities ?? [];
-  return abilities.map((ab: any) => {
+  return abilities.map((ab: Ability) => {
     const withCost = { cost: ab.cost, label: makeLabel(ab) };
     return addCostLabelToAbility(withCost) as unknown as Ability;
   }) as Ability[];
@@ -195,14 +197,14 @@ export function corpAbilityInit(cdef: CardDef): Ability[] {
  */
 export function runnerAbilityInit(cdef: CardDef): Ability[] {
   const abilities = cdef.runnerAbilities ?? [];
-  return abilities.map((ab: any) => {
+  return abilities.map((ab: Ability) => {
     const cost = ab.breakCost ?? ab.cost;
     const withCost = {
       cost: ab.cost,
       breakCost: ab.breakCost,
       label: makeLabel(ab),
     };
-    return addCostLabelToAbility(withCost, cost as any) as unknown as Ability;
+    return addCostLabelToAbility(withCost, cost as unknown as Parameters<typeof addCostLabelToAbility>[1]) as unknown as Ability;
   }) as Ability[];
 }
 
@@ -327,12 +329,12 @@ export function cardInit(
   card: Card | null | undefined,
   args?: { resolveEffect?: boolean; initData?: boolean; noMu?: boolean; 'resolve-effect'?: boolean; 'init-data'?: boolean; 'no-mu'?: boolean } | null,
 ): Card {
-  if (!card) return card as any;
-  const argsAny = (args ?? {}) as any;
+  if (!card) return null as unknown as Card;
+  const argsRec = (args ?? {}) as Record<string, unknown>;
   const opts = {
-    resolveEffect: argsAny['resolve-effect'] ?? argsAny.resolveEffect ?? true,
-    initData: argsAny['init-data'] ?? argsAny.initData ?? true,
-    noMu: argsAny['no-mu'] ?? argsAny.noMu ?? false,
+    resolveEffect: (argsRec['resolve-effect'] as boolean | undefined) ?? (argsRec.resolveEffect as boolean | undefined) ?? true,
+    initData: (argsRec['init-data'] as boolean | undefined) ?? (argsRec.initData as boolean | undefined) ?? true,
+    noMu: (argsRec['no-mu'] as boolean | undefined) ?? (argsRec.noMu as boolean | undefined) ?? false,
   };
 
   const eid = makeEID(state);
@@ -404,7 +406,7 @@ export function cardInit(
 
   // Register recurring credit event
   if (recurring !== undefined && recurring !== null) {
-    const recurringFn: AbilityFn = (s: any, s2: any, e: any, cd: any, targets: any) => {
+    const recurringFn: AbilityFn = (s: GameState, s2: string, e: EID, cd: Card | null, targets: unknown[]) => {
       // Reset recurring counter
       if (cd) {
         if (!cd.counter) cd.counter = {};
@@ -426,7 +428,7 @@ export function cardInit(
     registerEvents(state, side, c, [
       {
         event: eventName,
-        req: (_s: any, _s2: any, _e: any, cd: any) => !cd?.disabled,
+        req: (_s: GameState, _s2: string, _e: EID, cd: Card | null) => !cd?.disabled,
         async: true,
         effect: recurringFn,
       },
@@ -490,13 +492,16 @@ function updateAbilityCostStr(
     if (ab.breakCost) {
       abCost = {
         ...ab,
-        cost: breakSubAbilityCost(state, side, ab as any, card) as any,
+        cost: breakSubAbilityCost(state, side, ab, card) as Cost[],
       };
     } else {
       abCost = ab;
     }
     const computedCost = cardAbilityCost(state, side, abCost, card);
-    return addCostLabelToAbility(abCost as any, computedCost as any) as unknown as Ability;
+    return addCostLabelToAbility(
+      abCost as unknown as Parameters<typeof addCostLabelToAbility>[0],
+      computedCost as unknown as Parameters<typeof addCostLabelToAbility>[1],
+    ) as unknown as Ability;
   }) as Ability[];
 }
 

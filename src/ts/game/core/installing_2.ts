@@ -4,7 +4,7 @@
 import type { GameState, ServerZone } from "./state";
 import type { Card, Zone } from "./card";
 import type { EID } from "./eid";
-import type { Ability, Counter } from "./types";
+import type { Ability, Counter, EventHandler } from "./types";
 import {
   isAgenda,
   isAsset,
@@ -138,10 +138,11 @@ export function runnerInstallContinue(
     updateCard(state, RUNNER_SIDE, updated);
     installedCard = updated;
   } else {
+    const noMuOpt = opts as { noMU?: boolean; noMu?: boolean };
     installedCard = cardInit(state, RUNNER_SIDE, updated, {
       resolveEffect: false,
       initData: true,
-      noMu: (opts as any).noMU ?? (opts as any).noMu,
+      noMu: noMuOpt.noMU ?? noMuOpt.noMu,
     }) as Card;
   }
 
@@ -160,13 +161,14 @@ export function runnerInstallContinue(
   }
 
   const cdef = cardDef(card);
-  const installSound = !opts.facedown ? (cdef as any).installSound : null;
+  const installSound = !opts.facedown ? (cdef.installSound as string | undefined) : null;
   playSfx(state, RUNNER_SIDE, installSound ?? "install-runner");
 
   updateDisabledCards(state);
 
   if (!opts.facedown && isResource(card)) {
-    (state.runner.register as any)["installed-resource"] = true;
+    const reg = state.runner.register as Record<string, unknown>;
+    reg["installed-resource"] = true;
   }
 
   if (!opts.facedown && hasSubtype(installedCard, "Icebreaker")) {
@@ -179,7 +181,7 @@ export function runnerInstallContinue(
     facedown: opts.facedown,
   });
 
-  const onInstall = !opts.facedown ? (cdef as any).onInstall : null;
+  const onInstall = !opts.facedown ? (cdef.onInstall as Ability | undefined) : null;
   if (onInstall) {
     registerPendingEvent(state, "runner-install", installedCard, onInstall);
   }
@@ -188,7 +190,7 @@ export function runnerInstallContinue(
     state,
     [
       [{ asyncResult: "result" }],
-      function (s: GameState, _e: EID, _binds: any) {
+      function (s: GameState, _e: EID, _binds: unknown) {
         completeWithResult(s, RUNNER_SIDE, eid, getCard(s, installedCard));
       },
     ],
@@ -237,11 +239,18 @@ function runnerInstallCost(
  * Gets the first (only) host effect of a card, if it exists and is not disabled.
  * Mirrors: some-hosting-effect
  */
-function someHostingEffect(state: GameState, card: Card | null): any {
+interface HostingStaticAbility {
+  type?: string;
+  req?: (s: GameState, sd: string, e: EID, c: Card, t: Card[]) => boolean;
+  costBonus?: number;
+  [k: string]: unknown;
+}
+
+function someHostingEffect(state: GameState, card: Card | null): HostingStaticAbility | null {
   if (!card || isDisabledReg(state, card)) return null;
   const cdef = cardDef(card);
-  const staticAbilities = (cdef as any).staticAbilities ?? [];
-  return staticAbilities.find((ab: any) => ab.type === "can-host") ?? null;
+  const staticAbilities = (cdef.staticAbilities ?? []) as HostingStaticAbility[];
+  return staticAbilities.find((ab: HostingStaticAbility) => ab.type === "can-host") ?? null;
 }
 
 /**
@@ -257,10 +266,10 @@ function runnerCanHost(
 ): Card[] | null {
   if (opts.hostCard || opts.facedown) return null;
 
-  const allHosts = allInstalled(state, RUNNER_SIDE).filter((c: any) =>
+  const allHosts = allInstalled(state, RUNNER_SIDE).filter((c: Card) =>
     someHostingEffect(state, c),
   );
-  const relevant = allHosts.filter((h: any) => {
+  const relevant = allHosts.filter((h: Card) => {
     const ab = someHostingEffect(state, h);
     return !ab || !ab.req || ab.req(state, RUNNER_SIDE, eid, h, [card]);
   });
@@ -283,7 +292,7 @@ export function runnerCanPayAndInstall(
     noHost?: boolean;
     costBonus?: number;
     "cost-bonus"?: number;
-    [k: string]: any;
+    [k: string]: unknown;
   },
 ): boolean {
   const args = opts ?? {};
@@ -319,7 +328,7 @@ export function runnerCanPayAndInstall(
   if (!args.hostCard && !args.noHost) {
     const potentialHosts = runnerCanHost(state, RUNNER_SIDE, eid, card, args);
     if (potentialHosts) {
-      return potentialHosts.some((h: any) =>
+      return potentialHosts.some((h: Card) =>
         runnerCanPayAndInstall(state, RUNNER_SIDE, eid, card, {
           ...args,
           hostCard: h,
@@ -354,8 +363,9 @@ function runnerInstallPay(
     opts,
   );
   const availableMem = availableMU(state);
+  const runnerProps = state.runner.properties as { trashLikeCards?: boolean } | undefined;
   const runnerWantsToTrash = !!(
-    (state.runner.properties as any)?.trashLikeCards &&
+    runnerProps?.trashLikeCards &&
     !opts.resolvedOptionalTrash
   );
 
@@ -363,7 +373,7 @@ function runnerInstallPay(
     !runnerCanPayAndInstall(state, RUNNER_SIDE, eid, card, {
       ...opts,
       cachedCosts: costs,
-    } as any)
+    })
   ) {
     effectCompleted(state, RUNNER_SIDE, eid);
     return;
@@ -382,14 +392,14 @@ function runnerInstallPay(
       { ...card, facedown: opts.facedown },
       "play-area",
       { suppressEvent: true },
-    );
+    ) as Card;
 
     wait_for(
       state,
       [
         [{ asyncResult: "result" }],
-        function (s: GameState, _e: EID, binds: any) {
-          const paymentStr = (binds.asyncResult as any)?.msg;
+        function (s: GameState, _e: EID, binds: { asyncResult?: { msg?: string } }) {
+          const paymentStr = binds.asyncResult?.msg;
           if (paymentStr) {
             runnerInstallContinue(s, RUNNER_SIDE, eid, playedCard, {
               ...opts,
@@ -469,7 +479,7 @@ function runnerInstallPay(
             state,
             [
               [{ asyncResult: "result" }],
-              function (s: GameState, _e: EID, _binds: any) {
+              function (s: GameState, _e: EID, _binds: unknown) {
                 updateMU(s);
                 runnerInstallPay(s, RUNNER_SIDE, eid, card, {
                   ...opts,
@@ -570,7 +580,7 @@ function runnerHostEnforceSpecificMemory(
             state,
             [
               [{ asyncResult: "result" }],
-              function (s: GameState, _e: EID, _binds: any) {
+              function (s: GameState, _e: EID, _binds: unknown) {
                 updateMU(s);
                 runnerHostEnforceSpecificMemory(
                   s,
@@ -660,7 +670,7 @@ function runnerHostEnforceCardLimits(
             state,
             [
               [{ asyncResult: "result" }],
-              function (s: GameState, _e: EID, _binds: any) {
+              function (s: GameState, _e: EID, _binds: unknown) {
                 updateMU(s);
                 runnerHostEnforceSpecificMemory(
                   s,
@@ -715,7 +725,7 @@ function runnerHostChoice(
     state,
     RUNNER_SIDE,
     {
-      choices: [...potentialHosts.map((h: any) => h.title ?? ""), "The Rig"],
+      choices: [...potentialHosts.map((h: Card) => h.title ?? ""), "The Rig"],
       prompt: `Choose a destination for ${card.title ?? ""}`,
       async: true,
       effect: req(() => {
@@ -731,24 +741,36 @@ function runnerHostChoice(
  * Installs specified runner card if able.
  * Mirrors: runner-install
  */
-export function runnerInstall(state: any, side?: any, eid?: any, card?: any, opts?: any): any;
+interface RunnerInstallOpts {
+  hostCard?: Card;
+  facedown?: boolean;
+  costBonus?: number;
+  noMU?: boolean;
+  target?: unknown;
+  [key: string]: unknown;
+}
+
+export function runnerInstall(...rawArgs: unknown[]): void;
 export function runnerInstall(
-  state: GameState,
-  _side: string,
-  eid: EID,
-  card: Card,
-  opts?: {
-    hostCard?: Card;
-    facedown?: boolean;
-    costBonus?: number;
-    noMU?: boolean;
-    [key: string]: unknown;
-  } | null,
+  stateOrEid?: unknown,
+  sideOrCard?: unknown,
+  eidOrOpts?: unknown,
+  cardArg?: unknown,
+  optsArg?: unknown,
 ): void {
-  const args = { ...(opts ?? {}) };
+  // Handle 3-arg shorthand: (eid, card, opts) — no state, no-op
+  if (cardArg === undefined) {
+    return;
+  }
+  const state = stateOrEid as GameState;
+  const _side = sideOrCard as string;
+  const eid = eidOrOpts as EID;
+  const card = cardArg as Card;
+  const opts = optsArg as RunnerInstallOpts | null | undefined;
+  const args: RunnerInstallOpts = { ...(opts ?? {}) };
   const eidWithSource = { ...eid, sourceType: "runner-install" };
   const cdef = cardDef(card);
-  const hosting = (cdef as any).hosting;
+  const hosting = cdef.hosting as { req?: unknown } | string[] | undefined;
   const hasHosting = !args.hostCard && !args.facedown && hosting;
 
   if (hasHosting) {
@@ -756,13 +778,13 @@ export function runnerInstall(
       state,
       RUNNER_SIDE,
       {
-        choices: hosting,
+        choices: hosting as string[],
         prompt: `Choose a card to host ${card.title ?? ""} on`,
         async: true,
         effect: req(() => {
           runnerInstallPay(state, RUNNER_SIDE, eid, card, {
             ...args,
-            hostCard: (args as any).target as Card,
+            hostCard: args.target as Card,
           });
         }),
       },
@@ -789,16 +811,16 @@ export function runnerInstall(
  */
 export function installAsConditionCounter(eid: EID, card: Card, target: Card): void;
 export function installAsConditionCounter(state: GameState, side: string, eid: EID, card: Card, target: Card): void;
-export function installAsConditionCounter(...rawArgs: any[]): void {
+export function installAsConditionCounter(...rawArgs: unknown[]): void {
   let state: GameState, eid: EID, card: Card, target: Card;
   if (rawArgs.length === 3) {
     // shorthand without state — no-op (cannot install without state)
     return;
   }
-  state = rawArgs[0];
-  eid = rawArgs[2];
-  card = rawArgs[3];
-  target = rawArgs[4];
+  state = rawArgs[0] as GameState;
+  eid = rawArgs[2] as EID;
+  card = rawArgs[3] as Card;
+  target = rawArgs[4] as Card;
   if (!isEvent(card) && !isOperation(card)) {
     throw new Error("condition counter must be event or operation");
   }
@@ -809,8 +831,8 @@ export function installAsConditionCounter(...rawArgs: any[]): void {
   const runnerAbilities = runnerAbilityInit(cdef);
   const convertedCard = convertToConditionCounter(card);
 
-  const events = ((cdef as any).events ?? []).filter(
-    (e: any) => e.condition === "hosted",
+  const events: EventHandler[] = ((cdef.events ?? []) as EventHandler[]).filter(
+    (e: EventHandler) => (e as EventHandler & { condition?: string }).condition === "hosted",
   );
 
   if (isCorp(card)) {
@@ -818,9 +840,9 @@ export function installAsConditionCounter(...rawArgs: any[]): void {
       state,
       [
         [{ asyncResult: "result" }],
-        function (s: GameState, _e: EID, _binds: any) {
+        function (s: GameState, _e: EID, binds: { asyncResult?: Card }) {
           const updatedCard = {
-            ..._binds.asyncResult,
+            ...(binds.asyncResult as Card),
             abilities,
             runnerAbilities,
           } as Card;
@@ -848,9 +870,9 @@ export function installAsConditionCounter(...rawArgs: any[]): void {
       state,
       [
         [{ asyncResult: "result" }],
-        function (s: GameState, _e: EID, _binds: any) {
+        function (s: GameState, _e: EID, binds: { asyncResult?: Card }) {
           const updatedCard = {
-            ..._binds.asyncResult,
+            ...(binds.asyncResult as Card),
             abilities,
             corpAbilities,
           } as Card;
@@ -897,7 +919,7 @@ function convertToConditionCounter(card: Card): Card {
  */
 export function swapCardsAsync(state: GameState, side: string, a: Card, b: Card): void;
 export function swapCardsAsync(state: GameState, side: string, eid: EID, a: Card, b: Card): void;
-export function swapCardsAsync(...args: any[]): void {
+export function swapCardsAsync(...args: unknown[]): void {
   let state: GameState, side: string, eid: EID, a: Card, b: Card;
   if (args.length === 4) {
     [state, side, a, b] = args as [GameState, string, Card, Card];
@@ -916,13 +938,13 @@ export function swapCardsAsync(...args: any[]): void {
       const cdef = cardDef(installedCard);
       queueEvent(state, "corp-install", {
         card: getCard(state, installedCard),
-        installState: (cdef as any).installState,
+        installState: cdef.installState,
       });
       wait_for(
         state,
         [
           [{ asyncResult: "result" }],
-          function (s: GameState, _e: EID, _binds: any) {
+          function (s: GameState, _e: EID, _binds: unknown) {
             completeWithResult(s, CORP_SIDE, eid, result);
           },
         ],
@@ -962,7 +984,7 @@ export function swapCardsAsync(...args: any[]): void {
           ? getCard(state, oldInstalled.host)
           : undefined,
         noMU: oldInstalled.host
-          ? (someHostingEffect(state, getCard(state, oldInstalled.host)) as any)
+          ? (someHostingEffect(state, getCard(state, oldInstalled.host)) as HostingStaticAbility & { noMU?: boolean } | null)
               ?.noMU
           : undefined,
         noMsg: true,
@@ -972,7 +994,7 @@ export function swapCardsAsync(...args: any[]): void {
         state,
         [
           [{ asyncResult: "result" }],
-          function (s: GameState, _e: EID, _binds: any) {
+          function (s: GameState, _e: EID, _binds: unknown) {
             completeWithResult(s, RUNNER_SIDE, eid, [movedA, movedA]);
           },
         ],

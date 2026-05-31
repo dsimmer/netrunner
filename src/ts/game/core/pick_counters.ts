@@ -40,8 +40,8 @@ function waitFor(
   next: (asyncResult: unknown, innerEid: EID) => void,
 ): void {
   const inner = makeEIDFrom(state, parentEid);
-  registerEIDCallback(state, inner, (_s: any, _side: any, completed: any) => {
-    next((completed as EID).result, completed as EID);
+  registerEIDCallback(state, inner, (_s: GameState, _side: string, completed: EID) => {
+    next(completed.result, completed);
   });
   start(inner);
 }
@@ -51,11 +51,11 @@ function continueAbility(
   state: GameState,
   side: string,
   eid: EID,
-  ability: any,
+  ability: Ability,
   card: Card | null,
-  targets: any[],
+  targets: unknown[],
 ): void {
-  resolveAbility(state, side, { ...ability, eid } as Ability, card, targets);
+  resolveAbility(state, side, { ...ability, eid }, card, targets);
 }
 
 // ---------------------------------------------------------------------------
@@ -179,18 +179,15 @@ export function pickVirusCountersToSpend(
       side: string,
       eid: EID,
       card: Card | null,
-      targets: any[],
+      targets: unknown[],
     ) => {
-      const target = (update as any)(
-        state,
-        "runner",
-        (t: Card) => {
-          const counter = { ...(t.counter ?? {}) };
-          counter["virus"] = (counter["virus"] ?? 0) - 1;
-          return { ...t, counter } as Card;
-        },
-        targets[0] as Card,
-      ) ?? (targets[0] as Card);
+      const orig = targets[0] as Card;
+      const updated: Card = {
+        ...orig,
+        counter: { ...(orig.counter ?? {}), virus: (orig.counter?.virus ?? 0) - 1 },
+      };
+      update(state, "runner", updated);
+      const target = updated;
       const newSelected: SelectedMap = { ...selectedCards };
       const prev = newSelected[target.cid] ?? { card: target, number: 0 };
       newSelected[target.cid] = {
@@ -211,11 +208,11 @@ export function pickVirusCountersToSpend(
             newCount,
           ),
           card,
-          null as any,
+          [],
         );
       } else {
         const message = enumerateStr(
-          Object.values(newSelected).map((s: any) => {
+          Object.values(newSelected).map((s: SelectedEntry) => {
             const { card: c, number } = s;
             return `${quantify(number, "virus counter")} from ${c.title ?? ""}`;
           }),
@@ -240,26 +237,22 @@ export function pickVirusCountersToSpend(
         side: string,
         eid: EID,
         _card: Card | null,
-        _targets: any[],
+        _targets: unknown[],
       ) => {
         if (targetCount != null) {
           // Refund counters
           for (const { card: c, number } of Object.values(selectedCards)) {
-            (update as any)(
-              state,
-              "runner",
-              (t: Card) => {
-                const counter = { ...(t.counter ?? {}) };
-                counter["virus"] = (counter["virus"] ?? 0) + number;
-                return { ...t, counter } as Card;
-              },
-              getCard(state, c) as Card,
-            );
+            const fresh = getCard(state, c) ?? c;
+            const restored: Card = {
+              ...fresh,
+              counter: { ...(fresh.counter ?? {}), virus: (fresh.counter?.virus ?? 0) + number },
+            };
+            update(state, "runner", restored);
           }
           completeWithResult(state, side, eid, "cancel");
         } else {
           const message = enumerateStr(
-            Object.values(selectedCards).map((s: any) => {
+            Object.values(selectedCards).map((s: SelectedEntry) => {
               const { card: c, number } = s;
               return `${quantify(number, "virus counter")} from ${c.title ?? ""}`;
             }),
@@ -312,7 +305,7 @@ type EffectFn = (
   side: string,
   eid: EID,
   card: Card | null,
-  targets: any[],
+  targets: unknown[],
 ) => void;
 
 /**
@@ -325,7 +318,7 @@ function takeCountersOfType(counterType: string): EffectFn {
       const counter = { ...(card.counter ?? {}) };
       counter[counterType] = getCounters(card, counterType) - 1;
       const updated = { ...card, counter } as Card;
-      (update as any)(state, side, () => updated, card);
+      update(state, side, updated);
     }
     completeWithResult(state, side, eid, 1);
   };
@@ -345,7 +338,7 @@ function useCard(uses: UsesMap, card: Card, asyncRes: unknown): UsesMap {
         [card.cid]: { ...uses[card.cid], used: uses[card.cid].used + 1 },
       };
     }
-    const cdef = cardDef(card) as any;
+    const cdef = cardDef(card) as { interactions?: { "pay-credits"?: { "max-uses"?: number; type?: string; "cost-reduction"?: unknown; custom?: EffectFn } } };
     const maxUses = cdef?.interactions?.["pay-credits"]?.["max-uses"] ?? 99;
     return {
       ...uses,
@@ -410,9 +403,9 @@ export function pickCreditReducers(
   let providerCards = providerFunc();
   const allUsedUp = (cid: string): boolean =>
     (uses[cid]?.used ?? 0) >= (uses[cid]?.["max-uses"] ?? 1);
-  providerCards = providerCards.filter((c: any) => !allUsedUp(c.cid));
-  const discountProvider = providerCards.filter((c: any) => {
-    const cdef = cardDef(c) as any;
+  providerCards = providerCards.filter((c: Card) => !allUsedUp(c.cid));
+  const discountProvider = providerCards.filter((c: Card) => {
+    const cdef = cardDef(c) as { interactions?: { "pay-credits"?: { "cost-reduction"?: unknown } } };
     return cdef?.interactions?.["pay-credits"]?.["cost-reduction"];
   });
 
@@ -424,7 +417,7 @@ export function pickCreditReducers(
         side: string,
         eid: EID,
         _card: Card | null,
-        _targets: any[],
+        _targets: unknown[],
       ) => {
         const targets: Card[] = [];
         for (const v of Object.values(selectedCards)) {
@@ -444,7 +437,7 @@ export function pickCreditReducers(
     choices: {
       card: (c: Card) =>
         inColl(
-          discountProvider.map((p: any) => p.cid),
+          discountProvider.map((p: Card) => p.cid),
           c.cid,
         ),
     },
@@ -453,15 +446,15 @@ export function pickCreditReducers(
       side: string,
       eid: EID,
       card: Card | null,
-      targets: any[],
+      targets: unknown[],
     ) => {
       const target = targets[0] as Card;
-      const cdef = cardDef(target) as any;
+      const cdef = cardDef(target) as { interactions?: { "pay-credits"?: { type?: string; custom?: EffectFn } } };
       const payCreditsType = cdef?.interactions?.["pay-credits"]?.type;
       const payFunction: EffectFn =
         payCreditsType === "custom"
-          ? cdef.interactions["pay-credits"].custom
-          : takeCountersOfType(payCreditsType);
+          ? (cdef.interactions!["pay-credits"]!.custom as EffectFn)
+          : takeCountersOfType(payCreditsType ?? "");
       const customAbility = {
         async: true,
         effect: payFunction,
@@ -517,7 +510,7 @@ export function pickCreditReducers(
         side: string,
         eid: EID,
         _card: Card | null,
-        _targets: any[],
+        _targets: unknown[],
       ) => {
         const targets: Card[] = [];
         for (const v of Object.values(selectedCards)) {
@@ -560,9 +553,9 @@ export function pickCreditProvidingCards(
   const bps = badPubSpent ?? 0;
 
   const counterCount =
-    Object.values(sel).reduce((acc: any, s: any) => acc + (s?.number ?? 0), 0) +
+    Object.values(sel).reduce((acc: number, s: SelectedEntry) => acc + (s?.number ?? 0), 0) +
     (bps || 0);
-  const selectedStealth = Object.values(sel).filter((s: any) =>
+  const selectedStealth = Object.values(sel).filter((s: SelectedEntry) =>
     hasSubtype(s.card, "Stealth"),
   );
   const stealthCount = selectedStealth.reduce(
@@ -571,13 +564,13 @@ export function pickCreditProvidingCards(
   );
   let provCards =
     tc != null && counterCount - tc === stealthCount - st
-      ? providerFunc().filter((c: any) => hasSubtype(c, "Stealth"))
+      ? providerFunc().filter((c: Card) => hasSubtype(c, "Stealth"))
       : providerFunc();
   const allUsedUp = (cid: string): boolean =>
     (us[cid]?.used ?? 0) >= (us[cid]?.["max-uses"] ?? 99);
-  provCards = provCards.filter((c: any) => !allUsedUp(c.cid));
-  provCards = provCards.filter((c: any) => {
-    const cdef = cardDef(c) as any;
+  provCards = provCards.filter((c: Card) => !allUsedUp(c.cid));
+  provCards = provCards.filter((c: Card) => {
+    const cdef = cardDef(c) as { interactions?: { "pay-credits"?: { "cost-reduction"?: unknown } } };
     return !cdef?.interactions?.["pay-credits"]?.["cost-reduction"];
   });
   const canUseBadPub = bpa > 0 && st !== tc;
@@ -591,20 +584,21 @@ export function pickCreditProvidingCards(
       [],
     );
   // Allows holding shift while clicking a card to keep picking that card while possible
-  const shouldAutoRepeat = (state: GameState, side: string): boolean =>
-    !!(state as any)[side]?.["shift-key-select"];
+  const shouldAutoRepeat = (state: GameState, side: string): boolean => {
+    const player = side === "corp" || side === ":corp" ? state.corp : state.runner;
+    return !!(player as unknown as { "shift-key-select"?: boolean })["shift-key-select"];
+  };
 
   const payRest: EffectFn = (state, side, eid, card, _targets) => {
-    const sidePool = canUseCredits(state, side)
-      ? ((state as any)[side]?.credit ?? 0)
-      : 0;
+    const player = side === "corp" || side === ":corp" ? state.corp : state.runner;
+    const sidePool = canUseCredits(state, side) ? (player.credit ?? 0) : 0;
     if (tc != null && tc - counterCount <= sidePool && st <= stealthCount) {
       const remainder = Math.max(0, tc - counterCount);
       const remainderStr = remainder > 0 ? `${remainder} [Credits]` : "";
       const haveCardStrs = Object.keys(sel).length > 0 || bps > 0;
       const cardStrs = haveCardStrs
         ? enumerateStr([
-            ...Object.values(sel).map((s: any) => {
+            ...Object.values(sel).map((s: SelectedEntry) => {
               const { card: c, number } = s;
               return `${number} [Credits] from ${c.title ?? ""}`;
             }),
@@ -621,9 +615,9 @@ export function pickCreditProvidingCards(
       }
       lose(state, side, "credit", remainder);
       const cards = Object.values(sel)
-        .map((s: any) => s.card)
-        .filter((c: any) => {
-          const cdef = cardDef(c) as any;
+        .map((s: SelectedEntry) => s.card)
+        .filter((c: Card) => {
+          const cdef = cardDef(c) as { interactions?: { "pay-credits"?: { "cost-reduction"?: unknown } } };
           return !cdef?.interactions?.["pay-credits"]?.["cost-reduction"];
         });
       waitFor(
@@ -663,7 +657,7 @@ export function pickCreditProvidingCards(
           bps,
         ),
         card,
-        null as any,
+        [],
       );
     }
   };
@@ -681,7 +675,7 @@ export function pickCreditProvidingCards(
     pc &&
     ((pc !== "bad-publicity" &&
       inColl(
-        provCards.map((c: any) => c.cid),
+        provCards.map((c: Card) => c.cid),
         pc.cid,
       )) ||
       pc === "bad-publicity")
@@ -693,7 +687,7 @@ export function pickCreditProvidingCards(
         side: string,
         eid: EID,
         card: Card | null,
-        targets: any[],
+        targets: unknown[],
       ) => {
         const target = targets[0];
         if (target === "bad-publicity" || pc === "bad-publicity") {
@@ -719,12 +713,12 @@ export function pickCreditProvidingCards(
           );
         } else {
           const tgt = pc as Card;
-          const cdef = cardDef(tgt) as any;
+          const cdef = cardDef(tgt) as { interactions?: { "pay-credits"?: { type?: string; custom?: EffectFn } } };
           const payCreditsType = cdef?.interactions?.["pay-credits"]?.type;
           const payFunction: EffectFn =
             payCreditsType === "custom"
-              ? cdef.interactions["pay-credits"].custom
-              : takeCountersOfType(payCreditsType);
+              ? (cdef.interactions!["pay-credits"]!.custom as EffectFn)
+              : takeCountersOfType(payCreditsType ?? "");
           const customAbility = {
             async: true,
             effect: payFunction,
@@ -791,7 +785,7 @@ export function pickCreditProvidingCards(
     choices: {
       card: (c: Card) =>
         inColl(
-          provCards.map((p: any) => p.cid),
+          provCards.map((p: Card) => p.cid),
           c.cid,
         ),
     },
@@ -800,7 +794,7 @@ export function pickCreditProvidingCards(
       side: string,
       eid: EID,
       card: Card | null,
-      targets: any[],
+      targets: unknown[],
     ) => {
       const target = targets[0];
       if (target === "bad-publicity") {
@@ -824,12 +818,12 @@ export function pickCreditProvidingCards(
         );
       } else {
         const tgt = target as Card;
-        const cdef = cardDef(tgt) as any;
+        const cdef = cardDef(tgt) as { interactions?: { "pay-credits"?: { type?: string; custom?: EffectFn } } };
         const payCreditsType = cdef?.interactions?.["pay-credits"]?.type;
         const payFunction: EffectFn =
           payCreditsType === "custom"
-            ? cdef.interactions["pay-credits"].custom
-            : takeCountersOfType(payCreditsType);
+            ? (cdef.interactions!["pay-credits"]!.custom as EffectFn)
+            : takeCountersOfType(payCreditsType ?? "");
         const customAbility = {
           async: true,
           effect: payFunction,

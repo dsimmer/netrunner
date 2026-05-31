@@ -19,6 +19,7 @@ import {
 import { getPlayer } from "./state";
 import type { Corp, Runner } from "./state";
 import { getCardDef } from "./types";
+import type { AbilityFn } from "./types";
 import { registerStaticAbilities, unregisterStaticAbilities } from "./effects";
 import { makeEID } from "./eid";
 import {
@@ -89,7 +90,7 @@ function actualDisableIdentity(state: GameState, side: string): void {
 export function disableIdentity(state: GameState, side: string): void {
   const identity = getIdentity(state, side);
   if (!identity) return;
-  const disableCount = ((identity as any).numDisables ?? 0) + 1;
+  const disableCount = ((identity.numDisables as number | undefined) ?? 0) + 1;
   const id = updateIdentity(state, side, {
     ...identity,
     numDisables: disableCount,
@@ -105,10 +106,12 @@ export function disableIdentity(state: GameState, side: string): void {
  */
 export function disableCard(state: GameState, side: string, card: Card): void {
   deactivate(state, side, card);
-  const c: Card = ((update as any)(state, side, (c: Card) => ({ ...c, disabled: true }), card) as Card) ?? card;
-  const cdef = getCardDef(c);
-  if (cdef.disable) {
-    (cdef.disable as any)(state, side, makeEID(state), c, []);
+  const updated = { ...card, disabled: true };
+  update(state, side, updated);
+  const cdef = getCardDef(updated);
+  const disableFn = cdef.disable as AbilityFn | undefined;
+  if (typeof disableFn === "function") {
+    disableFn(state, side, makeEID(state), updated, []);
   }
 }
 
@@ -133,7 +136,7 @@ function actualEnableIdentity(state: GameState, side: string): void {
 export function enableIdentity(state: GameState, side: string): void {
   const identity = getIdentity(state, side);
   if (!identity) return;
-  const disableCount = ((identity as any).numDisables ?? 1) - 1;
+  const disableCount = ((identity.numDisables as number | undefined) ?? 1) - 1;
   const id = updateIdentity(state, side, {
     ...identity,
     numDisables: disableCount,
@@ -149,15 +152,11 @@ export function enableIdentity(state: GameState, side: string): void {
  */
 export function enableCard(state: GameState, side: string, card: Card): void {
   if (!card.disabled) return;
-  const c: Card | null = ((update as any)(
-    state,
-    side,
-    (c: Card) => {
-      const { disabled, ...rest } = c;
-      return rest as Card;
-    },
-    card,
-  ) as Card | null) ?? card;
+  const { disabled: _disabled, ...rest } = card;
+  void _disabled;
+  const updated = rest as Card;
+  update(state, side, updated);
+  const c: Card = updated;
   if (active(card)) {
     cardInit(state, side, c, { resolveEffect: false });
   }

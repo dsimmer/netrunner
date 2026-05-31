@@ -109,15 +109,24 @@ export function getEffects(
   target?: Card | null,
   extraTargets?: Card[],
 ): unknown[] {
-  target = target ?? null;
-  extraTargets = extraTargets ?? [];
+  const t = target ?? null;
+  const extras = extraTargets ?? [];
   const eid = makeEID(state);
-  const targets: Card[] = target
-    ? [target, ...extraTargets]
-    : [...extraTargets];
+  const targets: Card[] = t ? [t, ...extras] : [...extras];
   const maps = getEffectMaps(state, side, effectType, eid, targets);
-  return maps.map((e: any) => getEffectValue(state, side, eid, targets, e));
+  return maps.map((e) => getEffectValue(state, side, eid, targets, e));
 }
+
+/**
+ * A tagged effect value — opaque payload plus the source cid and effect uuid
+ * so downstream code can correlate tagged values back to the registered
+ * effect. Mirrors the assoc shape in `get-tagged-effect-value`.
+ */
+export type TaggedEffectValue = Record<string, unknown> & {
+  cid?: string;
+  uuid?: string;
+  value?: unknown;
+};
 
 /**
  * Returns the resolved values of all matching effects, each tagged with the
@@ -130,19 +139,23 @@ export function getTaggedEffects(
   effectType: string,
   target: Card | null,
   extraTargets: Card[],
-): any[] {
+): TaggedEffectValue[] {
   const eid = makeEID(state);
   const targets: Card[] = target
     ? [target, ...extraTargets]
     : [...extraTargets];
   const maps = getEffectMaps(state, side, effectType, eid, targets);
-  return maps.map((e: any) => {
+  return maps.map((e) => {
     const raw =
-      typeof e.value === "function" ? e.value(state, side, eid, e.card, targets) : e.value;
-    const tagged: any =
-      raw && typeof raw === "object" ? { ...(raw as object) } : { value: raw };
-    tagged.cid = e.card?.cid;
-    tagged.uuid = e.uuid;
+      typeof e.value === "function"
+        ? e.value(state, side, eid, e.card, targets)
+        : e.value;
+    const tagged: TaggedEffectValue =
+      raw && typeof raw === "object"
+        ? { ...(raw as Record<string, unknown>) }
+        : { value: raw };
+    if (e.card?.cid) tagged.cid = e.card.cid;
+    if (e.uuid) tagged.uuid = e.uuid;
     return tagged;
   });
 }
@@ -176,29 +189,30 @@ export function sumEffects(
 
 /**
  * Returns true if any effect satisfies pred.
- * Mirrors: any-effects in effects.clj
+ * Mirrors: any-effects in effects.clj — clj signature is
+ *   ([state side effect-type])                        ; pred defaults to true?
+ *   ([state side effect-type pred])                   ; target defaults to nil
+ *   ([state side effect-type pred target])            ; targets defaults to nil
+ *   ([state side effect-type pred target targets])
+ * The TS dispatch keeps the canonical 6-arg shape and infers omitted args from
+ * arity. When `pred` is omitted, defaults to `(v) => v === true` (matching
+ * Clojure's `true?`).
  */
 export function anyEffects(
   state: GameState,
   side: string,
   effectType: string,
-  pred?: ((v: unknown) => boolean) | Card | null,
+  pred?: ((v: unknown) => boolean) | null,
   target?: Card | null,
   extraTargets?: Card[],
 ): boolean {
-  // Support call forms (state, side, effectType) and (state, side, effectType, target)
-  let actualPred: (v: unknown) => boolean = () => true;
-  let actualTarget: Card | null = null;
-  let actualExtras: Card[] = [];
-  if (typeof pred === "function") {
-    actualPred = pred;
-    actualTarget = target ?? null;
-    actualExtras = extraTargets ?? [];
-  } else {
-    actualTarget = (pred ?? null) as Card | null;
-    actualExtras = (target ? [target as Card] : []);
-  }
-  return getEffects(state, side, effectType, actualTarget, actualExtras).some(actualPred);
+  const actualPred: (v: unknown) => boolean =
+    typeof pred === "function" ? pred : (v: unknown) => v === true;
+  const actualTarget: Card | null = target ?? null;
+  const actualExtras: Card[] = extraTargets ?? [];
+  return getEffects(state, side, effectType, actualTarget, actualExtras).some(
+    actualPred,
+  );
 }
 
 /**
@@ -286,8 +300,8 @@ export function unregisterStaticAbilities(
 }
 
 /**
- * Registers a lingering (duration-bound) effect.
- * Mirrors: register-lingering-effect in effects.clj
+ * Spec object passed to `registerLingeringEffect`. Mirrors the keyword-map
+ * argument used in clj `register-lingering-effect`.
  */
 interface LingeringEffectSpec {
   type: string;
@@ -297,6 +311,21 @@ interface LingeringEffectSpec {
   ability?: unknown;
 }
 
+/**
+ * Type guard distinguishing a Card from a GameState for the 2-arg shorthand.
+ * A Card has a `cid` field; GameState does not.
+ */
+function isCardLike(v: unknown): v is Card {
+  return typeof v === "object" && v !== null && "cid" in v && !("eidCounter" in v);
+}
+
+/**
+ * Registers a lingering (duration-bound) effect.
+ * Mirrors: register-lingering-effect in effects.clj. Clj signature is
+ * `(state _ card ability)`; TS additionally supports a (card, spec) shorthand
+ * used by a few cards that don't have state in scope (effect is built but not
+ * persisted — caller must reattach).
+ */
 export function registerLingeringEffect(card: Card, spec: LingeringEffectSpec): Effect;
 export function registerLingeringEffect(
   state: GameState,
@@ -307,54 +336,60 @@ export function registerLingeringEffect(
 export function registerLingeringEffect(
   state: GameState,
   side: string,
-  card: Card,
+  card: Card | null,
   effectType: string,
   duration: string,
   req: ReqFn | null,
   value: ValueFn,
 ): Effect;
-export function registerLingeringEffect(...args: any[]): Effect {
-  // Overload normalization
+export function registerLingeringEffect(
+  stateOrCard: GameState | Card,
+  sideOrSpec: string | LingeringEffectSpec,
+  cardOrUndefined?: Card | null,
+  specOrType?: LingeringEffectSpec | string,
+  durationOrUndef?: string,
+  reqOrUndef?: ReqFn | null,
+  valueOrUndef?: ValueFn,
+): Effect {
   let state: GameState | undefined;
-  let card: Card;
-  let effectType: string;
-  let duration: string;
-  let req: ReqFn | null = null;
-  let value: Effect["value"];
-  if (args.length === 2) {
-    // (card, spec)
-    card = args[0];
-    const spec = args[1] as LingeringEffectSpec;
-    effectType = spec.type;
-    duration = spec.duration ?? "true";
-    req = (spec.req ?? null) as ReqFn | null;
-    value = spec.value as Effect["value"];
-  } else if (args.length === 4) {
+  let card: Card | null;
+  let spec: LingeringEffectSpec;
+  if (valueOrUndef !== undefined && typeof specOrType === "string") {
+    // 7-arg positional: (state, side, card, type, duration, req, value)
+    state = stateOrCard as GameState;
+    card = cardOrUndefined ?? null;
+    spec = {
+      type: specOrType,
+      duration: durationOrUndef,
+      req: reqOrUndef ?? null,
+      value: valueOrUndef,
+    };
+  } else if (
+    cardOrUndefined !== undefined &&
+    specOrType !== undefined &&
+    typeof specOrType !== "string"
+  ) {
     // (state, side, card, spec)
-    state = args[0];
-    card = args[2];
-    const spec = args[3] as LingeringEffectSpec;
-    effectType = spec.type;
-    duration = spec.duration ?? "true";
-    req = (spec.req ?? null) as ReqFn | null;
-    value = spec.value as Effect["value"];
+    state = stateOrCard as GameState;
+    card = cardOrUndefined;
+    spec = specOrType;
+  } else if (isCardLike(stateOrCard)) {
+    // (card, spec)
+    card = stateOrCard;
+    spec = sideOrSpec as LingeringEffectSpec;
   } else {
-    // legacy positional (state, side, card, type, duration, req, value)
-    state = args[0];
-    card = args[2];
-    effectType = args[3];
-    duration = args[4];
-    req = args[5];
-    value = args[6] as Effect["value"];
+    throw new Error("registerLingeringEffect: invalid call shape");
   }
+  if (!("type" in spec)) throw new Error("registerLingeringEffect: missing :type");
+  if (!("value" in spec)) throw new Error("registerLingeringEffect: missing :value");
   const e: Effect = {
     uuid: randomUUID(),
-    type: effectType,
-    req: req ?? undefined,
-    value,
-    duration: duration || "true",
+    type: spec.type,
+    req: (spec.req ?? undefined) as ReqFn | undefined,
+    value: spec.value as Effect["value"],
+    duration: spec.duration ?? "true",
     lingering: true,
-    card,
+    card: card as Card,
   };
   if (state) {
     state.effects.push(e);
@@ -368,7 +403,7 @@ export function registerLingeringEffect(...args: any[]): Effect {
  * Mirrors: unregister-effect-by-uuid in effects.clj
  */
 export function unregisterEffectByUUID(state: GameState, uuid: string): void {
-  state.effects = state.effects.filter((e: any) => e.uuid !== uuid);
+  state.effects = state.effects.filter((e) => e.uuid !== uuid);
 }
 
 /**
@@ -394,7 +429,8 @@ export function unregisterLingeringEffects(
   state: GameState,
   duration: string,
 ): void {
-  state.effects = state.effects.filter((e: any) => e.duration !== duration);
+  state.effects = state.effects.filter((e) => e.duration !== duration);
+  updateDisabledCards(state);
 }
 
 /**
@@ -418,12 +454,25 @@ export { effectCompleted } from "./eid";
 export { makeIcon } from "./def_helpers_2";
 export { purge } from "./purging";
 
-/** Unregister a static-effect by its uuid. */
-export function unregisterEffectByUuid(state: any, uuidOrSide: string, maybeUuid?: string): void {
-  const uuid = maybeUuid !== undefined ? maybeUuid : uuidOrSide;
-  _unregisterEffectByUuid(state, uuid);
-}
-function _unregisterEffectByUuid(state: any, uuid: string): void {
-  const effects = state?.effects ?? [];
-  state.effects = effects.filter((e: any) => e?.uuid !== uuid);
+/**
+ * Unregister a static-effect by its uuid. Permissive alias supporting both
+ * `(state, uuid)` and the legacy clj `(state, _ ability)` 3-arg shape, where
+ * the third arg can be a uuid string or an Effect-like object with `.uuid`.
+ */
+export function unregisterEffectByUuid(
+  state: GameState,
+  uuidOrSide: string,
+  maybeUuidOrAbility?: string | { uuid?: string },
+): void {
+  let uuid: string;
+  if (maybeUuidOrAbility !== undefined) {
+    uuid =
+      typeof maybeUuidOrAbility === "string"
+        ? maybeUuidOrAbility
+        : (maybeUuidOrAbility.uuid ?? "");
+  } else {
+    uuid = uuidOrSide;
+  }
+  if (!uuid) return;
+  state.effects = (state.effects ?? []).filter((e) => e?.uuid !== uuid);
 }

@@ -213,18 +213,22 @@ export function commandTrash(state: GameState, side: string): void {
  * `/swap-sides` — Request to swap sides with opponent.
  * Mirrors `command-swap-sides`.
  */
+interface CommandInfoBag {
+  commandInfo?: { ignoreSwapSides?: boolean; [k: string]: unknown };
+}
+
 export function commandSwapSides(state: GameState, side: string): void {
   // Clear the ignore flag for the requesting side
-  const sideObj = side === CORP_SIDE ? state.corp : state.runner;
-  if ((sideObj as any).commandInfo) {
-    delete (sideObj as any).commandInfo.ignoreSwapSides;
+  const sideObj = (side === CORP_SIDE ? state.corp : state.runner) as unknown as CommandInfoBag;
+  if (sideObj.commandInfo) {
+    delete sideObj.commandInfo.ignoreSwapSides;
   }
 
   const otherS = otherSide(side);
   if (!otherS) return;
 
-  const otherObj = otherS === CORP_SIDE ? state.corp : state.runner;
-  if ((otherObj as any).commandInfo?.ignoreSwapSides) {
+  const otherObj = (otherS === CORP_SIDE ? state.corp : state.runner) as unknown as CommandInfoBag;
+  if (otherObj.commandInfo?.ignoreSwapSides) {
     toast(
       state,
       side,
@@ -257,8 +261,8 @@ export function commandSwapSides(state: GameState, side: string): void {
             );
           } else if (choice === "Don't ask me again") {
             toast(state, otherS!, "your opponent does not wish to swap sides");
-            if (!(sideObj as any).commandInfo) (sideObj as any).commandInfo = {};
-            ((sideObj as any).commandInfo as any).ignoreSwapSides = true;
+            if (!sideObj.commandInfo) sideObj.commandInfo = {};
+            sideObj.commandInfo.ignoreSwapSides = true;
           } else if (choice === "Accept") {
             systemMsg(
               state,
@@ -361,9 +365,9 @@ export function parseCommand(
       return (s: GameState, sid: string) => {
         const clamped = constrainValue(value, -1000, 1000);
         if (sid === CORP_SIDE) {
-          (s.corp.badPublicity as any).base = clamped;
+          s.corp.badPublicity.base = clamped;
         } else {
-          (s.runner as any).badPublicity = clamped;
+          (s.runner as unknown as { badPublicity?: number }).badPublicity = clamped;
         }
       };
 
@@ -556,7 +560,7 @@ export function parseCommand(
       return (s: GameState, sid: string) => {
         const clamped = constrainValue(value, -1000, 1000);
         const player = sid === CORP_SIDE ? s.corp : s.runner;
-        const currentTotal = (player.handSize as any).total ?? 0;
+        const currentTotal = player.handSize.total ?? 0;
         change(s, sid, { key: "hand-size", delta: clamped - currentTotal });
       };
     }
@@ -819,7 +823,7 @@ export function parseCommand(
     case "/show-hand":
       return (s: GameState, sid: string) => {
         const player = sid === CORP_SIDE ? s.corp : s.runner;
-        const handTitles = [...player.hand].map((c: any) => c.title ?? "").sort();
+        const handTitles = [...player.hand].map((c: Card) => c.title ?? "").sort();
         const deckName = sid === CORP_SIDE ? "HQ" : "the grip";
         systemMsg(
           s,
@@ -905,7 +909,7 @@ export function parseCommand(
       return (s: GameState, sid: string) => {
         const clamped = constrainValue(value, 0, 1000);
         if (sid === RUNNER_SIDE) {
-          (s.runner.tag as any).base = clamped;
+          s.runner.tag.base = clamped;
         }
       };
 
@@ -943,7 +947,7 @@ export function parseCommand(
       return (s: GameState, sid: string) => {
         if (sid === CORP_SIDE) {
           const clamped = constrainValue(value, -1000, 1000);
-          initTrace(s, sid, {} as any, makeCard({ title: "/trace command", side: sid }), {
+          initTrace(s, sid, makeEID(s), makeCard({ title: "/trace command", side: sid }), {
             base: clamped,
             msg: "resolve successful trace effect",
           });
@@ -990,9 +994,10 @@ export function executeCommand(
       command,
       timestamp: new Date(),
     };
-    if (!(state as any).commandLog) {
-      (state as any).commandLog = [];
+    const sExt = state as unknown as { commandLog?: CommandLogEntry[] };
+    if (!sExt.commandLog) {
+      sExt.commandLog = [];
     }
-    (state as any).commandLog.push(entry);
+    sExt.commandLog.push(entry);
   }
 }

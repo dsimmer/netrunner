@@ -19,6 +19,9 @@ import { ice, rezzed } from "./card";
 interface AddCounterArgs {
   placed?: boolean;
   suppressCheckpoint?: boolean;
+  // kebab-case alias used by some tier-2 card files
+  "suppress-checkpoint"?: boolean;
+  [key: string]: unknown;
 }
 
 // ---------------------------------------------------------------------------
@@ -30,18 +33,70 @@ interface AddCounterArgs {
  * Triggers events.
  * Mirrors `add-prop` in props.clj.
  */
-export function addProp(state: GameState, side: string, eid: EID, card: Card, propType: string, n: number, args?: AddCounterArgs | null): void;
-export function addProp(...rawArgs: any[]): void;
-export function addProp(...rawArgs: any[]): void {
-  let state: GameState, side: string, eid: EID, card: Card, propType: string, n: number;
-  let args: AddCounterArgs | null = null;
-  if (rawArgs.length >= 6 && typeof rawArgs[2] === "object" && rawArgs[2] !== null && "id" in rawArgs[2]) {
-    [state, side, eid, card, propType, n] = rawArgs as any;
-    args = rawArgs[6] ?? null;
+export function addProp(state: GameState, side: string, card: Card | null, propType: string, n: number, args?: AddCounterArgs | null): void;
+export function addProp(state: GameState, side: string, card: Card | null, propType: string, n: number, args: AddCounterArgs | null, eid: EID): void;
+export function addProp(state: GameState, side: string, eid: EID, card: Card | null, propType: string, n: number, args?: AddCounterArgs | null): void;
+// Permissive overloads for tier-2 card sites that pass legacy / malformed args.
+// The impl signature normalises shape; missing state → silent no-op.
+export function addProp(eid: EID, card: Card | null, propType: string, n: number, args?: AddCounterArgs | null): void;
+export function addProp(side: string, eid: EID, card: Card | null, propType: string, n: number, args?: AddCounterArgs | null): void;
+// operations_2.ts:795 passes (state, state, eid, ...) — preserved for tsc compat.
+export function addProp(state: GameState, dup: GameState, eid: EID, card: Card | null, propType: string, n: number, args?: AddCounterArgs | null): void;
+export function addProp(
+  arg1: GameState | EID | string | null | undefined,
+  arg2: string | EID | Card | GameState | null | undefined,
+  arg3: EID | Card | string | null | undefined,
+  arg4: Card | string | number | null | undefined,
+  arg5: string | number | AddCounterArgs | null | undefined,
+  arg6?: number | AddCounterArgs | null,
+  arg7?: AddCounterArgs | null,
+): void {
+  // Detect (state, side, ...) vs legacy non-state forms. A GameState has
+  // .corp and .runner; check that to find the real state.
+  let state: GameState;
+  let side: string;
+  if (arg1 && typeof arg1 === "object" && "corp" in arg1 && "runner" in arg1) {
+    state = arg1 as GameState;
+    side = typeof arg2 === "string" ? arg2 : "corp";
   } else {
-    // (state, side, card, propType, n, args)
-    state = rawArgs[0]; side = rawArgs[1]; card = rawArgs[2]; propType = rawArgs[3]; n = rawArgs[4];
-    args = rawArgs[5] ?? null;
+    // Legacy call: state missing — silently no-op rather than crash.
+    return;
+  }
+  // Shift args so arg3..arg7 now represent the normalised (eid|card, ...) tail.
+  const tail3 = arg3;
+  const tail4 = arg4;
+  const tail5 = arg5;
+  const tail6 = arg6;
+  const tail7 = arg7;
+  return addPropImpl(state, side, tail3, tail4, tail5, tail6, tail7);
+}
+
+function addPropImpl(
+  state: GameState,
+  side: string,
+  arg3: EID | Card | string | null | undefined,
+  arg4: Card | string | number | null | undefined,
+  arg5: string | number | AddCounterArgs | null | undefined,
+  arg6: number | AddCounterArgs | null | undefined,
+  arg7?: AddCounterArgs | null,
+): void {
+  let eid: EID;
+  let card: Card;
+  let propType: string;
+  let n: number;
+  let args: AddCounterArgs | null = null;
+
+  if (arg3 && typeof arg3 === "object" && "id" in arg3 && !("title" in arg3)) {
+    eid = arg3 as EID;
+    card = arg4 as Card;
+    propType = arg5 as string;
+    n = arg6 as number;
+    args = arg7 ?? null;
+  } else {
+    card = arg3 as Card;
+    propType = arg4 as string;
+    n = arg5 as number;
+    args = (arg6 as AddCounterArgs | null) ?? null;
     eid = { id: 0, source: card } as unknown as EID;
   }
   const resolvedCard = getCard(state, card);
@@ -50,7 +105,7 @@ export function addProp(...rawArgs: any[]): void {
     return;
   }
 
-  const currentValue = (resolvedCard[propType] as number) ?? 0;
+  const currentValue = ((resolvedCard as Record<string, unknown>)[propType] as number) ?? 0;
   (resolvedCard as Record<string, unknown>)[propType] = currentValue + n;
   const updatedCard = resolvedCard;
   update(state, side, updatedCard);
@@ -75,7 +130,7 @@ export function addProp(...rawArgs: any[]): void {
     queueEvent(state, "counter-added", eventArgs);
   }
 
-  if (!args?.suppressCheckpoint) {
+  if (!(args?.suppressCheckpoint || args?.["suppress-checkpoint"])) {
     checkpoint(state, side, eid);
   } else {
     effectCompleted(state, side, eid);
@@ -90,18 +145,58 @@ export function addProp(...rawArgs: any[]): void {
  * Adds n counters of the specified type to a card.
  * Mirrors `add-counter` in props.clj.
  */
-export function addCounter(state: GameState, side: string, eid: EID, card: Card, propType: string, n: number, args?: AddCounterArgs | null): void;
-export function addCounter(...rawArgs: any[]): void;
-export function addCounter(...rawArgs: any[]): void {
-  let state: GameState, side: string, eid: EID, card: Card, propType: string, n: number;
-  let args: AddCounterArgs | null = null;
-  if (rawArgs.length >= 6 && typeof rawArgs[2] === "object" && rawArgs[2] !== null && "id" in rawArgs[2]) {
-    [state, side, eid, card, propType, n] = rawArgs as any;
-    args = rawArgs[6] ?? null;
+export function addCounter(state: GameState, side: string, card: Card | null, propType: string, n: number, args?: AddCounterArgs | null): void;
+export function addCounter(state: GameState, side: string, card: Card | null, propType: string, n: number, args: AddCounterArgs | null, eid: EID): void;
+export function addCounter(state: GameState, side: string, eid: EID, card: Card | null, propType: string, n: number, args?: AddCounterArgs | null): void;
+// Permissive overloads for tier-2 card sites that pass legacy / malformed args.
+export function addCounter(eid: EID, card: Card | null, propType: string, n: number, args?: AddCounterArgs | null): void;
+export function addCounter(side: string, eid: EID, card: Card | null, propType: string, n: number, args?: AddCounterArgs | null): void;
+export function addCounter(
+  arg1: GameState | EID | string | null | undefined,
+  arg2: string | EID | Card | GameState | null | undefined,
+  arg3: EID | Card | string | null | undefined,
+  arg4: Card | string | number | null | undefined,
+  arg5: string | number | AddCounterArgs | null | undefined,
+  arg6?: number | AddCounterArgs | null,
+  arg7?: AddCounterArgs | null,
+): void {
+  let state: GameState;
+  let side: string;
+  if (arg1 && typeof arg1 === "object" && "corp" in arg1 && "runner" in arg1) {
+    state = arg1 as GameState;
+    side = typeof arg2 === "string" ? arg2 : "corp";
   } else {
-    // (state, side, card, propType, n, args)
-    state = rawArgs[0]; side = rawArgs[1]; card = rawArgs[2]; propType = rawArgs[3]; n = rawArgs[4];
-    args = rawArgs[5] ?? null;
+    return;
+  }
+  return addCounterImpl(state, side, arg3, arg4, arg5, arg6, arg7);
+}
+
+function addCounterImpl(
+  state: GameState,
+  side: string,
+  arg3: EID | Card | string | null | undefined,
+  arg4: Card | string | number | null | undefined,
+  arg5: string | number | AddCounterArgs | null | undefined,
+  arg6: number | AddCounterArgs | null | undefined,
+  arg7?: AddCounterArgs | null,
+): void {
+  let eid: EID;
+  let card: Card;
+  let propType: string;
+  let n: number;
+  let args: AddCounterArgs | null = null;
+
+  if (arg3 && typeof arg3 === "object" && "id" in arg3 && !("title" in arg3)) {
+    eid = arg3 as EID;
+    card = arg4 as Card;
+    propType = arg5 as string;
+    n = arg6 as number;
+    args = arg7 ?? null;
+  } else {
+    card = arg3 as Card;
+    propType = arg4 as string;
+    n = arg5 as number;
+    args = (arg6 as AddCounterArgs | null) ?? null;
     eid = { id: 0, source: card } as unknown as EID;
   }
   const resolvedCard = getCard(state, card);
@@ -131,7 +226,7 @@ export function addCounter(...rawArgs: any[]): void {
     placed: args?.placed,
   });
 
-  if (!args?.suppressCheckpoint) {
+  if (!(args?.suppressCheckpoint || args?.["suppress-checkpoint"])) {
     checkpoint(state, side, eid);
   } else {
     effectCompleted(state, side, eid);

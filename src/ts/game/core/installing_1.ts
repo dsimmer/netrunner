@@ -5,6 +5,17 @@ import type { GameState, ServerZone } from "./state";
 import type { Card, Zone } from "./card";
 import type { EID } from "./eid";
 import type { Ability } from "./types";
+
+interface MsgKeys {
+  displayOrigin?: string;
+  installSource?: Card | null;
+  originIndex?: number;
+  known?: boolean;
+  setZone?: Zone;
+  hideZeroCost?: boolean;
+  includeCostFromEid?: { latestPaymentStr?: string };
+  [k: string]: unknown;
+}
 import {
   isAgenda,
   isAsset,
@@ -270,7 +281,7 @@ function corpInstallTrashOldCard(
             state,
             [
               [{ asyncResult: "result" }],
-              function (s: GameState, _e: EID, _binds: any) {
+              function (s: GameState, _e: EID, _binds: unknown) {
                 effectCompleted(s, CORP_SIDE, eid);
               },
             ],
@@ -337,8 +348,8 @@ function corpInstallAssetAgenda(
   destZone: Card[],
   server: string,
 ): void {
-  const prevCard = destZone.find((c: any) => isAsset(c) || isAgenda(c)) ?? null;
-  const prevRegion = destZone.find((c: any) => hasSubtype(c, "Region")) ?? null;
+  const prevCard = destZone.find((c: Card) => isAsset(c) || isAgenda(c)) ?? null;
+  const prevRegion = destZone.find((c: Card) => hasSubtype(c, "Region")) ?? null;
 
   // overinstall an old asset or agenda
   if ((isAsset(card) || isAgenda(card)) && prevCard && !card.host) {
@@ -391,11 +402,10 @@ function corpInstallMessage(
   const displayMessage = opts.displayMessage !== false;
   if (!displayMessage) return;
 
-  const msgKeys = opts.msgKeys ?? {};
-  const { displayOrigin, installSource, originIndex, known, setZone } =
-    msgKeys as any;
+  const msgKeys = (opts.msgKeys ?? {}) as MsgKeys;
+  const { displayOrigin, installSource, originIndex, known, setZone } = msgKeys;
   const prependCostStr =
-    (msgKeys as any).includeCostFromEid?.latestPaymentStr ?? "";
+    msgKeys.includeCostFromEid?.latestPaymentStr ?? "";
 
   const cardName =
     ["rezzed", "rezzed-no-cost", "face-up"].includes(installState) ||
@@ -483,7 +493,7 @@ function revealIfUnrezzed(
       state,
       [
         [{ asyncResult: "result" }],
-        function (s: GameState, _e: EID, _binds: any) {
+        function (s: GameState, _e: EID, _binds: unknown) {
           completeWithResult(s, CORP_SIDE, eid, getCard(s, movedCard));
         },
       ],
@@ -495,7 +505,7 @@ function revealIfUnrezzed(
       state,
       [
         [{ asyncResult: "result" }],
-        function (s: GameState, _e: EID, _binds: any) {
+        function (s: GameState, _e: EID, _binds: unknown) {
           systemMsg(
             s,
             CORP_SIDE,
@@ -505,7 +515,7 @@ function revealIfUnrezzed(
             s,
             [
               [{ asyncResult: "result" }],
-              function (s2: GameState, _e2: EID, _binds2: any) {
+              function (s2: GameState, _e2: EID, _binds2: unknown) {
                 completeWithResult(s2, CORP_SIDE, eid, getCard(s2, movedCard));
               },
             ],
@@ -545,10 +555,10 @@ function corpInstallContinue(
   costStr: string,
 ): void {
   const cdef = cardDef(card);
-  const destZone: Card[] = slot.reduce((obj: any, key, idx, arr) => {
+  const destZone: Card[] = slot.reduce((obj: unknown, _key, _idx, _arr) => {
     // Navigate the slot path to get dest zone
     return obj;
-  }, state) as Card[];
+  }, state as unknown) as Card[];
 
   const installState = cdef.installState ?? opts.installState ?? "";
   const noMsg = opts.displayMessage === false;
@@ -557,14 +567,16 @@ function corpInstallContinue(
 
   const args = { ...opts };
   if (args.msgKeys) {
-    (args.msgKeys as any).known =
-      (args.msgKeys as any).known ||
-      (state.breach as any)?.knownCids?.[fromZone]?.includes(card.cid);
+    const mk = args.msgKeys as MsgKeys;
+    const breach = state.breach as { knownCids?: Record<string, string[]> } | undefined;
+    mk.known =
+      mk.known ||
+      breach?.knownCids?.[fromZone]?.includes(card.cid);
   }
 
   const c = {
     ...card,
-    advanceable: (cdef as any).advanceable,
+    advanceable: cdef.advanceable as Card["advanceable"],
     new: true,
     seen: undefined,
     disabled: undefined,
@@ -590,7 +602,7 @@ function corpInstallContinue(
       } as unknown as Card)
     : move(state, CORP_SIDE, c, slot, { front: opts.front, index: opts.index });
 
-  if (isAgenda(c)) {
+  if (isAgenda(c) && movedCard) {
     updateAdvancementRequirement(state, movedCard);
   }
 
@@ -602,8 +614,8 @@ function corpInstallContinue(
     state,
     [
       [{ asyncResult: "result" }],
-      function (s: GameState, e: EID, _binds: any) {
-        corpInstallPlaceCounters(s, CORP_SIDE, e, refreshedCard, args as any);
+      function (s: GameState, e: EID, _binds: unknown) {
+        corpInstallPlaceCounters(s, CORP_SIDE, e, refreshedCard, args as Parameters<typeof corpInstallPlaceCounters>[4]);
       },
     ],
     [corpInstallAssetAgenda, state, CORP_SIDE, makeEID(state), refreshedCard, destZone, server],
@@ -648,7 +660,7 @@ export function corpInstallCost(
     cachedCosts?: CostData[];
     ignoreIceCost?: boolean;
     hostCard?: Card;
-    [key: string]: any;
+    [key: string]: unknown;
   },
 ): CostData[] {
   if (opts.cachedCosts) return opts.cachedCosts;
@@ -734,8 +746,9 @@ function corpInstallPay(
 
   const costsWithDiscount = [...costs, toC("credit", -applDisc)];
 
+  const corpProps = state.corp.properties as { trashLikeCards?: boolean } | undefined;
   const corpWantsToTrash = !!(
-    (state.corp.properties as any)?.trashLikeCards &&
+    corpProps?.trashLikeCards &&
     slot.length > 0 &&
     !(opts.resolvedOptionalTrash as boolean)
   );
@@ -751,8 +764,8 @@ function corpInstallPay(
       state,
       [
         [{ asyncResult: "result" }],
-        function (s: GameState, _e: EID, binds: any) {
-          const paymentStr = (binds.asyncResult as any)?.msg;
+        function (s: GameState, _e: EID, binds: { asyncResult?: { msg?: string } }) {
+          const paymentStr = binds.asyncResult?.msg;
           if (paymentStr) {
             if (server === "New remote") {
               queueEvent(s, "server-created", null);
@@ -857,16 +870,28 @@ function corpInstallPay(
  * Installs a card in the chosen server.
  * Mirrors: corp-install
  */
-export function corpInstall(state: any, side?: any, eid?: any, card?: any, server?: any, opts?: any): any;
+interface CorpInstallArgs {
+  hostCard?: Card;
+  target?: unknown;
+  [k: string]: unknown;
+}
+
+export function corpInstall(...rawArgs: unknown[]): void;
 export function corpInstall(
-  state: GameState,
-  _side: string,
-  eid: EID,
-  card: Card,
-  server?: unknown,
-  opts?: Record<string, unknown> | null,
+  stateArg?: unknown,
+  sideArg?: unknown,
+  eidArg?: unknown,
+  cardArg?: unknown,
+  serverArg?: unknown,
+  optsArg?: unknown,
 ): void {
-  const args = { ...opts };
+  const state = stateArg as GameState;
+  const _side = sideArg as string;
+  const eid = eidArg as EID;
+  const card = cardArg as Card;
+  const server = serverArg;
+  const opts = optsArg as CorpInstallArgs | null | undefined;
+  const args: CorpInstallArgs = { ...opts };
   const eidWithSource = { ...eid, sourceType: "corp-install" };
 
   if (!server) {
@@ -879,7 +904,7 @@ export function corpInstall(
         choices: installableServers(state, card),
         async: true,
         effect: req(() => {
-          corpInstall(state, CORP_SIDE, eid, card, (args as any).target, args);
+          corpInstall(state, CORP_SIDE, eid, card, args.target, args);
         }),
       },
       card,
@@ -893,7 +918,7 @@ export function corpInstall(
     });
   } else {
     // A server was selected
-    dissocIn(state as any, ["corp", "install-list"]);
+    dissocIn(state as unknown as Record<string, unknown>, ["corp", "install-list"]);
     corpInstallPay(state, CORP_SIDE, eid, card, server as string, args);
   }
 }
@@ -915,14 +940,14 @@ function cardHasAValidHost(
 ): boolean {
   if (facedown) return true;
   const cdef = cardDef(card);
-  const hostingReq = (cdef as any).hosting?.req;
+  const hostingReq = (cdef.hosting as { req?: (s: GameState, sd: string, e: EID, c: Card, t: Card[]) => boolean } | undefined)?.req;
   if (!hostingReq) return true;
 
   const allHosts = [
     ...allInstalled(state, CORP_SIDE),
     ...allInstalled(state, RUNNER_SIDE),
   ];
-  return allHosts.some((h: any) => hostingReq(state, RUNNER_SIDE, eid, card, [h]));
+  return allHosts.some((h: Card) => hostingReq(state, RUNNER_SIDE, eid, card, [h]));
 }
 
 /**
@@ -938,7 +963,7 @@ function runnerCanInstallReason(
   facedown: boolean,
 ): true | string {
   const cdef = cardDef(card);
-  const cardReq = (cdef as any).req;
+  const cardReq = cdef.req;
 
   // Can always install a card facedown
   if (facedown) return true;
@@ -947,7 +972,8 @@ function runnerCanInstallReason(
   if (installLocked(state, RUNNER_SIDE)) return "lock-install";
 
   // Req check
-  if (cardReq && !cardReq(state, RUNNER_SIDE, eid, card, null)) return "req";
+  if (typeof cardReq === "function" && !cardReq(state, RUNNER_SIDE, eid, card, null)) return "req";
+  if (cardReq === false) return "req";
 
   // if the card requires a host, there is a valid host
   if (!cardHasAValidHost(state, RUNNER_SIDE, eid, card, facedown))
@@ -1032,16 +1058,16 @@ export function runnerInstallMessage(
   const displayMessage = opts.displayMessage !== false;
   if (!displayMessage) return;
 
-  const msgKeys = opts.msgKeys ?? {};
-  const { displayOrigin, installSource, originIndex, known } = msgKeys as any;
-  const hideZeroCost = (msgKeys as any).hideZeroCost ?? opts.facedown ?? false;
+  const msgKeys = (opts.msgKeys ?? {}) as MsgKeys;
+  const { displayOrigin, installSource, originIndex, known } = msgKeys;
+  const hideZeroCost = msgKeys.hideZeroCost ?? opts.facedown ?? false;
 
   if (hideZeroCost && costStr === "pays 0 [Credits]") {
     // suppress zero cost message
   }
 
   const prependCostStr =
-    (msgKeys as any).includeCostFromEid?.latestPaymentStr ?? "";
+    msgKeys.includeCostFromEid?.latestPaymentStr ?? "";
 
   const showOrigin =
     displayOrigin !== undefined

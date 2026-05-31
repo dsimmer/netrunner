@@ -174,11 +174,12 @@ function chooseAndRepeat(options: string[], qty: number): string[] {
  * @returns A random quote string
  */
 export function makeQuote(
-  playerIdent: { title: string; faction?: string },
-  oppIdent: { title: string; faction?: string }
+  playerIdent: { title?: string; faction?: string },
+  oppIdent: { title?: string; faction?: string }
 ): string {
-  const { title: playerIdentTitle } = playerIdent;
-  const { title: oppIdentTitle, faction: oppFaction } = oppIdent;
+  const playerIdentTitle = playerIdent.title ?? "";
+  const oppIdentTitle = oppIdent.title ?? "";
+  const oppFaction = oppIdent.faction;
 
   const playerQuotes = identityQuotes[playerIdentTitle];
   if (!playerQuotes) {

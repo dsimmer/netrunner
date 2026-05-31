@@ -39,8 +39,8 @@ import { getCard } from "./finding";
 export interface PlayInstantArgs {
   ignoreCost?: boolean;
   "ignore-cost"?: boolean;
-  baseCost?: any;
-  "base-cost"?: any;
+  baseCost?: CostData | CostData[];
+  "base-cost"?: CostData | CostData[];
   noAdditionalCost?: boolean;
   "no-additional-cost"?: boolean;
   cachedCosts?: CostData[];
@@ -52,7 +52,7 @@ export interface PlayInstantArgs {
   asFlashback?: boolean;
   "as-flashback"?: boolean;
   "no-toast"?: boolean;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 // ---------------------------------------------------------------------------
@@ -120,8 +120,8 @@ function completePlayInstant(
   );
   implementationMsg(state, card);
 
-  const def = cardDef(card);
-  const sfx = (def as any).playSound;
+  const def = cardDef(card) as { playSound?: string; onPlay?: Ability; trashAfterResolving?: boolean };
+  const sfx = def.playSound;
   if (sfx) {
     playSfx(state, side, sfx);
   } else {
@@ -130,17 +130,17 @@ function completePlayInstant(
 
   // Select the "on the table" version of the card
   const handledCard = currentHandler(state, side, card);
-  const onPlay: Ability = (def as any).onPlay ?? {};
+  const onPlay: Ability = def.onPlay ?? {};
   const cdef = dissocReq({
     ...onPlay,
     cost: undefined,
     additionalCost: undefined,
-  });
+  }) as Ability & { rfgInsteadOfTrashing?: boolean; trashAfterResolving?: boolean };
 
   const initializedCard = cardInit(
     state,
     side,
-    (cdef as any).rfgInsteadOfTrashing
+    cdef.rfgInsteadOfTrashing
       ? { ...handledCard, rfgInsteadOfTrashing: true }
       : handledCard,
     { resolveEffect: true, initData: true },
@@ -154,12 +154,13 @@ function completePlayInstant(
 
   // Increment stats
   const playerState = side === "corp" ? state.corp : state.runner;
-  const stats = (playerState as any).stats ?? {};
-  const cardsPlayed = stats.cardsPlayed ?? {};
+  const playerRec = playerState as unknown as { stats?: { cardsPlayed?: Record<string, number> } };
+  const stats = playerRec.stats ?? {};
+  const cardsPlayed: Record<string, number> = stats.cardsPlayed ?? {};
   const prevCount = cardsPlayed.playInstant ?? 0;
-  (cardsPlayed as any).playInstant = prevCount + 1;
-  (stats as any).cardsPlayed = cardsPlayed;
-  (playerState as any).stats = stats;
+  cardsPlayed.playInstant = prevCount + 1;
+  stats.cardsPlayed = cardsPlayed;
+  playerRec.stats = stats;
 
   // Wait for the play-event checkpoint
   wait_for(
@@ -175,12 +176,10 @@ function completePlayInstant(
           [
             { asyncResult: "result" },
             function (s2: GameState, _e2: EID) {
-              const c = (s2 as any)[side]?.playArea?.find((c2: Card) =>
-                sameCard(initializedCard, c2),
-              );
-              const trashAfterResolving =
-                (cdef as any).trashAfterResolving ?? true;
-              const zone = (c as any)?.rfgInsteadOfTrashing ? "rfg" : "discard";
+              const playArea = (side === "corp" ? s2.corp : s2.runner).playArea ?? [];
+              const c = playArea.find((c2: Card) => sameCard(initializedCard, c2));
+              const trashAfterResolving = cdef.trashAfterResolving ?? true;
+              const zone = (c as { rfgInsteadOfTrashing?: boolean } | undefined)?.rfgInsteadOfTrashing ? "rfg" : "discard";
 
               if (c && trashAfterResolving) {
                 const trashOrMove = zone === "rfg" ? asyncRfg : trash;
@@ -204,9 +203,10 @@ function completePlayInstant(
                       }
 
                       if (hasSubtype(c, "Terminal")) {
-                        lose(s3, side, "click", (s3 as any)[side].click);
-                        if (side === "corp") {
-                          (s3.corp.register as any).terminal = true;
+                        const clicks = (side === "corp" ? s3.corp : s3.runner).click;
+                        lose(s3, side, "click", clicks);
+                        if (side === "corp" && s3.corp.register) {
+                          (s3.corp.register as Record<string, unknown>).terminal = true;
                         }
                       }
 
@@ -222,9 +222,10 @@ function completePlayInstant(
                 );
               } else {
                 if (hasSubtype(initializedCard, "Terminal")) {
-                  lose(s2, side, "click", (s2 as any)[side].click);
-                  if (side === "corp") {
-                    (s2.corp.register as any).terminal = true;
+                  const clicks = (side === "corp" ? s2.corp : s2.runner).click;
+                  lose(s2, side, "click", clicks);
+                  if (side === "corp" && s2.corp.register) {
+                    (s2.corp.register as Record<string, unknown>).terminal = true;
                   }
                 }
 
@@ -261,10 +262,10 @@ function completePlayInstant(
  * keeping x-costs. Mirrors remove-negative-costs in play_instants.clj.
  */
 function removeNegativeCosts(costVec: CostData[]): CostData[] {
-  return costVec.filter((c: any) => {
+  return costVec.filter((c: CostData) => {
     if (!c) return false;
     if (c.type === "credit") {
-      (c as any).amount = Math.max(c.amount ?? 0, 0);
+      c.amount = Math.max(c.amount ?? 0, 0);
       return true;
     }
     if ((c.amount ?? 0) > 0) return true;
@@ -294,7 +295,7 @@ function playInstantAdditionalCosts(
     playAdditionalCostBonus(state, side, card),
     hasSubtype(card, "Triple") ? [toC("click", 2)] : [],
     hasSubtype(card, "Double") &&
-    !(state as any)[side]?.register?.doubleIgnoreAdditional
+    !((side === "corp" ? state.corp : state.runner).register as Record<string, unknown> | undefined)?.doubleIgnoreAdditional
       ? [toC("click", 1)]
       : [],
   ]);
@@ -375,8 +376,8 @@ function shouldTrigger(
     for (const key of Object.keys(ability)) {
       if (
         ["optional", "psi", "trace", "choose-one"].includes(key) &&
-        typeof (ability as any)[key] === "object" &&
-        (ability as any)[key] !== null
+        typeof (ability as Record<string, unknown>)[key] === "object" &&
+        (ability as Record<string, unknown>)[key] !== null
       ) {
         return key;
       }
@@ -391,12 +392,14 @@ function shouldTrigger(
       eid,
       card,
       targets,
-      (ability as any)[nestedKw],
+      (ability as Record<string, Ability>)[nestedKw],
     );
   }
 
-  if ((ability as any).req) {
-    return (ability as any).req(state, side, eid, card, targets);
+  if (ability.req) {
+    const reqFn = ability.req;
+    if (typeof reqFn !== "function") return !!reqFn;
+    return reqFn(state, side, eid, card, targets);
   }
   return true;
 }
@@ -419,8 +422,8 @@ export function canPlayInstant(
   const { targets, silent } = args;
 
   const eidWithSource = { ...eid, sourceType: "play" };
-  const def = cardDef(card);
-  const onPlay: Ability = (def as any).onPlay ?? {};
+  const def = cardDef(card) as { onPlay?: Ability; makesRun?: boolean };
+  const onPlay: Ability = def.onPlay ?? {};
   const costs = playInstantCosts(state, side, card, args);
 
   // Card still exists
@@ -438,21 +441,23 @@ export function canPlayInstant(
   if (zone.length > 0 && zoneLocked(state, side, zone[0])) return false;
 
   // Current subtype check
+  const playerReg = ((side === "corp" ? state.corp : state.runner).register as Record<string, unknown> | undefined);
+
   if (
     hasSubtype(card, "Current") &&
-    (state as any)[side]?.register?.cannotPlayCurrent
+    playerReg?.cannotPlayCurrent
   )
     return false;
 
   // Run event / makes-run check
-  const makesRun = (def as any).makesRun;
+  const makesRun = def.makesRun;
   if ((makesRun || hasSubtype(card, "Run")) && !canRun(state, "runner", silent))
     return false;
 
   // Priority subtype check
   if (
     hasSubtype(card, "Priority") &&
-    (state as any)[side]?.register?.spentClick
+    playerReg?.spentClick
   )
     return false;
 
@@ -481,8 +486,8 @@ function continuePlayInstant(
   const movedCard = move(state, side, { ...card, seen: true }, "play-area");
   if (!movedCard) return;
 
-  const payEid = makeEID(state);
-  (payEid as any).action = "play-instant";
+  const payEid = makeEID(state) as EID & { action?: string };
+  payEid.action = "play-instant";
   if (eid.source) payEid.source = eid.source;
   if (eid.sourceType) payEid.sourceType = eid.sourceType;
 
@@ -490,10 +495,10 @@ function continuePlayInstant(
     state,
     [
       { asyncResult: "result" },
-      function (s: GameState, _e: EID, binds: any) {
-        const asyncResult = binds.asyncResult;
+      function (s: GameState, _e: EID, binds: Record<string, unknown>) {
+        const asyncResult = binds.asyncResult as { msg?: string; costPaid?: Record<string, unknown> } | undefined;
         const paymentStr = asyncResult?.msg;
-        const eidCostPaid = (eid as any).costPaid ?? {};
+        const eidCostPaid = (eid as EID & { costPaid?: Record<string, unknown> }).costPaid ?? {};
         const resultCostPaid = asyncResult?.costPaid ?? {};
 
         const mergedCostPaid: Record<string, unknown> = { ...eidCostPaid };
@@ -509,8 +514,8 @@ function continuePlayInstant(
 
         if (paymentStr) {
           // Payment succeeded
-          const def = cardDef(movedCard);
-          const special = (def as any).special;
+          const def = cardDef(movedCard) as { special?: Record<string, unknown> };
+          const special = def.special;
           update(s, side, { ...movedCard, special });
 
           completePlayInstant(
@@ -532,7 +537,7 @@ function continuePlayInstant(
             side,
             {
               msg: msg("reveal that they are unable to play " + getTitle(card)),
-              cost: args.baseCost ? ([args.baseCost] as any) : undefined,
+              cost: args.baseCost ? ([args.baseCost] as CostData[]) : undefined,
               async: true,
               effect: req(
                 function (
@@ -546,7 +551,7 @@ function continuePlayInstant(
                     ...returnedCard,
                     seen: undefined,
                     cid: card.cid,
-                    previousZone: (card as any).previousZone,
+                    previousZone: card.previousZone,
                   });
                 },
                 function (
@@ -580,16 +585,22 @@ function continuePlayInstant(
  */
 export function playInstant(eid: EID, card: Card | null, args?: PlayInstantArgs | null): void;
 export function playInstant(state: GameState, side: string, eid: EID, card: Card | null, args?: PlayInstantArgs | null): void;
-export function playInstant(...rawArgs: any[]): void {
+export function playInstant(
+  arg1: GameState | EID,
+  arg2: string | Card | null,
+  arg3: EID | PlayInstantArgs | null | undefined,
+  arg4?: Card | null,
+  arg5?: PlayInstantArgs | null,
+): void {
   // shorthand (eid, card, args?) — no state, no-op
-  if (rawArgs.length <= 3 && rawArgs[0] && typeof rawArgs[0] === "object" && !("title" in (rawArgs[0] as any)) && !("activePlayer" in (rawArgs[0] as any))) {
+  if (arg1 && typeof arg1 === "object" && !("activePlayer" in arg1) && !("corp" in arg1)) {
     return;
   }
-  const state = rawArgs[0] as GameState;
-  const side = rawArgs[1] as string;
-  const eid = rawArgs[2] as EID;
-  const card = rawArgs[3] as Card | null;
-  let args = (rawArgs[4] as PlayInstantArgs | null | undefined) ?? null;
+  const state = arg1 as GameState;
+  const side = arg2 as string;
+  const eid = arg3 as EID;
+  const card = arg4 as Card | null;
+  let args = (arg5 as PlayInstantArgs | null | undefined) ?? null;
   if (!card) return;
   args = args ?? {};
   const eidWithSource = { ...eid, source: card, sourceType: "play" };
@@ -653,7 +664,7 @@ export function playInstant(...rawArgs: any[]): void {
               },
             },
             noAbility: {
-              cost: args.baseCost ? ([args.baseCost] as any) : undefined,
+              cost: args.baseCost ? ([args.baseCost] as CostData[]) : undefined,
               async: true,
               effect: function (
                 s: GameState,
@@ -687,7 +698,7 @@ export function playInstant(...rawArgs: any[]): void {
       side,
       {
         msg: msg("reveal that they are unable to play " + getTitle(card)),
-        cost: args.baseCost ? ([args.baseCost] as any) : undefined,
+        cost: args.baseCost ? ([args.baseCost] as CostData[]) : undefined,
         async: true,
         // Matches the Clojure reveal path; reveal-explicit is not a core helper.
         effect: function (

@@ -2,6 +2,7 @@
 // Mirrors: src/clj/game/core/tags.clj
 
 import type { GameState } from "./state";
+import type { Card } from "./card";
 import type { EID } from "./eid";
 import { RUNNER_SIDE } from "./state";
 import { anyEffects, sumEffects } from "./effects";
@@ -108,29 +109,66 @@ function resolveTag(
 
 interface GainTagsOpts {
   unpreventable?: boolean;
-  card?: { cid: string; title: string } | null;
+  card?: Card | { cid: string; title: string } | null;
   suppressCheckpoint?: boolean;
+  // kebab-case alias for tier-2 card callers
+  "suppress-checkpoint"?: boolean;
+  [key: string]: unknown;
 }
 
 /**
  * Attempts to give the runner n tags, allowing for boosting/prevention effects.
  * Mirrors: gain-tags in tags.clj
  */
+export function gainTags(state: GameState, side: string, n: number, opts?: GainTagsOpts | null): void;
 export function gainTags(state: GameState, side: string, eid: EID, n: number, opts?: GainTagsOpts | null): void;
-export function gainTags(...rawArgs: any[]): void;
-export function gainTags(...rawArgs: any[]): void {
-  let state: GameState, side: string, eid: EID, n: number;
-  let opts: GainTagsOpts = {};
-  if (rawArgs.length >= 4 && typeof rawArgs[2] === "object" && rawArgs[2] !== null && "id" in rawArgs[2]) {
-    [state, side, eid, n] = rawArgs as any;
-    opts = rawArgs[4] ?? {};
+// Permissive overloads for tier-2 card legacy call shapes.
+export function gainTags(eid: EID, n: number, opts?: GainTagsOpts | null): void;
+export function gainTags(side: string, eid: EID, n: number, opts?: GainTagsOpts | null): void;
+export function gainTags(
+  arg1: GameState | EID | string,
+  arg2: string | EID | number,
+  arg3?: EID | number | GainTagsOpts | null,
+  arg4?: number | GainTagsOpts | null,
+  arg5?: GainTagsOpts | null,
+): void {
+  // Detect a real GameState (must have .corp + .runner).
+  let state: GameState;
+  let side: string;
+  if (
+    arg1 &&
+    typeof arg1 === "object" &&
+    "corp" in (arg1 as object) &&
+    "runner" in (arg1 as object)
+  ) {
+    state = arg1 as GameState;
+    side = typeof arg2 === "string" ? arg2 : "runner";
   } else {
-    // (state, side, n, opts?) — legacy short form
-    state = rawArgs[0]; side = rawArgs[1]; n = rawArgs[2];
-    opts = rawArgs[3] ?? {};
+    // Legacy form (eid, n) or (side, eid, n) — no state, no-op.
+    return;
+  }
+  return gainTagsImpl(state, side, arg3, arg4, arg5);
+}
+
+function gainTagsImpl(
+  state: GameState,
+  side: string,
+  arg3: EID | number | GainTagsOpts | null | undefined,
+  arg4?: number | GainTagsOpts | null,
+  arg5?: GainTagsOpts | null,
+): void {
+  let eid: EID;
+  let n: number;
+  let opts: GainTagsOpts = {};
+  if (arg3 && typeof arg3 === "object" && "id" in arg3) {
+    eid = arg3;
+    n = arg4 as number;
+    opts = arg5 ?? {};
+  } else {
+    n = arg3 as number;
+    opts = (arg4 as GainTagsOpts | null) ?? {};
     eid = { id: 0, source: null } as unknown as EID;
   }
-  opts = opts ?? {};
   const { unpreventable, card, suppressCheckpoint } = opts;
 
   // Mirrors: (wait-for (resolve-tag-prevention ...) (resolve-tag ... async-result))
@@ -138,26 +176,32 @@ export function gainTags(...rawArgs: any[]): void {
   // We register an effect-completed handler on a fresh inner eid so we can
   // capture the `remaining` count, then resolve the actual tag gain.
   const innerEid = makeEID(state);
-  registerEffectCompleted(state, innerEid, ((
+  registerEffectCompleted(state, innerEid, (
     _s: GameState,
     _sd: string,
     completedEid: EID,
   ) => {
-    const result: any = (completedEid as any).result;
+    const result = (completedEid as EID & { result?: unknown }).result;
     const remaining: number =
       typeof result === "number"
         ? result
-        : (result?.remaining ?? result?.["paid/value"] ?? n);
-    resolveTag(state, side, eid, card ?? null, remaining, suppressCheckpoint);
-  }) as any);
-  resolveTagPrevention(state, side, innerEid, n, { unpreventable, card: card as any });
+        : (result as { remaining?: number; "paid/value"?: number } | null | undefined)?.remaining
+          ?? (result as { "paid/value"?: number } | null | undefined)?.["paid/value"]
+          ?? n;
+    const narrowCard =
+      card && "cid" in card && "title" in card
+        ? { cid: card.cid, title: card.title ?? "" }
+        : null;
+    resolveTag(state, side, eid, narrowCard, remaining, suppressCheckpoint || opts["suppress-checkpoint"]);
+  });
+  resolveTagPrevention(state, side, innerEid, n, { unpreventable, card: card as Card | undefined });
 }
 
 /**
  * Take n tags (ability-returning helper).
  * Mirrors: gain-tags-ability in tags.clj
  */
-export function gainTagsAbility(n: number): any {
+export function gainTagsAbility(n: number): import("./types").Ability {
   return {
     msg: `take ${quantify(n, "tag")}`,
     async: true,
@@ -171,20 +215,45 @@ export function gainTagsAbility(n: number): any {
  * Always removes `:base` tags.
  * Mirrors: lose-tags in tags.clj
  */
-export function loseTags(state: GameState, side: string, eid: EID, n: number | "all", opts?: { suppressCheckpoint?: boolean } | null): void;
-export function loseTags(...rawArgs: any[]): void;
-export function loseTags(...rawArgs: any[]): void {
-  let state: GameState, side: string, eid: EID, n: number | "all";
-  let opts: { suppressCheckpoint?: boolean } = {};
-  if (rawArgs.length >= 4 && typeof rawArgs[2] === "object" && rawArgs[2] !== null && "id" in rawArgs[2]) {
-    [state, side, eid, n] = rawArgs as any;
-    opts = rawArgs[4] ?? {};
+interface LoseTagsOpts {
+  suppressCheckpoint?: boolean;
+  "suppress-checkpoint"?: boolean;
+  [key: string]: unknown;
+}
+
+export function loseTags(eid: EID, n: number | "all" | ":all"): void;
+export function loseTags(state: GameState, side: string, n: number | "all" | ":all", opts?: LoseTagsOpts | null): void;
+export function loseTags(state: GameState, side: string, eid: EID, n: number | "all" | ":all", opts?: LoseTagsOpts | null): void;
+export function loseTags(
+  arg1: GameState | EID,
+  arg2: string | number | "all" | ":all",
+  arg3?: EID | number | "all" | ":all",
+  arg4?: number | "all" | ":all" | LoseTagsOpts | null,
+  arg5?: LoseTagsOpts | null,
+): void {
+  let state: GameState;
+  let side: string;
+  let eid: EID;
+  let n: number | "all";
+  let opts: LoseTagsOpts = {};
+
+  if (arg1 && typeof arg1 === "object" && "id" in arg1 && !("corp" in arg1)) {
+    // (eid, n) — legacy 2-arg shim
+    return;
+  }
+  state = arg1 as GameState;
+  side = arg2 as string;
+  if (arg3 && typeof arg3 === "object" && "id" in arg3) {
+    eid = arg3;
+    const rawN = arg4 as number | "all" | ":all";
+    n = rawN === ":all" ? "all" : rawN;
+    opts = arg5 ?? {};
   } else {
-    state = rawArgs[0]; side = rawArgs[1]; n = rawArgs[2];
-    opts = rawArgs[3] ?? {};
+    const rawN = arg3 as number | "all" | ":all";
+    n = rawN === ":all" ? "all" : rawN;
+    opts = (arg4 as LoseTagsOpts | null) ?? {};
     eid = { id: 0, source: null } as unknown as EID;
   }
-  opts = opts ?? {};
   if (n === "all") {
     loseTags(state, side, eid, state.runner.tag.base ?? 0, opts);
     return;

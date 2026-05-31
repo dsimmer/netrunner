@@ -5,6 +5,7 @@ import type { GameState, ServerZone, Encounter } from "./state";
 import type { Card, Zone } from "./card";
 import type { EID } from "./eid";
 import type { Ability, AbilityFn, CardDef, NumberFn, ReqFn, Side, State, Subroutine, ValueFn } from "./types";
+import type { Cost as Costs1Cost } from "./costs_1";
 import { CORP_SIDE, RUNNER_SIDE } from "./state";
 import { isICE, isInstalled, isRezzed, hasSubtype, getTitle } from "./card";
 import { getCardDef } from "./types";
@@ -30,6 +31,7 @@ import {
   abilityAsHandler,
 } from "./engine";
 import { canPay, mergeCosts, buildCostLabel, toC } from "./payment";
+import type { CostData } from "./payment";
 import { stealthValue } from "./costs";
 import { systemMsg } from "./say";
 import { update } from "./update";
@@ -78,17 +80,25 @@ export function getExpectedSubroutines(
 ): RuntimeSubroutine[] {
   const cdef = getCardDef(ice);
 
+  type RawSub = Record<string, unknown>;
+  interface AppliedSubsEffect {
+    position?: string;
+    subroutines?: RawSub[];
+    uuid?: string;
+    cid?: string;
+  }
+
   if (isDisabledReg(state, ice) || !isRezzed(ice)) {
     // If disabled or unrezzed, only printed subs
-    return ((cdef.subroutines as any[]) ?? []).map((s: any) =>
-      buildSub(s as any, ice.cid ?? "", { printed: true }),
+    return ((cdef.subroutines as RawSub[] | undefined) ?? []).map((s: RawSub) =>
+      buildSub(s, ice.cid ?? "", { printed: true }),
     );
   }
 
   const printedSubsToLose =
     sumEffects(state, side, "lose-printed-subroutines", ice, []) ?? 0;
-  const basePrintedSubs = ((cdef.subroutines as any[]) ?? []).map((s: any) =>
-    buildSub(s as any, ice.cid ?? "", { printed: true }),
+  const basePrintedSubs = ((cdef.subroutines as RawSub[] | undefined) ?? []).map((s: RawSub) =>
+    buildSub(s, ice.cid ?? "", { printed: true }),
   );
   const printedSubroutines = basePrintedSubs.slice(printedSubsToLose);
 
@@ -102,29 +112,17 @@ export function getExpectedSubroutines(
   );
   const appliedFront: RuntimeSubroutine[] = [];
   const appliedEnd: RuntimeSubroutine[] = [];
-  for (const ap of appliedSubs) {
-    if ((ap as any)?.position === "front") {
-      const subs = ((ap as any).subroutines as any[]) ?? [];
-      const uuid = (ap as any).uuid;
-      const cid = (ap as any).cid;
-      for (const s of subs) {
-        appliedFront.push({
-          ...s,
-          source: uuid,
-          fromCid: cid,
-        } as RuntimeSubroutine);
-      }
-    } else {
-      const subs = ((ap as any).subroutines as any[]) ?? [];
-      const uuid = (ap as any).uuid;
-      const cid = (ap as any).cid;
-      for (const s of subs) {
-        appliedEnd.push({
-          ...s,
-          source: uuid,
-          fromCid: cid,
-        } as RuntimeSubroutine);
-      }
+  for (const ap of appliedSubs as unknown as AppliedSubsEffect[]) {
+    const subs = (ap?.subroutines ?? []) as RawSub[];
+    const uuid = ap?.uuid;
+    const cid = ap?.cid;
+    const target = ap?.position === "front" ? appliedFront : appliedEnd;
+    for (const s of subs) {
+      target.push({
+        ...s,
+        source: uuid,
+        fromCid: cid,
+      } as RuntimeSubroutine);
     }
   }
 
@@ -162,11 +160,11 @@ export function updateIceSubroutines(
   const expected = getExpectedSubroutines(state, side, resolved);
   const active = (resolved.subroutines as RuntimeSubroutine[]) ?? [];
 
-  const expectedKeys = expected.map((s: any) => ({
+  const expectedKeys = expected.map((s: RuntimeSubroutine) => ({
     source: s.source,
     label: s.label,
   }));
-  const activeKeys = active.map((s: any) => ({ source: s.source, label: s.label }));
+  const activeKeys = active.map((s: RuntimeSubroutine) => ({ source: s.source, label: s.label }));
 
   const keysMatch =
     expectedKeys.length === activeKeys.length &&
@@ -179,10 +177,10 @@ export function updateIceSubroutines(
 
   const newSubs = reconcileSubroutines(expected, active)
     .map(buildUnbuiltSubs)
-    .map((sub: any, idx: any) => ({ ...sub, index: idx }));
+    .map((sub: RuntimeSubroutine, idx: number) => ({ ...sub, index: idx }));
 
   const updated = { ...resolved, subroutines: newSubs };
-  (update as any)(state, side, (_c: Card) => updated, updated);
+  update(state, side, updated);
   triggerEvent(state, side, "subroutines-changed", getCard(state, resolved));
   return true;
 }
@@ -231,7 +229,7 @@ export function updateAllIce(state: GameState, side: string): boolean {
  */
 export function pumpIce(card: Card, n: number, duration?: string): void;
 export function pumpIce(state: GameState, side: string, card: Card, n: number, duration?: string): void;
-export function pumpIce(...args: any[]): void {
+export function pumpIce(...args: unknown[]): void {
   if (typeof args[1] === "number") {
     // shorthand (card, n, duration?) — no state, no-op
     return;
@@ -248,7 +246,7 @@ export function pumpIce(...args: any[]): void {
     resolved,
     "ice-strength",
     duration,
-    req((s: State, sid: Side, eid: EID, c: Card, targets: any[]) => sameCard(c, targets[0])),
+    req((s: State, sid: Side, eid: EID, c: Card, targets: unknown[]) => sameCard(c, (targets as Card[])[0])),
     () => n,
   );
   updateIceStrength(state, side, resolved);
@@ -284,7 +282,7 @@ export function breakerStrength(
 ): number | null {
   if (card.strength === undefined || card.strength === null) return null;
   const cdef = getCardDef(card);
-  const strengthBonusFn = cdef.strengthBonus as ((...a: any[]) => number) | undefined;
+  const strengthBonusFn = cdef.strengthBonus as ((...a: unknown[]) => number) | undefined;
   const strengthBonus = strengthBonusFn
     ? strengthBonusFn(state, side, makeEID(state), card, [])
     : 0;
@@ -301,11 +299,11 @@ export function breakerStrengthBonus(
   bonus: number | ValueFn,
 ): Ability {
   return {
-    type: "breaker-strength" as any,
+    type: "breaker-strength",
     req: req(
       (state, side, eid, card, targets) =>
         sameCard(card, (targets as Card[])[0]) &&
-        (typeof reqFn === "function" ? (reqFn as any)(state, side, eid, card, targets) : !!reqFn),
+        (typeof reqFn === "function" ? reqFn(state, side, eid, card, targets) : !!reqFn),
     ),
     value: typeof bonus === "function" ? bonus : () => bonus,
   } as unknown as Ability;
@@ -328,7 +326,7 @@ export function updateBreakerStrength(
   const changed = oldStrength !== newStrength;
 
   const updated = { ...resolved, currentStrength: newStrength };
-  (update as any)(state, side, (_c: Card) => updated, updated);
+  update(state, side, updated);
   triggerEvent(state, side, "breaker-strength-changed", {
     card: getCard(state, resolved),
     oldStrength,
@@ -343,15 +341,18 @@ export function updateBreakerStrength(
  */
 export function updateAllIcebreakers(): (state: GameState, side: string) => boolean;
 export function updateAllIcebreakers(state: GameState, side: string): boolean;
-export function updateAllIcebreakers(state?: GameState, side?: string): any {
+export function updateAllIcebreakers(
+  state?: GameState,
+  side?: string,
+): boolean | ((s: GameState, sd: string) => boolean) {
   if (state === undefined) {
-    return (s: GameState, sd: string) => updateAllIcebreakers(s, sd);
+    return (s: GameState, sd: string) => _updateAllIcebreakers(s, sd);
   }
   return _updateAllIcebreakers(state, side!);
 }
 function _updateAllIcebreakers(state: GameState, side: string): boolean {
   let changed = false;
-  for (const ib of allActiveInstalled(state, RUNNER_SIDE).filter((c: any) =>
+  for (const ib of allActiveInstalled(state, RUNNER_SIDE).filter((c: Card) =>
     hasSubtype(c, "Icebreaker"),
   )) {
     if (updateBreakerStrength(state, side, ib)) changed = true;
@@ -371,21 +372,17 @@ function _updateAllIcebreakers(state: GameState, side: string): boolean {
  */
 export function pump(card: Card, n: number, duration?: string): void;
 export function pump(state: GameState, side: string, card: Card, n: number, duration?: string): void;
-export function pump(...args: any[]): void {
+export function pump(...args: unknown[]): void {
   let state: GameState, side: string, card: Card, n: number, duration: string;
   if (typeof args[1] === "number") {
-    // shorthand: (card, n, duration?)
-    card = args[0];
-    n = args[1];
-    duration = args[2] ?? "end-of-encounter";
-    // No state/side — best-effort: bail
+    // shorthand: (card, n, duration?) — no state, no-op
     return;
   }
-  state = args[0];
-  side = args[1];
-  card = args[2];
-  n = args[3];
-  duration = args[4] ?? "end-of-encounter";
+  state = args[0] as GameState;
+  side = args[1] as string;
+  card = args[2] as Card;
+  n = args[3] as number;
+  duration = (args[4] as string) ?? "end-of-encounter";
   const resolved = getCard(state, card) as Card;
   const floatingEffect = registerLingeringEffect(
     state,
@@ -393,7 +390,7 @@ export function pump(...args: any[]): void {
     resolved,
     "breaker-strength",
     duration,
-    req((s: State, sid: Side, eid: EID, c: Card, targets: any[]) => sameCard(c, targets[0])),
+    req((s: State, sid: Side, eid: EID, c: Card, targets: unknown[]) => sameCard(c, (targets as Card[])[0])),
     () => n,
   );
   updateBreakerStrength(state, side, resolved);
@@ -413,7 +410,7 @@ export function pumpAllIcebreakers(
   n: number,
   duration: string = "end-of-encounter",
 ): void {
-  for (const ib of allActiveInstalled(state, RUNNER_SIDE).filter((c: any) =>
+  for (const ib of allActiveInstalled(state, RUNNER_SIDE).filter((c: Card) =>
     hasSubtype(c, "Icebreaker"),
   )) {
     pump(state, side, ib, n, duration);
@@ -429,9 +426,9 @@ function addStealthToLabel(
 ): string | null {
   if (!Array.isArray(cost)) return null;
   const flat = cost.flat();
-  const creditCost = flat.find((c: any) => (c as any)?.type === "credit");
+  const creditCost = flat.find((c: Record<string, unknown> | undefined) => c?.type === "credit");
   if (!creditCost) return null;
-  const sv = stealthValue(creditCost as any);
+  const sv = stealthValue(creditCost as unknown as Costs1Cost);
   if (sv > 0) {
     return ` (using at least ${sv} stealth [Credits])`;
   }
@@ -451,18 +448,27 @@ function addStealthToLabel(
  * subtypes: String, string[], or null (any/AI).
  * args: Additional options (:label, :additional-ability, :req).
  */
+interface BreakSubArgs {
+  additionalAbility?: Ability;
+  autoBreakSort?: number;
+  breakCostBonus?: number | AbilityFn;
+  label?: string;
+  req?: ReqFn;
+  [k: string]: unknown;
+}
+
 export function breakSub(
-  cost: number | any[] | null,
+  cost: number | CostData[] | Record<string, unknown>[] | null,
   n: number | NumberFn,
   subtypes?: string | string[] | null,
-  args?: Record<string, unknown>,
+  args?: BreakSubArgs,
 ): Ability {
-  const costData =
+  const costData: Record<string, unknown>[] =
     cost == null
       ? []
       : typeof cost === "number"
-        ? [toC("credit", cost)]
-        : (cost as any[]);
+        ? [toC("credit", cost) as unknown as Record<string, unknown>]
+        : (cost as unknown as Record<string, unknown>[]);
   const subtypeSet: Set<string> = (() => {
     if (typeof subtypes === "string") return new Set([subtypes]);
     if (Array.isArray(subtypes)) return new Set(subtypes);
@@ -470,8 +476,8 @@ export function breakSub(
   })();
 
   const mergedArgs = { ...args, subtype: subtypeSet, break: n };
-  const hasTrashCan = mergeCosts([costData]).some(
-    (c) => (c as any)?.type === "trash-can",
+  const hasTrashCan = mergeCosts([costData as unknown as CostData[]]).some(
+    (c) => (c as unknown as Record<string, unknown> | undefined)?.type === "trash-can",
   );
 
   return {
@@ -484,7 +490,7 @@ export function breakSub(
       if (!isActiveIce(state, currentIce)) return false;
       if (
         !subtypeSet.has("All") &&
-        ![...subtypeSet].some((st: any) => hasSubtype(currentIce, st))
+        ![...subtypeSet].some((st: string) => hasSubtype(currentIce, st))
       )
         return false;
       const breakable = breakableSubroutinesChoice(
@@ -495,19 +501,19 @@ export function breakSub(
         currentIce,
       );
       if (!breakable || breakable.length === 0) return false;
-      if (args?.req && typeof (args.req as ReqFn) === "function") {
-        return (args.req as (...a: any[]) => any)(state, side, eid, card, targets);
+      if (args?.req && typeof args.req === "function") {
+        return args.req(state, side, eid, card, targets);
       }
       return true;
     }),
     break: n,
     breaks: [...subtypeSet],
     breakCost: costData,
-    additionalAbility: (args as any)?.additionalAbility,
-    autoBreakSort: (args as any)?.autoBreakSort,
-    breakCostBonus: (args as any)?.breakCostBonus,
+    additionalAbility: args?.additionalAbility,
+    autoBreakSort: args?.autoBreakSort,
+    breakCostBonus: args?.breakCostBonus,
     label: (() => {
-      const customLabel = (args as any)?.label;
+      const customLabel = args?.label;
       if (customLabel) return customLabel;
       const stealthSuffix = addStealthToLabel(costData) ?? "";
       const subTypeStr = !subtypeSet.has("All")
@@ -577,26 +583,37 @@ export function strengthPump(
       : duration === "end-of-turn"
         ? " for the remainder of the turn"
         : "";
-  const stealthSuffix = addStealthToLabel([costData as any]) ?? "";
+  const stealthSuffix = addStealthToLabel([costData as unknown as Record<string, unknown>]) ?? "";
+
+  interface StrengthPumpArgs {
+    label?: string;
+    req?: ReqFn;
+    pumpBonus?: number;
+    costBonus?: number;
+    autoBreakSort?: number;
+    autoPumpIgnore?: boolean;
+    [k: string]: unknown;
+  }
+  const sArgs = args as StrengthPumpArgs | undefined;
 
   return {
     label:
-      (args as any)?.label ??
+      sArgs?.label ??
       `add ${strength} strength${durationString}${stealthSuffix}`,
     req: req((state, side, eid, card, targets) => {
-      const strReq = (args as any)?.req as ReqFn | undefined;
+      const strReq = sArgs?.req;
       if (strReq) {
         if (typeof strReq !== "function") return !!strReq;
-        return (strReq as (...a: any[]) => any)(state, side, eid, card, targets);
+        return strReq(state, side, eid, card, targets);
       }
       return true;
     }),
     cost: [costData],
     pump: strength,
-    pumpBonus: (args as any)?.pumpBonus,
-    costBonus: (args as any)?.costBonus,
-    autoPumpSort: (args as any)?.autoBreakSort,
-    autoPumpIgnore: (args as any)?.autoPumpIgnore,
+    pumpBonus: sArgs?.pumpBonus,
+    costBonus: sArgs?.costBonus,
+    autoPumpSort: sArgs?.autoBreakSort,
+    autoPumpIgnore: sArgs?.autoPumpIgnore,
     msg: msg(
       "increase its strength from ",
       (s: GameState, sid: string, eid: EID, card: Card) => getStrength(card),
@@ -651,9 +668,9 @@ export function substituteXCreditCosts(
 ): (Record<string, unknown> | undefined)[] {
   if (x === undefined || x === null || scale === undefined || scale === null)
     return cost;
-  const adjusted = cost.filter((c: any) => (c as any)?.type !== "x-credits");
+  const adjusted = cost.filter((c) => c?.type !== "x-credits");
   if (adjusted.length === cost.length) return cost;
-  return [...adjusted, toC("credit", x * scale) as any];
+  return [...adjusted, toC("credit", x * scale) as unknown as Record<string, unknown>];
 }
 
 // ---------------------------------------------------------------------------
@@ -664,34 +681,48 @@ export function substituteXCreditCosts(
  * Returns an ability that auto-pumps and auto-breaks icebreakers.
  * Mirrors: breaker-auto-pump (the def value, not the defn)
  */
+interface IcebreakerAbility extends Ability {
+  dynamic?: string;
+  pump?: number;
+  break?: number;
+  breakReq?: (s: GameState, sd: string, e: EID, c: Card, t: Card[]) => boolean;
+  autoPumpIgnore?: boolean;
+  autoBreakCredsPerSub?: number;
+}
+
+interface PumpCandidate {
+  ability: IcebreakerAbility;
+  cost: CostData[];
+}
+
 export const breakerAutoPump: Ability = {
   silent: true,
   effect: req((state, side, eid, card, targets) => {
     const cdef = getCardDef(card);
-    const abilities = (card.abilities as Ability[]) ?? [];
+    const abilities = (card.abilities as IcebreakerAbility[]) ?? [];
     const abs = abilities.filter(
-      (a) =>
-        (a as any).dynamic !== "auto-pump" &&
-        (a as any).dynamic !== "auto-pump-and-break",
+      (a: IcebreakerAbility) =>
+        a.dynamic !== "auto-pump" &&
+        a.dynamic !== "auto-pump-and-break",
     );
     const currentIce = getCurrentIce(state);
     if (!currentIce) return;
 
     // Find pump ability
-    const defAbilities = (cdef.abilities as Ability[]) ?? [];
-    const canPump = (ability: Ability) => {
-      if (!(ability as any).pump) return false;
-      const reqFn = (ability as any).req as ReqFn | undefined;
+    const defAbilities = (cdef.abilities as IcebreakerAbility[]) ?? [];
+    const canPump = (ability: IcebreakerAbility) => {
+      if (!ability.pump) return false;
+      const reqFn = ability.req;
       if (reqFn) {
         if (typeof reqFn !== "function") return !!reqFn;
-        return (reqFn as (...a: any[]) => any)(state, side, eid, card, []);
+        return reqFn(state, side, eid, card, []);
       }
       return true;
     };
 
-    const pumpCandidates = defAbilities
-      .filter((a: any) => !(a as any).autoPumpIgnore)
-      .map((ability: any) => {
+    const pumpCandidates: PumpCandidate[] = defAbilities
+      .filter((a: IcebreakerAbility) => !a.autoPumpIgnore)
+      .map((ability: IcebreakerAbility): PumpCandidate | null => {
         if (canPump(ability)) {
           const cost = cardAbilityCost(state, side, ability, card, [
             currentIce,
@@ -700,25 +731,15 @@ export const breakerAutoPump: Ability = {
         }
         return null;
       })
-      .filter(Boolean) as unknown as {
-      ability: Ability;
-      cost: Record<string, unknown>[];
-    }[];
+      .filter((x): x is PumpCandidate => x !== null);
+
+    const sumCost = (cs: CostData[]): number =>
+      cs.reduce((s: number, c: CostData) => s + ((c as unknown as { amount?: number })?.amount ?? 0), 0);
 
     const pumpAbilityEntry =
       pumpCandidates.length > 0
-        ? pumpCandidates.reduce((best: any, entry: any) => {
-            const bestCost = best.cost ?? [];
-            const entryCost = entry.cost ?? [];
-            const bestTotal = (bestCost as any[]).reduce(
-              (s: number, c: any) => s + ((c as any)?.amount ?? 0),
-              0,
-            );
-            const entryTotal = (entryCost as any[]).reduce(
-              (s: number, c: any) => s + ((c as any)?.amount ?? 0),
-              0,
-            );
-            return entryTotal <= bestTotal ? entry : best;
+        ? pumpCandidates.reduce((best: PumpCandidate, entry: PumpCandidate) => {
+            return sumCost(entry.cost ?? []) <= sumCost(best.cost ?? []) ? entry : best;
           }, pumpCandidates[0])
         : null;
 
@@ -744,25 +765,23 @@ export const breakerAutoPump: Ability = {
       pumpAbility && timesPump > 0 ? Array(timesPump).fill(pumpCost) : null;
 
     // Break ability
-    const canBreak = (ability: Ability) => {
-      if (!(ability as any).breakReq) return false;
-      return (ability as any).breakReq(state, side, eid, card, []);
+    const canBreak = (ability: IcebreakerAbility) => {
+      if (!ability.breakReq) return false;
+      return ability.breakReq(state, side, eid, card, []);
     };
 
     const breakAbility = defAbilities.find(canBreak) ?? null;
     const breakCost = breakAbility
       ? breakSubAbilityCost(state, side, breakAbility, card, [currentIce])
       : null;
-    const subsBrokenAtOnce = breakAbility
-      ? ((breakAbility as any).break ?? 1)
-      : 0;
+    const subsBrokenAtOnce = breakAbility ? (breakAbility.break ?? 1) : 0;
 
     const subs = (currentIce.subroutines as RuntimeSubroutine[]) ?? [];
-    const unbrokenSubs = subs.filter((s: any) => !s.broken).length;
+    const unbrokenSubs = subs.filter((s: RuntimeSubroutine) => !s.broken).length;
 
     // Check for unbreakable subs
     const noUnbreakableSubs =
-      subs.filter((s: any) => {
+      subs.filter((s: RuntimeSubroutine) => {
         const breakable = s.breakable;
         if (typeof breakable === "function") {
           return (
@@ -793,7 +812,7 @@ export const breakerAutoPump: Ability = {
       ? substituteXCreditCosts(
           breakCost as unknown as (Record<string, unknown> | undefined)[],
           unbrokenSubs,
-          (breakAbility as any)?.autoBreakCredsPerSub ?? 1,
+          breakAbility?.autoBreakCredsPerSub ?? 1,
         )
       : null;
 
@@ -802,7 +821,7 @@ export const breakerAutoPump: Ability = {
         ? Array(timesBreak).fill(adjustedBreakCost)
         : null;
 
-    const totalCost = mergeCosts([totalPumpCost, totalBreakCost] as any);
+    const totalCost = mergeCosts([totalPumpCost, totalBreakCost].filter(Boolean) as unknown as CostData[][]);
 
     const hasEncounter = state.encounters.length > 0;
     const iceActive = isActiveIce(state, currentIce);
@@ -836,13 +855,13 @@ export const breakerAutoPump: Ability = {
             }
           : null;
 
-      const newAbs = [...abs];
-      if (autoBreakAbility) newAbs.push(autoBreakAbility as any);
-      if (autoPumpAbility) newAbs.push(autoPumpAbility as any);
+      const newAbs: IcebreakerAbility[] = [...abs];
+      if (autoBreakAbility) newAbs.push(autoBreakAbility as IcebreakerAbility);
+      if (autoPumpAbility) newAbs.push(autoPumpAbility as IcebreakerAbility);
 
-      (update as any)(state, side, (c: Card) => ({ ...c, abilities: newAbs }), card);
+      update(state, side, { ...card, abilities: newAbs });
     } else {
-      (update as any)(state, side, (c: Card) => ({ ...c, abilities: abs }), card);
+      update(state, side, { ...card, abilities: abs });
     }
   }),
 } as unknown as Ability;
@@ -867,7 +886,7 @@ export function autoIcebreaker(cdef: CardDef): CardDef {
     "ice-subtype-changed",
     "breaker-strength-changed",
     "subroutines-changed",
-  ].map((event: any) => ({ ...breakerAutoPump, event }) as any);
+  ].map((event: string) => ({ ...breakerAutoPump, event } as Ability));
 
   return {
     ...cdef,

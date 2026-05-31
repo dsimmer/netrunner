@@ -3,7 +3,7 @@
 
 import type { GameState, Effect, MemoryBucket } from "./state";
 import type { Card } from "./card";
-import type { EID, ReqFn, Side, State, StaticAbility, ValueFn } from "./types";
+import type { AbilityFn, EID, ReqFn, Side, State, StaticAbility, ValueFn } from "./types";
 import { hasSubtype, isProgram } from "./card";
 import { cardDef } from "./card_defs";
 import { makeEID } from "./eid";
@@ -335,15 +335,21 @@ function shallowEqualMu(
  */
 export function someMuEffect(state: GameState, card: Card): number {
   const def = cardDef(card);
-  const ab = def.staticAbilities?.find((a: any) => a.type === "used-mu");
+  const ab = def.staticAbilities?.find((a: { type?: string }) => a.type === "used-mu");
   if (!ab) return 0;
   const eid = makeEID(state);
-  if (ab.req) {
-    const ok = typeof ab.req === "function" ? (ab.req as any)(state, "runner", eid, card, []) : !!ab.req;
+  const reqFn = (ab as { req?: unknown }).req;
+  if (reqFn) {
+    const ok = typeof reqFn === "function"
+      ? !!(reqFn as AbilityFn)(state, "runner", eid, card, [])
+      : !!reqFn;
     if (!ok) return 0;
   }
-  if (!ab.value) return 0;
-  const v = typeof ab.value === "function" ? (ab.value as any)(state, "runner", eid, card, []) : ab.value;
+  const valueFn = (ab as { value?: unknown }).value;
+  if (!valueFn) return 0;
+  const v = typeof valueFn === "function"
+    ? (valueFn as AbilityFn)(state, "runner", eid, card, [])
+    : valueFn;
   return typeof v === "number" ? v : 0;
 }
 
@@ -412,15 +418,21 @@ export function initMuCost(state: GameState, card: Card): void {
 import { getXFn } from "./def_helpers_2";
 
 /** Resolved get-x-fn — see clojure `get-x-fn`. */
-export const getxFn = (state: State, side: Side, eid: EID, card: Card, targets: any[]) =>
+export const getxFn = (state: State, side: Side, eid: EID, card: Card | null, targets: unknown[]) =>
   getXFn()(state, side, eid, card, targets);
 
-/** Returns total MU. Alias for availableMu summing. */
-export function getMemory(state: any): number {
-  return availableMu(state as any);
+/** Returns total MU. Alias for availableMu summing.
+ *  Permissive — some tier-2 card callers (programs_1.ts:166) pass a Card by mistake;
+ *  those return 0 rather than crashing. */
+export function getMemory(stateOrCard: GameState | Card): number {
+  if (stateOrCard && typeof stateOrCard === "object" && "runner" in stateOrCard) {
+    return availableMu(stateOrCard as GameState);
+  }
+  return 0;
 }
 
 /** Returns MU value on a card. */
-export function getMu(card: any): number {
-  return card?.memoryunits ?? card?.memoryUnits ?? 0;
+export function getMu(card: Card | { memoryunits?: number; memoryUnits?: number } | null | undefined): number {
+  const c = card as { memoryunits?: number; memoryUnits?: number } | null | undefined;
+  return c?.memoryunits ?? c?.memoryUnits ?? 0;
 }

@@ -77,3 +77,7 @@ data/cards-zh-hant.edn
 .claude/
 
 dist/*
+
+# Port-verification ephemera (track ledger.jsonl, STATUS.md, and findings/ only)
+work/verification/baselines/
+work/verification/locks/

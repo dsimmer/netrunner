@@ -866,13 +866,15 @@ export const formicary: CardDef = {
                 "uses Formicary to move itself to the innermost position of the attacked server. The runner is now encountering it",
               );
               const currentCard = coreCard.getCard(state, card);
-              coreMoving.move(
-                state,
-                side,
-                currentCard,
-                [":servers", coreRuns.targetServer(state), ":ices"],
-                { front: true },
-              );
+              if (currentCard) {
+                coreMoving.move(
+                  state,
+                  side,
+                  currentCard,
+                  [":servers", coreRuns.targetServer(state) ?? "", ":ices"],
+                  { front: true },
+                );
+              }
               (state as any).run.position = 1;
               coreRuns.setNextPhase(state, ":encounter-ice");
               coreRuns.setCurrentIce(state);
